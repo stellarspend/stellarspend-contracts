@@ -2,10 +2,13 @@
 
 #![cfg(test)]
 
-use crate::{Transaction, TransactionAnalyticsContract, TransactionAnalyticsContractClient};
+use crate::{
+    BudgetRecommendation, Transaction, TransactionAnalyticsContract,
+    TransactionAnalyticsContractClient, UserBudgetData,
+};
 use soroban_sdk::{
     testutils::{Address as _, Events},
-    Address, Env, Symbol, Vec,
+    Address, Env, Map, Symbol, Vec,
 };
 
 /// Creates a test environment with the contract deployed and initialized.
@@ -398,4 +401,283 @@ fn test_same_category_aggregation() {
 
     assert_eq!(metrics.tx_count, 3);
     assert_eq!(metrics.total_volume, 600);
+}
+
+// ============================================================================
+// Budget Recommendations Tests
+// ============================================================================
+
+/// Helper to create test user budget data.
+fn create_user_budget_data(
+    env: &Env,
+    monthly_income: i128,
+    spending: Vec<(Symbol, i128)>,
+    risk_tolerance: u8,
+) -> UserBudgetData {
+    let mut spending_map: Map<Symbol, i128> = Map::new(env);
+    for (category, amount) in spending.iter() {
+        spending_map.set(category.clone(), amount.clone());
+    }
+
+    UserBudgetData {
+        user: Address::generate(env),
+        monthly_income,
+        spending_by_category: spending_map,
+        savings_goal: None,
+        risk_tolerance,
+    }
+}
+
+#[test]
+fn test_generate_batch_budget_recommendations_single_user() {
+    let (env, admin, client) = setup_test_env();
+
+    let mut users: Vec<UserBudgetData> = Vec::new(&env);
+    let mut spending: Vec<(Symbol, i128)> = Vec::new(&env);
+    spending.push_back((Symbol::new(&env, "food"), 1000));
+    spending.push_back((Symbol::new(&env, "transport"), 500));
+
+    users.push_back(create_user_budget_data(&env, 5000, spending, 3));
+
+    let recommendations = client.generate_batch_budget_recommendations(&admin, &users);
+
+    assert_eq!(recommendations.len(), 1);
+    let rec = recommendations.get(0).unwrap();
+    assert_eq!(rec.user, users.get(0).unwrap().user);
+    assert!(rec.recommended_savings > 0);
+    assert!(rec.recommended_emergency_fund > 0);
+    assert!(rec.confidence_score >= 60);
+}
+
+#[test]
+fn test_generate_batch_budget_recommendations_multiple_users() {
+    let (env, admin, client) = setup_test_env();
+
+    let mut users: Vec<UserBudgetData> = Vec::new(&env);
+
+    // User 1: Moderate income, moderate spending
+    let mut spending1: Vec<(Symbol, i128)> = Vec::new(&env);
+    spending1.push_back((Symbol::new(&env, "food"), 800));
+    spending1.push_back((Symbol::new(&env, "transport"), 400));
+    users.push_back(create_user_budget_data(&env, 4000, spending1, 3));
+
+    // User 2: High income, high spending, aggressive
+    let mut spending2: Vec<(Symbol, i128)> = Vec::new(&env);
+    spending2.push_back((Symbol::new(&env, "food"), 1500));
+    spending2.push_back((Symbol::new(&env, "housing"), 2000));
+    users.push_back(create_user_budget_data(&env, 8000, spending2, 5));
+
+    // User 3: Low income, conservative
+    let mut spending3: Vec<(Symbol, i128)> = Vec::new(&env);
+    spending3.push_back((Symbol::new(&env, "food"), 500));
+    users.push_back(create_user_budget_data(&env, 2000, spending3, 1));
+
+    let recommendations = client.generate_batch_budget_recommendations(&admin, &users);
+
+    assert_eq!(recommendations.len(), 3);
+
+    // Check User 2 (aggressive) has higher savings recommendation
+    let rec2 = recommendations.get(1).unwrap();
+    assert!(rec2.recommended_savings >= 2000); // Should be around 40% of 8000 = 3200
+
+    // Check User 3 (conservative) has higher emergency fund
+    let rec3 = recommendations.get(2).unwrap();
+    assert!(rec3.recommended_emergency_fund > 0);
+}
+
+#[test]
+fn test_budget_recommendations_events_emitted() {
+    let (env, admin, client) = setup_test_env();
+
+    let mut users: Vec<UserBudgetData> = Vec::new(&env);
+    let mut spending: Vec<(Symbol, i128)> = Vec::new(&env);
+    spending.push_back((Symbol::new(&env, "food"), 1000));
+    users.push_back(create_user_budget_data(&env, 5000, spending, 3));
+
+    client.generate_batch_budget_recommendations(&admin, &users);
+
+    let events = env.events().all();
+    // Should have: recommendations_started, recommendation_generated, recommendations_completed
+    assert!(events.len() >= 3);
+}
+
+#[test]
+fn test_get_recommendation_batch() {
+    let (env, admin, client) = setup_test_env();
+
+    let mut users: Vec<UserBudgetData> = Vec::new(&env);
+    let mut spending: Vec<(Symbol, i128)> = Vec::new(&env);
+    spending.push_back((Symbol::new(&env, "food"), 1000));
+    users.push_back(create_user_budget_data(&env, 5000, spending, 3));
+
+    let generated = client.generate_batch_budget_recommendations(&admin, &users);
+    let stored = client.get_recommendation_batch(&1).unwrap();
+
+    assert_eq!(stored.len(), generated.len());
+    assert_eq!(
+        stored.get(0).unwrap().user,
+        generated.get(0).unwrap().user
+    );
+}
+
+#[test]
+fn test_get_nonexistent_recommendation_batch() {
+    let (_, _, client) = setup_test_env();
+
+    let recommendations = client.get_recommendation_batch(&999);
+    assert!(recommendations.is_none());
+}
+
+#[test]
+fn test_recommendation_batch_id_increments() {
+    let (env, admin, client) = setup_test_env();
+
+    let mut users: Vec<UserBudgetData> = Vec::new(&env);
+    let mut spending: Vec<(Symbol, i128)> = Vec::new(&env);
+    spending.push_back((Symbol::new(&env, "food"), 1000));
+    users.push_back(create_user_budget_data(&env, 5000, spending, 3));
+
+    assert_eq!(client.get_last_recommendation_batch_id(), 0);
+
+    client.generate_batch_budget_recommendations(&admin, &users);
+    assert_eq!(client.get_last_recommendation_batch_id(), 1);
+
+    client.generate_batch_budget_recommendations(&admin, &users);
+    assert_eq!(client.get_last_recommendation_batch_id(), 2);
+}
+
+#[test]
+fn test_simulate_budget_recommendation() {
+    let (env, _admin, client) = setup_test_env();
+
+    let mut spending: Vec<(Symbol, i128)> = Vec::new(&env);
+    spending.push_back((Symbol::new(&env, "food"), 1000));
+    let user_data = create_user_budget_data(&env, 5000, spending, 3);
+
+    // Simulate should not increment batch ID
+    let recommendation = client.simulate_budget_recommendation(&user_data);
+
+    assert_eq!(recommendation.user, user_data.user);
+    assert!(recommendation.recommended_savings > 0);
+    assert_eq!(client.get_last_recommendation_batch_id(), 0);
+}
+
+#[test]
+#[should_panic]
+fn test_empty_budget_batch_rejected() {
+    let (env, admin, client) = setup_test_env();
+
+    let users: Vec<UserBudgetData> = Vec::new(&env);
+    client.generate_batch_budget_recommendations(&admin, &users);
+}
+
+#[test]
+#[should_panic]
+fn test_invalid_budget_data_rejected() {
+    let (env, admin, client) = setup_test_env();
+
+    let mut users: Vec<UserBudgetData> = Vec::new(&env);
+    let mut spending: Map<Symbol, i128> = Map::new(&env);
+    spending.set(Symbol::new(&env, "food"), 1000);
+
+    // Invalid: zero income
+    let user_data = UserBudgetData {
+        user: Address::generate(&env),
+        monthly_income: 0,
+        spending_by_category: spending,
+        savings_goal: None,
+        risk_tolerance: 3,
+    };
+    users.push_back(user_data);
+
+    client.generate_batch_budget_recommendations(&admin, &users);
+}
+
+#[test]
+#[should_panic]
+fn test_invalid_risk_tolerance_rejected() {
+    let (env, admin, client) = setup_test_env();
+
+    let mut users: Vec<UserBudgetData> = Vec::new(&env);
+    let mut spending: Map<Symbol, i128> = Map::new(&env);
+    spending.set(Symbol::new(&env, "food"), 1000);
+
+    // Invalid: risk tolerance out of range
+    let user_data = UserBudgetData {
+        user: Address::generate(&env),
+        monthly_income: 5000,
+        spending_by_category: spending,
+        savings_goal: None,
+        risk_tolerance: 6, // Invalid: should be 1-5
+    };
+    users.push_back(user_data);
+
+    client.generate_batch_budget_recommendations(&admin, &users);
+}
+
+#[test]
+#[should_panic]
+fn test_unauthorized_budget_recommendations() {
+    let (env, _, client) = setup_test_env();
+
+    let mut users: Vec<UserBudgetData> = Vec::new(&env);
+    let mut spending: Vec<(Symbol, i128)> = Vec::new(&env);
+    spending.push_back((Symbol::new(&env, "food"), 1000));
+    users.push_back(create_user_budget_data(&env, 5000, spending, 3));
+
+    let unauthorized = Address::generate(&env);
+    client.generate_batch_budget_recommendations(&unauthorized, &users);
+}
+
+#[test]
+fn test_budget_recommendation_with_savings_goal() {
+    let (env, admin, client) = setup_test_env();
+
+    let mut users: Vec<UserBudgetData> = Vec::new(&env);
+    let mut spending: Map<Symbol, i128> = Map::new(&env);
+    spending.set(Symbol::new(&env, "food"), 1000);
+
+    let user_data = UserBudgetData {
+        user: Address::generate(&env),
+        monthly_income: 5000,
+        spending_by_category: spending,
+        savings_goal: Some(1500), // User wants to save 1500/month
+        risk_tolerance: 3,
+    };
+    users.push_back(user_data);
+
+    let recommendations = client.generate_batch_budget_recommendations(&admin, &users);
+    let rec = recommendations.get(0).unwrap();
+
+    // Should respect user's savings goal if reasonable
+    assert!(rec.recommended_savings > 0);
+}
+
+#[test]
+fn test_budget_recommendation_confidence_score() {
+    let (env, admin, client) = setup_test_env();
+
+    // User with many categories (high confidence)
+    let mut users: Vec<UserBudgetData> = Vec::new(&env);
+    let mut spending: Map<Symbol, i128> = Map::new(&env);
+    spending.set(Symbol::new(&env, "food"), 500);
+    spending.set(Symbol::new(&env, "transport"), 300);
+    spending.set(Symbol::new(&env, "housing"), 1000);
+    spending.set(Symbol::new(&env, "utilities"), 200);
+    spending.set(Symbol::new(&env, "entertainment"), 400);
+
+    let user_data = UserBudgetData {
+        user: Address::generate(&env),
+        monthly_income: 5000,
+        spending_by_category: spending,
+        savings_goal: None,
+        risk_tolerance: 3,
+    };
+    users.push_back(user_data);
+
+    let recommendations = client.generate_batch_budget_recommendations(&admin, &users);
+    let rec = recommendations.get(0).unwrap();
+
+    // With 5+ categories, confidence should be high (90)
+    assert!(rec.confidence_score >= 75);
 }

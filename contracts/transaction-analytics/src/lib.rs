@@ -26,10 +26,13 @@ use soroban_sdk::{contract, contractimpl, panic_with_error, Address, Env, Vec};
 
 pub use crate::analytics::{
     compute_batch_checksum, compute_batch_metrics, compute_category_metrics,
-    find_high_value_transactions, validate_batch,
+    find_high_value_transactions, generate_batch_recommendations,
+    generate_budget_recommendation, validate_batch, validate_batch_budget_data,
+    validate_user_budget_data,
 };
 pub use crate::types::{
-    AnalyticsEvents, BatchMetrics, CategoryMetrics, DataKey, Transaction, MAX_BATCH_SIZE,
+    AnalyticsEvents, BatchMetrics, BudgetRecommendation, CategoryMetrics, DataKey, Transaction,
+    UserBudgetData, MAX_BATCH_SIZE,
 };
 
 /// Error codes for the analytics contract.
@@ -48,6 +51,12 @@ pub enum AnalyticsError {
     BatchTooLarge = 5,
     /// Invalid transaction amount
     InvalidAmount = 6,
+    /// Invalid user budget data
+    InvalidBudgetData = 7,
+    /// Budget batch is empty
+    EmptyBudgetBatch = 8,
+    /// Budget batch exceeds maximum size
+    BudgetBatchTooLarge = 9,
 }
 
 impl From<AnalyticsError> for soroban_sdk::Error {
@@ -229,6 +238,121 @@ impl TransactionAnalyticsContract {
         Self::require_admin(&env, &current_admin);
 
         env.storage().instance().set(&DataKey::Admin, &new_admin);
+    }
+
+    /// Generates AI-driven budget recommendations for multiple users in a batch operation.
+    ///
+    /// This function processes multiple users' budget data and generates personalized
+    /// recommendations using optimized on-chain computation. It validates inputs, emits
+    /// events, and stores results efficiently.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `caller` - The address calling this function (must be admin)
+    /// * `users` - Vector of user budget data to process
+    ///
+    /// # Returns
+    /// * `Vec<BudgetRecommendation>` - Generated recommendations for each user
+    ///
+    /// # Events Emitted
+    /// * `recommendations_started` - When processing begins
+    /// * `recommendation_generated` - For each generated recommendation
+    /// * `recommendations_completed` - When processing completes
+    pub fn generate_batch_budget_recommendations(
+        env: Env,
+        caller: Address,
+        users: Vec<UserBudgetData>,
+    ) -> Vec<BudgetRecommendation> {
+        // Verify authorization
+        caller.require_auth();
+        Self::require_admin(&env, &caller);
+
+        // Validate batch
+        let user_count = users.len();
+        if user_count == 0 {
+            panic_with_error!(&env, AnalyticsError::EmptyBudgetBatch);
+        }
+        if user_count > MAX_BATCH_SIZE {
+            panic_with_error!(&env, AnalyticsError::BudgetBatchTooLarge);
+        }
+
+        // Validate user budget data
+        if let Err(_) = validate_batch_budget_data(&users) {
+            panic_with_error!(&env, AnalyticsError::InvalidBudgetData);
+        }
+
+        // Get next recommendation batch ID
+        let batch_id: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::LastRecommendationBatchId)
+            .unwrap_or(0)
+            + 1;
+
+        // Emit start event
+        AnalyticsEvents::recommendations_started(&env, batch_id, user_count);
+
+        // Generate recommendations (optimized single-pass computation)
+        let current_ledger = env.ledger().sequence() as u64;
+        let recommendations = generate_batch_recommendations(&env, &users, current_ledger);
+
+        // Emit recommendation events for each user
+        for recommendation in recommendations.iter() {
+            AnalyticsEvents::recommendation_generated(&env, batch_id, &recommendation);
+        }
+
+        // Store batch recommendations
+        env.storage()
+            .instance()
+            .set(&DataKey::LastRecommendationBatchId, &batch_id);
+        env.storage()
+            .persistent()
+            .set(&DataKey::RecommendationBatch(batch_id), &recommendations);
+
+        // Emit completion event
+        AnalyticsEvents::recommendations_completed(&env, batch_id, user_count);
+
+        recommendations
+    }
+
+    /// Retrieves stored budget recommendations for a specific batch.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `batch_id` - The ID of the recommendation batch to retrieve
+    ///
+    /// # Returns
+    /// * `Option<Vec<BudgetRecommendation>>` - The stored recommendations if found
+    pub fn get_recommendation_batch(
+        env: Env,
+        batch_id: u64,
+    ) -> Option<Vec<BudgetRecommendation>> {
+        env.storage()
+            .persistent()
+            .get(&DataKey::RecommendationBatch(batch_id))
+    }
+
+    /// Returns the last processed recommendation batch ID.
+    pub fn get_last_recommendation_batch_id(env: Env) -> u64 {
+        env.storage()
+            .instance()
+            .get(&DataKey::LastRecommendationBatchId)
+            .unwrap_or(0)
+    }
+
+    /// Generates a budget recommendation for a single user (simulation, no storage).
+    ///
+    /// Useful for testing or previewing recommendations before batch processing.
+    pub fn simulate_budget_recommendation(
+        env: Env,
+        user_data: UserBudgetData,
+    ) -> BudgetRecommendation {
+        if let Err(_) = validate_user_budget_data(&user_data) {
+            panic_with_error!(&env, AnalyticsError::InvalidBudgetData);
+        }
+
+        let current_ledger = env.ledger().sequence() as u64;
+        generate_budget_recommendation(&env, &user_data, current_ledger)
     }
 
     // Internal helper to verify admin
