@@ -8,7 +8,7 @@
 
 use soroban_sdk::{Address, Env, Map, Symbol, Vec};
 
-use crate::types::{BatchMetrics, CategoryMetrics, Transaction, MAX_BATCH_SIZE};
+use crate::types::{BatchMetrics, CategoryMetrics, Transaction, RefundRequest, RefundResult, RefundStatus, RefundBatchMetrics, MAX_BATCH_SIZE};
 
 /// Computes aggregated metrics for a batch of transactions.
 ///
@@ -19,7 +19,7 @@ pub fn compute_batch_metrics(
     transactions: &Vec<Transaction>,
     processed_at: u64,
 ) -> BatchMetrics {
-    let tx_count = transactions.len();
+    let tx_count = transactions.len() as u32;
 
     if tx_count == 0 {
         return BatchMetrics {
@@ -143,7 +143,7 @@ pub fn find_high_value_transactions(
 ///
 /// Returns Ok(()) if valid, or an error message if invalid.
 pub fn validate_batch(transactions: &Vec<Transaction>) -> Result<(), &'static str> {
-    let count = transactions.len();
+    let count = transactions.len() as u32;
 
     if count == 0 {
         return Err("Batch cannot be empty");
@@ -174,6 +174,171 @@ pub fn compute_batch_checksum(transactions: &Vec<Transaction>) -> u64 {
     }
 
     checksum
+}
+
+/// Validates refund eligibility for a transaction.
+///
+/// Checks if a transaction is eligible for refund based on its status.
+/// In a real implementation, this would check against actual transaction status.
+pub fn validate_refund_eligibility(
+    env: &Env,
+    tx_id: u64,
+    refunded_txs: &Map<u64, bool>,
+) -> RefundStatus {
+    // Check if already refunded
+    if refunded_txs.contains_key(tx_id) {
+        return RefundStatus::AlreadyRefunded;
+    }
+
+    // Simulate checking transaction status
+    // In a real implementation, this would query the actual transaction status
+    // For demo purposes, we'll treat odd-numbered tx_ids as failed/canceled
+    if tx_id % 2 == 1 {
+        RefundStatus::Eligible
+    } else {
+        RefundStatus::NotEligible
+    }
+}
+
+/// Processes a batch of refund requests.
+///
+/// Handles partial failures gracefully - continues processing even if some refunds fail.
+/// Returns individual results for each refund attempt.
+pub fn process_refund_batch(
+    env: &Env,
+    refund_requests: &Vec<RefundRequest>,
+    transaction_lookup: &Map<u64, Transaction>,
+    refunded_txs: &mut Map<u64, bool>,
+) -> Vec<RefundResult> {
+    let mut results: Vec<RefundResult> = Vec::new(env);
+    
+    for request in refund_requests.iter() {
+        let status = validate_refund_eligibility(env, request.tx_id, refunded_txs);
+        
+        match status {
+            RefundStatus::Eligible => {
+                // Check if transaction exists
+                if let Some(transaction) = transaction_lookup.get(request.tx_id) {
+                    // Mark as refunded to prevent duplicates
+                    refunded_txs.set(request.tx_id, true);
+                    
+                    let result = RefundResult {
+                        tx_id: request.tx_id,
+                        success: true,
+                        status: RefundStatus::Eligible,
+                        amount_refunded: transaction.amount,
+                        error_message: None,
+                    };
+                    results.push_back(result);
+                } else {
+                    let result = RefundResult {
+                        tx_id: request.tx_id,
+                        success: false,
+                        status: RefundStatus::NotFound,
+                        amount_refunded: 0,
+                        error_message: Some(Symbol::new(env, "Transaction not found")),
+                    };
+                    results.push_back(result);
+                }
+            },
+            _ => {
+                // Handle ineligible refunds
+                let error_msg = match status {
+                    RefundStatus::AlreadyRefunded => Some(Symbol::new(env, "Already refunded")),
+                    RefundStatus::Pending => Some(Symbol::new(env, "Transaction pending")),
+                    RefundStatus::NotEligible => Some(Symbol::new(env, "Not eligible for refund")),
+                    RefundStatus::NotFound => Some(Symbol::new(env, "Transaction not found")),
+                    _ => Some(Symbol::new(env, "Unknown error")),
+                };
+                
+                let result = RefundResult {
+                    tx_id: request.tx_id,
+                    success: false,
+                    status,
+                    amount_refunded: 0,
+                    error_message: error_msg,
+                };
+                results.push_back(result);
+            }
+        }
+    }
+    
+    results
+}
+
+/// Computes aggregated metrics from a batch of refund results.
+pub fn compute_refund_metrics(
+    env: &Env,
+    refund_results: &Vec<RefundResult>,
+    processed_at: u64,
+) -> RefundBatchMetrics {
+    let request_count = refund_results.len();
+    
+    if request_count == 0 {
+        return RefundBatchMetrics {
+            request_count: 0,
+            successful_refunds: 0,
+            failed_refunds: 0,
+            total_refunded_amount: 0,
+            avg_refund_amount: 0,
+            processed_at,
+        };
+    }
+    
+    let mut successful_refunds: u32 = 0;
+    let mut failed_refunds: u32 = 0;
+    let mut total_refunded_amount: i128 = 0;
+    
+    for result in refund_results.iter() {
+        if result.success {
+            successful_refunds += 1;
+            total_refunded_amount = total_refunded_amount
+                .checked_add(result.amount_refunded)
+                .unwrap_or(i128::MAX);
+        } else {
+            failed_refunds += 1;
+        }
+    }
+    
+    let avg_refund_amount = if successful_refunds > 0 {
+        total_refunded_amount / (successful_refunds as i128)
+    } else {
+        0
+    };
+    
+    RefundBatchMetrics {
+        request_count: request_count as u32,
+        successful_refunds,
+        failed_refunds,
+        total_refunded_amount,
+        avg_refund_amount,
+        processed_at,
+    }
+}
+
+/// Validates a batch of refund requests.
+pub fn validate_refund_batch(refund_requests: &Vec<RefundRequest>) -> Result<(), &'static str> {
+    let count = refund_requests.len() as u32;
+    
+    if count == 0 {
+        return Err("Refund batch cannot be empty");
+    }
+    
+    if count > MAX_BATCH_SIZE {
+        return Err("Refund batch exceeds maximum size");
+    }
+    
+    // Check for duplicate transaction IDs
+    let mut seen_tx_ids: Map<u64, bool> = Map::new(&Env::default());
+    
+    for request in refund_requests.iter() {
+        if seen_tx_ids.contains_key(request.tx_id) {
+            return Err("Duplicate transaction ID in refund batch");
+        }
+        seen_tx_ids.set(request.tx_id, true);
+    }
+    
+    Ok(())
 }
 
 #[cfg(test)]

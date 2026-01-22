@@ -2,10 +2,10 @@
 
 #![cfg(test)]
 
-use crate::{Transaction, TransactionAnalyticsContract, TransactionAnalyticsContractClient};
+use crate::{Transaction, TransactionAnalyticsContract, TransactionAnalyticsContractClient, RefundRequest, RefundStatus};
 use soroban_sdk::{
     testutils::{Address as _, Events},
-    Address, Env, Symbol, Vec,
+    Address, Env, Symbol, Vec, Map,
 };
 
 /// Creates a test environment with the contract deployed and initialized.
@@ -398,4 +398,234 @@ fn test_same_category_aggregation() {
 
     assert_eq!(metrics.tx_count, 3);
     assert_eq!(metrics.total_volume, 600);
+}
+
+/// Helper to create a refund request.
+fn create_refund_request(env: &Env, tx_id: u64, reason: Option<&str>) -> RefundRequest {
+    RefundRequest {
+        tx_id,
+        reason: reason.map(|r| Symbol::new(env, r)),
+    }
+}
+
+/// Helper to create a transaction lookup map.
+fn create_transaction_lookup(env: &Env, transactions: &Vec<Transaction>) -> Map<u64, Transaction> {
+    let mut lookup = Map::new(env);
+    for tx in transactions.iter() {
+        lookup.set(tx.tx_id, tx.clone());
+    }
+    lookup
+}
+
+// ============================================================================
+// Refund Tests
+// ============================================================================
+
+#[test]
+fn test_refund_single_eligible_transaction() {
+    let (env, admin, client) = setup_test_env();
+    
+    // Create some transactions first
+    let mut transactions: Vec<Transaction> = Vec::new(&env);
+    transactions.push_back(create_transaction(&env, 1, 1000, "transfer")); // Odd ID = eligible
+    transactions.push_back(create_transaction(&env, 2, 500, "budget"));   // Even ID = not eligible
+    
+    let lookup = create_transaction_lookup(&env, &transactions);
+    
+    // Process the batch first to establish transaction records
+    client.process_batch(&admin, &transactions, &None);
+    
+    // Create refund request for eligible transaction
+    let mut refund_requests: Vec<RefundRequest> = Vec::new(&env);
+    refund_requests.push_back(create_refund_request(&env, 1, Some("Failed transaction")));
+    
+    let metrics = client.refund_batch(&admin, &refund_requests, &lookup);
+    
+    assert_eq!(metrics.request_count, 1);
+    assert_eq!(metrics.successful_refunds, 1);
+    assert_eq!(metrics.failed_refunds, 0);
+    assert_eq!(metrics.total_refunded_amount, 1000);
+    assert_eq!(metrics.avg_refund_amount, 1000);
+    
+    // Verify transaction is marked as refunded
+    assert!(client.is_transaction_refunded(1));
+    assert_eq!(client.get_total_refund_amount(), 1000);
+}
+
+#[test]
+fn test_refund_multiple_transactions_mixed_eligibility() {
+    let (env, admin, client) = setup_test_env();
+    
+    let mut transactions: Vec<Transaction> = Vec::new(&env);
+    transactions.push_back(create_transaction(&env, 1, 1000, "transfer")); // Eligible
+    transactions.push_back(create_transaction(&env, 2, 500, "budget"));   // Not eligible
+    transactions.push_back(create_transaction(&env, 3, 2000, "savings")); // Eligible
+    transactions.push_back(create_transaction(&env, 4, 300, "transfer")); // Not eligible
+    
+    let lookup = create_transaction_lookup(&env, &transactions);
+    client.process_batch(&admin, &transactions, &None);
+    
+    let mut refund_requests: Vec<RefundRequest> = Vec::new(&env);
+    refund_requests.push_back(create_refund_request(&env, 1, None));
+    refund_requests.push_back(create_refund_request(&env, 2, None));
+    refund_requests.push_back(create_refund_request(&env, 3, None));
+    refund_requests.push_back(create_refund_request(&env, 4, None));
+    
+    let metrics = client.refund_batch(&admin, &refund_requests, &lookup);
+    
+    assert_eq!(metrics.request_count, 4);
+    assert_eq!(metrics.successful_refunds, 2); // Only odd IDs (1,3) are eligible
+    assert_eq!(metrics.failed_refunds, 2);     // Even IDs (2,4) are not eligible
+    assert_eq!(metrics.total_refunded_amount, 3000); // 1000 + 2000
+    assert_eq!(metrics.avg_refund_amount, 1500);
+    
+    // Verify only eligible transactions are marked refunded
+    assert!(client.is_transaction_refunded(1));
+    assert!(!client.is_transaction_refunded(2));
+    assert!(client.is_transaction_refunded(3));
+    assert!(!client.is_transaction_refunded(4));
+}
+
+#[test]
+fn test_refund_already_refunded_transaction() {
+    let (env, admin, client) = setup_test_env();
+    
+    let mut transactions: Vec<Transaction> = Vec::new(&env);
+    transactions.push_back(create_transaction(&env, 1, 1000, "transfer"));
+    
+    let lookup = create_transaction_lookup(&env, &transactions);
+    client.process_batch(&admin, &transactions, &None);
+    
+    // First refund
+    let mut refund_requests: Vec<RefundRequest> = Vec::new(&env);
+    refund_requests.push_back(create_refund_request(&env, 1, None));
+    client.refund_batch(&admin, &refund_requests, &lookup);
+    
+    // Try to refund the same transaction again
+    let metrics = client.refund_batch(&admin, &refund_requests, &lookup);
+    
+    assert_eq!(metrics.request_count, 1);
+    assert_eq!(metrics.successful_refunds, 0);
+    assert_eq!(metrics.failed_refunds, 1);
+    assert_eq!(metrics.total_refunded_amount, 0);
+}
+
+#[test]
+fn test_refund_nonexistent_transaction() {
+    let (env, admin, client) = setup_test_env();
+    
+    // Create empty lookup (no transactions)
+    let lookup: Map<u64, Transaction> = Map::new(&env);
+    
+    let mut refund_requests: Vec<RefundRequest> = Vec::new(&env);
+    refund_requests.push_back(create_refund_request(&env, 999, Some("Nonexistent tx")));
+    
+    let metrics = client.refund_batch(&admin, &refund_requests, &lookup);
+    
+    assert_eq!(metrics.request_count, 1);
+    assert_eq!(metrics.successful_refunds, 0);
+    assert_eq!(metrics.failed_refunds, 1);
+    assert_eq!(metrics.total_refunded_amount, 0);
+}
+
+#[test]
+fn test_refund_batch_id_increments() {
+    let (env, admin, client) = setup_test_env();
+    
+    let mut transactions: Vec<Transaction> = Vec::new(&env);
+    transactions.push_back(create_transaction(&env, 1, 1000, "transfer"));
+    transactions.push_back(create_transaction(&env, 3, 2000, "budget"));
+    
+    let lookup = create_transaction_lookup(&env, &transactions);
+    client.process_batch(&admin, &transactions, &None);
+    
+    assert_eq!(client.get_last_refund_batch_id(), 0);
+    
+    let mut refund_requests: Vec<RefundRequest> = Vec::new(&env);
+    refund_requests.push_back(create_refund_request(&env, 1, None));
+    client.refund_batch(&admin, &refund_requests, &lookup);
+    assert_eq!(client.get_last_refund_batch_id(), 1);
+    
+    refund_requests.clear();
+    refund_requests.push_back(create_refund_request(&env, 3, None));
+    client.refund_batch(&admin, &refund_requests, &lookup);
+    assert_eq!(client.get_last_refund_batch_id(), 2);
+}
+
+#[test]
+fn test_simulate_refund_batch() {
+    let (env, admin, client) = setup_test_env();
+    
+    let mut transactions: Vec<Transaction> = Vec::new(&env);
+    transactions.push_back(create_transaction(&env, 1, 1000, "transfer"));
+    transactions.push_back(create_transaction(&env, 3, 2000, "budget"));
+    
+    let lookup = create_transaction_lookup(&env, &transactions);
+    client.process_batch(&admin, &transactions, &None);
+    
+    let mut refund_requests: Vec<RefundRequest> = Vec::new(&env);
+    refund_requests.push_back(create_refund_request(&env, 1, None));
+    refund_requests.push_back(create_refund_request(&env, 3, None));
+    
+    // Simulate should not affect actual state
+    let metrics_before = client.get_total_refund_amount();
+    let simulated_metrics = client.simulate_refund_batch(&refund_requests, &lookup);
+    let metrics_after = client.get_total_refund_amount();
+    
+    // Should return correct simulation results
+    assert_eq!(simulated_metrics.request_count, 2);
+    assert_eq!(simulated_metrics.successful_refunds, 2);
+    assert_eq!(simulated_metrics.total_refunded_amount, 3000);
+    
+    // Actual state should be unchanged
+    assert_eq!(metrics_before, metrics_after);
+    assert_eq!(metrics_after, 0); // No actual refunds processed
+}
+
+#[test]
+fn test_get_refund_batch_metrics() {
+    let (env, admin, client) = setup_test_env();
+    
+    let mut transactions: Vec<Transaction> = Vec::new(&env);
+    transactions.push_back(create_transaction(&env, 1, 1000, "transfer"));
+    
+    let lookup = create_transaction_lookup(&env, &transactions);
+    client.process_batch(&admin, &transactions, &None);
+    
+    let mut refund_requests: Vec<RefundRequest> = Vec::new(&env);
+    refund_requests.push_back(create_refund_request(&env, 1, None));
+    
+    let metrics = client.refund_batch(&admin, &refund_requests, &lookup);
+    
+    // Should be able to retrieve the stored metrics
+    let retrieved_metrics = client.get_refund_batch_metrics(1).unwrap();
+    assert_eq!(retrieved_metrics.request_count, metrics.request_count);
+    assert_eq!(retrieved_metrics.successful_refunds, metrics.successful_refunds);
+    assert_eq!(retrieved_metrics.total_refunded_amount, metrics.total_refunded_amount);
+    
+    // Non-existent batch should return None
+    assert!(client.get_refund_batch_metrics(999).is_none());
+}
+
+#[test]
+#[should_panic(expected = "EmptyRefundBatch")]
+fn test_empty_refund_batch_rejected() {
+    let (env, admin, client) = setup_test_env();
+    
+    let refund_requests: Vec<RefundRequest> = Vec::new(&env);
+    let lookup: Map<u64, Transaction> = Map::new(&env);
+    
+    client.refund_batch(&admin, &refund_requests, &lookup);
+}
+
+#[test]
+#[should_panic(expected = "Unauthorized")]
+fn test_unauthorized_refund_batch() {
+    let (env, _admin, client) = setup_test_env();
+    
+    let unauthorized_user = Address::generate(&env);
+    let refund_requests: Vec<RefundRequest> = Vec::new(&env);
+    let lookup: Map<u64, Transaction> = Map::new(&env);
+    
+    client.refund_batch(&unauthorized_user, &refund_requests, &lookup);
 }

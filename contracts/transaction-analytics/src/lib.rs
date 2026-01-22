@@ -26,10 +26,12 @@ use soroban_sdk::{contract, contractimpl, panic_with_error, Address, Env, Vec};
 
 pub use crate::analytics::{
     compute_batch_checksum, compute_batch_metrics, compute_category_metrics,
-    find_high_value_transactions, validate_batch,
+    find_high_value_transactions, validate_batch, process_refund_batch,
+    compute_refund_metrics, validate_refund_batch, validate_refund_eligibility,
 };
 pub use crate::types::{
-    AnalyticsEvents, BatchMetrics, CategoryMetrics, DataKey, Transaction, MAX_BATCH_SIZE,
+    AnalyticsEvents, BatchMetrics, CategoryMetrics, DataKey, Transaction, RefundRequest,
+    RefundResult, RefundStatus, RefundBatchMetrics, MAX_BATCH_SIZE,
 };
 
 /// Error codes for the analytics contract.
@@ -48,6 +50,12 @@ pub enum AnalyticsError {
     BatchTooLarge = 5,
     /// Invalid transaction amount
     InvalidAmount = 6,
+    /// Invalid refund batch data
+    InvalidRefundBatch = 7,
+    /// Refund batch is empty
+    EmptyRefundBatch = 8,
+    /// Refund batch exceeds maximum size
+    RefundBatchTooLarge = 9,
 }
 
 impl From<AnalyticsError> for soroban_sdk::Error {
@@ -74,6 +82,9 @@ impl TransactionAnalyticsContract {
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage().instance().set(&DataKey::LastBatchId, &0u64);
         env.storage().instance().set(&DataKey::TotalTxProcessed, &0u64);
+        env.storage().instance().set(&DataKey::LastRefundBatchId, &0u64);
+        env.storage().instance().set(&DataKey::TotalRefundAmount, &0i128);
+        env.storage().instance().set(&DataKey::RefundedTransactions, &soroban_sdk::Map::<u64, bool>::new(&env));
     }
 
     /// Generates batch analytics for multiple transactions.
@@ -107,7 +118,7 @@ impl TransactionAnalyticsContract {
         Self::require_admin(&env, &caller);
 
         // Validate batch
-        let tx_count = transactions.len();
+        let tx_count = transactions.len() as u32;
         if tx_count == 0 {
             panic_with_error!(&env, AnalyticsError::EmptyBatch);
         }
@@ -229,6 +240,177 @@ impl TransactionAnalyticsContract {
         Self::require_admin(&env, &current_admin);
 
         env.storage().instance().set(&DataKey::Admin, &new_admin);
+    }
+
+    /// Processes a batch of refunds for failed or canceled transactions.
+    ///
+    /// This function handles refund requests for multiple transactions, verifying
+    /// eligibility and processing refunds while handling partial failures gracefully.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `caller` - The address calling this function (must be admin)
+    /// * `refund_requests` - Vector of refund requests to process
+    /// * `transaction_lookup` - Map of transaction IDs to Transaction objects for amount lookup
+    ///
+    /// # Returns
+    /// * `RefundBatchMetrics` - Aggregated metrics for the refund batch
+    ///
+    /// # Events Emitted
+    /// * `refund_batch_started` - When refund processing begins
+    /// * `refund_processed` - For each individual refund attempt
+    /// * `refund_batch_completed` - When batch processing completes
+    /// * `refund_error` - For failed refund attempts
+    pub fn refund_batch(
+        env: Env,
+        caller: Address,
+        refund_requests: Vec<RefundRequest>,
+        transaction_lookup: soroban_sdk::Map<u64, Transaction>,
+    ) -> RefundBatchMetrics {
+        // Verify authorization
+        caller.require_auth();
+        Self::require_admin(&env, &caller);
+
+        // Validate refund batch
+        let request_count = refund_requests.len() as u32;
+        if request_count == 0 {
+            panic_with_error!(&env, AnalyticsError::EmptyRefundBatch);
+        }
+        if request_count > MAX_BATCH_SIZE {
+            panic_with_error!(&env, AnalyticsError::RefundBatchTooLarge);
+        }
+
+        if let Err(_) = validate_refund_batch(&refund_requests) {
+            panic_with_error!(&env, AnalyticsError::InvalidRefundBatch);
+        }
+
+        // Get next refund batch ID
+        let refund_batch_id: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::LastRefundBatchId)
+            .unwrap_or(0)
+            + 1;
+
+        // Get existing refunded transactions
+        let mut refunded_txs: soroban_sdk::Map<u64, bool> = env
+            .storage()
+            .instance()
+            .get(&DataKey::RefundedTransactions)
+            .unwrap_or_else(|| soroban_sdk::Map::new(&env));
+
+        // Emit start event
+        AnalyticsEvents::refund_batch_started(&env, refund_batch_id, request_count as u32);
+
+        // Process refunds
+        let refund_results = process_refund_batch(
+            &env,
+            &refund_requests,
+            &transaction_lookup,
+            &mut refunded_txs,
+        );
+
+        // Emit individual refund events
+        for result in refund_results.iter() {
+            AnalyticsEvents::refund_processed(&env, refund_batch_id, &result);
+            
+            if !result.success {
+                if let Some(error_msg) = &result.error_message {
+                    AnalyticsEvents::refund_error(&env, refund_batch_id, result.tx_id, error_msg.clone());
+                }
+            }
+        }
+
+        // Compute refund metrics
+        let current_ledger = env.ledger().sequence() as u64;
+        let metrics = compute_refund_metrics(&env, &refund_results, current_ledger);
+
+        // Update storage
+        let total_refunded: i128 = env
+            .storage()
+            .instance()
+            .get(&DataKey::TotalRefundAmount)
+            .unwrap_or(0);
+
+        env.storage().instance().set(&DataKey::LastRefundBatchId, &refund_batch_id);
+        env.storage()
+            .instance()
+            .set(&DataKey::TotalRefundAmount, &(total_refunded + metrics.total_refunded_amount));
+        env.storage()
+            .persistent()
+            .set(&DataKey::RefundBatchMetrics(refund_batch_id), &metrics);
+        env.storage()
+            .instance()
+            .set(&DataKey::RefundedTransactions, &refunded_txs);
+
+        // Emit completion event
+        AnalyticsEvents::refund_batch_completed(&env, refund_batch_id, &metrics);
+
+        metrics
+    }
+
+    /// Simulates refund processing without storing results (view-only).
+    ///
+    /// Useful for testing refund eligibility and expected outcomes before committing.
+    pub fn simulate_refund_batch(
+        env: Env,
+        refund_requests: Vec<RefundRequest>,
+        transaction_lookup: soroban_sdk::Map<u64, Transaction>,
+    ) -> RefundBatchMetrics {
+        if let Err(_) = validate_refund_batch(&refund_requests) {
+            panic_with_error!(&env, AnalyticsError::InvalidRefundBatch);
+        }
+
+        let refunded_txs: soroban_sdk::Map<u64, bool> = env
+            .storage()
+            .instance()
+            .get(&DataKey::RefundedTransactions)
+            .unwrap_or_else(|| soroban_sdk::Map::new(&env));
+
+        let mut temp_refunded_txs = refunded_txs.clone();
+        let refund_results = process_refund_batch(
+            &env,
+            &refund_requests,
+            &transaction_lookup,
+            &mut temp_refunded_txs,
+        );
+
+        let current_ledger = env.ledger().sequence() as u64;
+        compute_refund_metrics(&env, &refund_results, current_ledger)
+    }
+
+    /// Retrieves stored metrics for a specific refund batch.
+    pub fn get_refund_batch_metrics(env: Env, batch_id: u64) -> Option<RefundBatchMetrics> {
+        env.storage()
+            .persistent()
+            .get(&DataKey::RefundBatchMetrics(batch_id))
+    }
+
+    /// Returns the last processed refund batch ID.
+    pub fn get_last_refund_batch_id(env: Env) -> u64 {
+        env.storage()
+            .instance()
+            .get(&DataKey::LastRefundBatchId)
+            .unwrap_or(0)
+    }
+
+    /// Returns the total refund amount processed.
+    pub fn get_total_refund_amount(env: Env) -> i128 {
+        env.storage()
+            .instance()
+            .get(&DataKey::TotalRefundAmount)
+            .unwrap_or(0)
+    }
+
+    /// Checks if a transaction has been refunded.
+    pub fn is_transaction_refunded(env: Env, tx_id: u64) -> bool {
+        let refunded_txs: soroban_sdk::Map<u64, bool> = env
+            .storage()
+            .instance()
+            .get(&DataKey::RefundedTransactions)
+            .unwrap_or_else(|| soroban_sdk::Map::new(&env));
+        
+        refunded_txs.contains_key(tx_id)
     }
 
     // Internal helper to verify admin
