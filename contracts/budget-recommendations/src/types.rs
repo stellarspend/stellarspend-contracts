@@ -1,6 +1,6 @@
 //! Data types and events for batch budget recommendations.
 
-use soroban_sdk::{contracttype, symbol_short, Address, Env, Symbol};
+use soroban_sdk::{contracttype, symbol_short, Address, Env, Symbol, Vec};
 
 /// Maximum number of users in a single batch for optimization.
 pub const MAX_BATCH_SIZE: u32 = 100;
@@ -22,7 +22,7 @@ pub struct UserProfile {
     /// Spending category preferences (comma-separated categories)
     pub spending_categories: Symbol,
     /// Risk tolerance level (1-5, where 1 is conservative, 5 is aggressive)
-    pub risk_tolerance: u8,
+    pub risk_tolerance: u32,
 }
 
 /// Represents a budget recommendation for a user.
@@ -40,7 +40,7 @@ pub struct BudgetRecommendation {
     /// Recommended emergency fund target in stroops
     pub emergency_fund_target: i128,
     /// Confidence score (0-100, where 100 is highest confidence)
-    pub confidence_score: u8,
+    pub confidence_score: u32,
     /// Recommendation category (e.g., "conservative", "moderate", "aggressive")
     pub recommendation_type: Symbol,
     /// Additional recommendation notes
@@ -62,7 +62,7 @@ pub struct BatchRecommendationMetrics {
     /// Total recommended savings across all users
     pub total_recommended_savings: i128,
     /// Average confidence score
-    pub avg_confidence_score: u8,
+    pub avg_confidence_score: u32,
     /// Batch processing timestamp
     pub processed_at: u64,
 }
@@ -151,7 +151,7 @@ impl RecommendationEvents {
         env: &Env,
         batch_id: u64,
         user_id: u64,
-        confidence_score: u8,
+        confidence_score: u32,
     ) {
         let topics = (symbol_short!("recommend"), symbol_short!("highconf"), batch_id);
         env.events().publish(topics, (user_id, confidence_score));

@@ -1,6 +1,6 @@
 //! Data types and events for batch transaction analytics.
 
-use soroban_sdk::{contracttype, symbol_short, Address, Env, Symbol};
+use soroban_sdk::{contracttype, symbol_short, Address, Env, Symbol, Vec};
 
 /// Maximum number of transactions in a single batch for optimization.
 pub const MAX_BATCH_SIZE: u32 = 100;

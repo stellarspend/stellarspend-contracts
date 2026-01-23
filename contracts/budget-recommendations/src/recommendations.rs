@@ -11,7 +11,6 @@ use soroban_sdk::{Env, Symbol, Vec};
 
 use crate::types::{
     BatchRecommendationMetrics, BudgetRecommendation, RecommendationResult, UserProfile,
-    MAX_BATCH_SIZE,
 };
 
 /// Generates a budget recommendation for a single user.
@@ -82,7 +81,7 @@ pub fn generate_recommendation(
     let emergency_fund_target = profile.monthly_expenses * emergency_fund_months as i128;
 
     // Calculate confidence score based on data quality
-    let mut confidence_score = 80u8; // Base confidence
+    let mut confidence_score = 80u32; // Base confidence
 
     // Increase confidence if user has positive disposable income
     if disposable_income > 0 {
@@ -167,7 +166,7 @@ pub fn generate_batch_recommendations(
 
     // Calculate average confidence score
     let avg_confidence_score = if successful_count > 0 {
-        (total_confidence / successful_count as u64) as u8
+        (total_confidence / successful_count as u64) as u32
     } else {
         0
     };
@@ -212,7 +211,7 @@ mod tests {
         assert_eq!(recommendation.user_id, 1);
         assert!(recommendation.recommended_budget > 0);
         assert!(recommendation.recommended_savings > 0);
-        assert!(recommendation.confidence_score >= 80);
+        assert!(recommendation.confidence_score >= 80u32);
     }
 
     #[test]

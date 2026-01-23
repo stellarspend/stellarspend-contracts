@@ -114,7 +114,7 @@ impl BudgetRecommendationsContract {
         if user_count == 0 {
             panic_with_error!(&env, BudgetRecommendationError::EmptyBatch);
         }
-        if user_count > MAX_BATCH_SIZE as usize {
+        if user_count > MAX_BATCH_SIZE {
             panic_with_error!(&env, BudgetRecommendationError::BatchTooLarge);
         }
 
@@ -162,7 +162,7 @@ impl BudgetRecommendationsContract {
                     }
                 }
                 RecommendationResult::Failure(user_id, error) => {
-                    RecommendationEvents::recommendation_failed(&env, batch_id, *user_id, error);
+                    RecommendationEvents::recommendation_failed(&env, batch_id, user_id, &error);
                 }
             }
         }
@@ -237,8 +237,11 @@ impl BudgetRecommendationsContract {
     pub fn simulate_recommendation(
         env: Env,
         user_profile: UserProfile,
-    ) -> Result<BudgetRecommendation, Symbol> {
-        generate_recommendation(&env, &user_profile)
+    ) -> Option<BudgetRecommendation> {
+        match generate_recommendation(&env, &user_profile) {
+            Ok(rec) => Some(rec),
+            Err(_) => None,
+        }
     }
 
     /// Returns the admin address.
@@ -274,7 +277,7 @@ impl BudgetRecommendationsContract {
     }
 
     /// Returns the total number of recommendations generated.
-    pub fn get_total_recommendations_generated(env: Env) -> u64 {
+    pub fn get_total_recommendations(env: Env) -> u64 {
         env.storage()
             .instance()
             .get(&DataKey::TotalRecommendationsGenerated)

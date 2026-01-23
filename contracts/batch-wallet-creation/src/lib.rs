@@ -99,7 +99,7 @@ impl BatchWalletContract {
             let mut error_code = 0u32;
 
             // Validate owner address
-            if validate_address(&env, &request.owner).is_err() {
+            if validate_address(&request.owner).is_err() {
                 is_valid = false;
                 error_code = 0; // Invalid address
             }

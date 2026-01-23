@@ -278,7 +278,7 @@ impl TransactionAnalyticsContract {
         if tx_count == 0 {
             panic_with_error!(&env, AnalyticsError::EmptyBundle);
         }
-        if tx_count > MAX_BATCH_SIZE as usize {
+        if tx_count > MAX_BATCH_SIZE {
             panic_with_error!(&env, AnalyticsError::BundleTooLarge);
         }
 
@@ -297,16 +297,17 @@ impl TransactionAnalyticsContract {
         let validation_results = validate_bundle_transactions(&env, &bundled_transactions);
 
         // Emit validation events for each transaction
-        let mut valid_count: u32 = 0;
-        let mut invalid_count: u32 = 0;
+        let mut _valid_count: u32 = 0;
+        let mut _invalid_count: u32 = 0;
 
         for result in validation_results.iter() {
             AnalyticsEvents::transaction_validated(&env, bundle_id, &result);
 
             if result.is_valid {
-                valid_count += 1;
+                _valid_count += 1;
             } else {
-                invalid_count += 1;
+                _invalid_count += 1;
+            }
                 AnalyticsEvents::transaction_validation_failed(
                     &env,
                     bundle_id,
