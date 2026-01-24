@@ -124,11 +124,9 @@ fn test_process_multiple_transactions_batch() {
     assert_eq!(metrics.unique_senders, 4);
     assert_eq!(metrics.unique_recipients, 4);
     
-    // Fees: 0.1 + 0.2 + 0.3 + 0.4 = 1.0 (integers: 0 + 0 + 0 + 0 = 0)
-    // Wait, let's check the logic: 100/1000 = 0. 
-    // We should probably test with larger numbers to ensure fees > 0
-    // Fees: 100/1000=0, 200/1000=0, 300/1000=0, 400/1000=0. Total = 0.
-    assert_eq!(metrics.total_fees, 0);
+    // Fees: 100 + 200 + 300 + 400 = 1000. 
+    // Fee = 1000 / 1000 = 1.
+    assert_eq!(metrics.total_fees, 1);
 }
 
 #[test]
@@ -371,7 +369,8 @@ fn test_fee_calculation() {
 
     assert_eq!(metrics.tx_count, 3);
     assert_eq!(metrics.total_volume, 16499);
-    assert_eq!(metrics.total_fees, 15);
+    // Calculated on total volume: 16499 / 1000 = 16
+    assert_eq!(metrics.total_fees, 16);
 }
 
 // ============================================================================
