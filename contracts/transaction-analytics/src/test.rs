@@ -2,7 +2,7 @@
 
 #![cfg(test)]
 
-use crate::{Transaction, TransactionAnalyticsContract, TransactionAnalyticsContractClient, RefundRequest, RefundStatus};
+use crate::{Transaction, TransactionAnalyticsContract, TransactionAnalyticsContractClient, RefundRequest};
 use soroban_sdk::{
     testutils::{Address as _, Events},
     Address, Env, Symbol, Vec, Map,
@@ -448,7 +448,7 @@ fn test_refund_single_eligible_transaction() {
     assert_eq!(metrics.avg_refund_amount, 1000);
     
     // Verify transaction is marked as refunded
-    assert!(client.is_transaction_refunded(1));
+    assert!(client.is_transaction_refunded(&1));
     assert_eq!(client.get_total_refund_amount(), 1000);
 }
 
@@ -480,10 +480,10 @@ fn test_refund_multiple_transactions_mixed_eligibility() {
     assert_eq!(metrics.avg_refund_amount, 1500);
     
     // Verify only eligible transactions are marked refunded
-    assert!(client.is_transaction_refunded(1));
-    assert!(!client.is_transaction_refunded(2));
-    assert!(client.is_transaction_refunded(3));
-    assert!(!client.is_transaction_refunded(4));
+    assert!(client.is_transaction_refunded(&1));
+    assert!(!client.is_transaction_refunded(&2));
+    assert!(client.is_transaction_refunded(&3));
+    assert!(!client.is_transaction_refunded(&4));
 }
 
 #[test]
@@ -546,7 +546,8 @@ fn test_refund_batch_id_increments() {
     client.refund_batch(&admin, &refund_requests, &lookup);
     assert_eq!(client.get_last_refund_batch_id(), 1);
     
-    refund_requests.clear();
+    // Create new refund requests vector instead of clearing the old one
+    let mut refund_requests: Vec<RefundRequest> = Vec::new(&env);
     refund_requests.push_back(create_refund_request(&env, 3, None));
     client.refund_batch(&admin, &refund_requests, &lookup);
     assert_eq!(client.get_last_refund_batch_id(), 2);
@@ -598,13 +599,13 @@ fn test_get_refund_batch_metrics() {
     let metrics = client.refund_batch(&admin, &refund_requests, &lookup);
     
     // Should be able to retrieve the stored metrics
-    let retrieved_metrics = client.get_refund_batch_metrics(1).unwrap();
+    let retrieved_metrics = client.get_refund_batch_metrics(&1).unwrap();
     assert_eq!(retrieved_metrics.request_count, metrics.request_count);
     assert_eq!(retrieved_metrics.successful_refunds, metrics.successful_refunds);
     assert_eq!(retrieved_metrics.total_refunded_amount, metrics.total_refunded_amount);
     
     // Non-existent batch should return None
-    assert!(client.get_refund_batch_metrics(999).is_none());
+    assert!(client.get_refund_batch_metrics(&999).is_none());
 }
 
 #[test]

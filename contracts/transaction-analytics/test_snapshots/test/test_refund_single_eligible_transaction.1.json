@@ -29,7 +29,7 @@
                           "val": {
                             "i128": {
                               "hi": 0,
-                              "lo": 500
+                              "lo": 1000
                             }
                           }
                         },
@@ -93,7 +93,7 @@
                             "symbol": "category"
                           },
                           "val": {
-                            "symbol": "transfer"
+                            "symbol": "budget"
                           }
                         },
                         {
@@ -139,8 +139,7 @@
           "sub_invocations": []
         }
       ]
-    ],
-    []
+    ]
   ],
   "ledger": {
     "protocol_version": 22,
@@ -196,7 +195,7 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 500
+                          "lo": 750
                         }
                       }
                     },
@@ -207,7 +206,7 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 500
+                          "lo": 1000
                         }
                       }
                     },
@@ -237,7 +236,7 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 1000
+                          "lo": 1500
                         }
                       }
                     },
@@ -438,5 +437,293 @@
       ]
     ]
   },
-  "events": []
+  "events": [
+    {
+      "event": {
+        "ext": "v0",
+        "contract_id": "0000000000000000000000000000000000000000000000000000000000000001",
+        "type_": "contract",
+        "body": {
+          "v0": {
+            "topics": [
+              {
+                "symbol": "analytics"
+              },
+              {
+                "symbol": "started"
+              }
+            ],
+            "data": {
+              "vec": [
+                {
+                  "u64": 1
+                },
+                {
+                  "u32": 2
+                }
+              ]
+            }
+          }
+        }
+      },
+      "failed_call": false
+    },
+    {
+      "event": {
+        "ext": "v0",
+        "contract_id": "0000000000000000000000000000000000000000000000000000000000000001",
+        "type_": "contract",
+        "body": {
+          "v0": {
+            "topics": [
+              {
+                "symbol": "batch"
+              },
+              {
+                "symbol": "processed"
+              },
+              {
+                "u64": 1
+              }
+            ],
+            "data": {
+              "map": [
+                {
+                  "key": {
+                    "symbol": "avg_amount"
+                  },
+                  "val": {
+                    "i128": {
+                      "hi": 0,
+                      "lo": 750
+                    }
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "max_amount"
+                  },
+                  "val": {
+                    "i128": {
+                      "hi": 0,
+                      "lo": 1000
+                    }
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "min_amount"
+                  },
+                  "val": {
+                    "i128": {
+                      "hi": 0,
+                      "lo": 500
+                    }
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "processed_at"
+                  },
+                  "val": {
+                    "u64": 0
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "total_volume"
+                  },
+                  "val": {
+                    "i128": {
+                      "hi": 0,
+                      "lo": 1500
+                    }
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "tx_count"
+                  },
+                  "val": {
+                    "u32": 2
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "unique_recipients"
+                  },
+                  "val": {
+                    "u32": 2
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "unique_senders"
+                  },
+                  "val": {
+                    "u32": 2
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "failed_call": false
+    },
+    {
+      "event": {
+        "ext": "v0",
+        "contract_id": "0000000000000000000000000000000000000000000000000000000000000001",
+        "type_": "contract",
+        "body": {
+          "v0": {
+            "topics": [
+              {
+                "symbol": "category"
+              },
+              {
+                "u64": 1
+              },
+              {
+                "symbol": "budget"
+              }
+            ],
+            "data": {
+              "map": [
+                {
+                  "key": {
+                    "symbol": "category"
+                  },
+                  "val": {
+                    "symbol": "budget"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "total_volume"
+                  },
+                  "val": {
+                    "i128": {
+                      "hi": 0,
+                      "lo": 500
+                    }
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "tx_count"
+                  },
+                  "val": {
+                    "u32": 1
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "volume_percentage_bps"
+                  },
+                  "val": {
+                    "u32": 3333
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "failed_call": false
+    },
+    {
+      "event": {
+        "ext": "v0",
+        "contract_id": "0000000000000000000000000000000000000000000000000000000000000001",
+        "type_": "contract",
+        "body": {
+          "v0": {
+            "topics": [
+              {
+                "symbol": "category"
+              },
+              {
+                "u64": 1
+              },
+              {
+                "symbol": "transfer"
+              }
+            ],
+            "data": {
+              "map": [
+                {
+                  "key": {
+                    "symbol": "category"
+                  },
+                  "val": {
+                    "symbol": "transfer"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "total_volume"
+                  },
+                  "val": {
+                    "i128": {
+                      "hi": 0,
+                      "lo": 1000
+                    }
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "tx_count"
+                  },
+                  "val": {
+                    "u32": 1
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "volume_percentage_bps"
+                  },
+                  "val": {
+                    "u32": 6666
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "failed_call": false
+    },
+    {
+      "event": {
+        "ext": "v0",
+        "contract_id": "0000000000000000000000000000000000000000000000000000000000000001",
+        "type_": "contract",
+        "body": {
+          "v0": {
+            "topics": [
+              {
+                "symbol": "analytics"
+              },
+              {
+                "symbol": "complete"
+              }
+            ],
+            "data": {
+              "vec": [
+                {
+                  "u64": 1
+                },
+                {
+                  "u64": 2
+                }
+              ]
+            }
+          }
+        }
+      },
+      "failed_call": false
+    }
+  ]
 }

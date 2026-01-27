@@ -1,6 +1,6 @@
 {
   "generators": {
-    "address": 6,
+    "address": 10,
     "nonce": 0
   },
   "auth": [
@@ -29,7 +29,7 @@
                           "val": {
                             "i128": {
                               "hi": 0,
-                              "lo": 500
+                              "lo": 1000
                             }
                           }
                         },
@@ -93,7 +93,7 @@
                             "symbol": "category"
                           },
                           "val": {
-                            "symbol": "transfer"
+                            "symbol": "budget"
                           }
                         },
                         {
@@ -126,6 +126,116 @@
                           },
                           "val": {
                             "u64": 2
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "map": [
+                        {
+                          "key": {
+                            "symbol": "amount"
+                          },
+                          "val": {
+                            "i128": {
+                              "hi": 0,
+                              "lo": 2000
+                            }
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "category"
+                          },
+                          "val": {
+                            "symbol": "savings"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "from"
+                          },
+                          "val": {
+                            "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOLZM"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "timestamp"
+                          },
+                          "val": {
+                            "u64": 0
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "to"
+                          },
+                          "val": {
+                            "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARQG5"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "tx_id"
+                          },
+                          "val": {
+                            "u64": 3
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "map": [
+                        {
+                          "key": {
+                            "symbol": "amount"
+                          },
+                          "val": {
+                            "i128": {
+                              "hi": 0,
+                              "lo": 300
+                            }
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "category"
+                          },
+                          "val": {
+                            "symbol": "transfer"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "from"
+                          },
+                          "val": {
+                            "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAATYON"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "timestamp"
+                          },
+                          "val": {
+                            "u64": 0
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "to"
+                          },
+                          "val": {
+                            "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVAX5"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "tx_id"
+                          },
+                          "val": {
+                            "u64": 4
                           }
                         }
                       ]
@@ -196,7 +306,7 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 500
+                          "lo": 950
                         }
                       }
                     },
@@ -207,7 +317,7 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 500
+                          "lo": 2000
                         }
                       }
                     },
@@ -218,7 +328,7 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 500
+                          "lo": 300
                         }
                       }
                     },
@@ -237,7 +347,7 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 1000
+                          "lo": 3800
                         }
                       }
                     },
@@ -246,7 +356,7 @@
                         "symbol": "tx_count"
                       },
                       "val": {
-                        "u32": 2
+                        "u32": 4
                       }
                     },
                     {
@@ -254,7 +364,7 @@
                         "symbol": "unique_recipients"
                       },
                       "val": {
-                        "u32": 2
+                        "u32": 4
                       }
                     },
                     {
@@ -262,7 +372,7 @@
                         "symbol": "unique_senders"
                       },
                       "val": {
-                        "u32": 2
+                        "u32": 4
                       }
                     }
                   ]
@@ -369,7 +479,7 @@
                           ]
                         },
                         "val": {
-                          "u64": 2
+                          "u64": 4
                         }
                       }
                     ]
@@ -438,5 +548,36 @@
       ]
     ]
   },
-  "events": []
+  "events": [
+    {
+      "event": {
+        "ext": "v0",
+        "contract_id": "0000000000000000000000000000000000000000000000000000000000000001",
+        "type_": "contract",
+        "body": {
+          "v0": {
+            "topics": [
+              {
+                "symbol": "refund"
+              },
+              {
+                "symbol": "started"
+              }
+            ],
+            "data": {
+              "vec": [
+                {
+                  "u64": 1
+                },
+                {
+                  "u32": 4
+                }
+              ]
+            }
+          }
+        }
+      },
+      "failed_call": true
+    }
+  ]
 }
