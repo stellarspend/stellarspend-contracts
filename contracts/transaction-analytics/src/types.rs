@@ -143,6 +143,77 @@ pub enum DataKey {
     LastBundleId,
     /// Stored bundle result for a specific bundle ID
     BundleResult(u64),
+
+    /// Last refund batch ID
+    LastRefundBatchId,
+    /// Stored refund metrics for a specific batch ID
+    RefundBatchMetrics(u64),
+    /// Total refund amount processed lifetime
+    TotalRefundAmount,
+    /// Set of refunded transaction IDs (for duplicate prevention)
+    RefundedTransactions,
+    /// Known transaction IDs (for validation)
+    KnownTransaction(u64),
+}
+
+/// Status indicating refund eligibility for a transaction.
+#[derive(Clone, Debug, PartialEq)]
+#[contracttype]
+pub enum RefundStatus {
+    /// Transaction is eligible for refund (failed or canceled)
+    Eligible,
+    /// Transaction has already been refunded
+    AlreadyRefunded,
+    /// Transaction is still pending/processing
+    Pending,
+    /// Transaction was successful, not eligible for refund
+    NotEligible,
+    /// Transaction ID not found
+    NotFound,
+}
+
+/// Request structure for a single transaction refund.
+#[derive(Clone, Debug)]
+#[contracttype]
+pub struct RefundRequest {
+    /// Transaction ID to refund
+    pub tx_id: u64,
+    /// Reason for refund (optional)
+    pub reason: Option<Symbol>,
+}
+
+/// Result of a refund attempt for a single transaction.
+#[derive(Clone, Debug)]
+#[contracttype]
+pub struct RefundResult {
+    /// Transaction ID that was attempted to refund
+    pub tx_id: u64,
+    /// Whether the refund was successful
+    pub success: bool,
+    /// Refund eligibility status
+    pub status: RefundStatus,
+    /// Amount refunded (if successful)
+    pub amount_refunded: i128,
+    /// Error message if refund failed
+    pub error_message: Option<Symbol>,
+}
+
+/// Aggregated metrics for a batch of refunds.
+#[derive(Clone, Debug, Default)]
+#[contracttype]
+pub struct RefundBatchMetrics {
+    /// Total number of refund requests
+    pub request_count: u32,
+    /// Number of successful refunds
+    pub successful_refunds: u32,
+    /// Number of failed refunds
+    pub failed_refunds: u32,
+    /// Total amount refunded
+    pub total_refunded_amount: i128,
+    /// Average refund amount
+    pub avg_refund_amount: i128,
+    /// Timestamp when batch was processed
+    pub processed_at: u64,
 }
 
 /// Events emitted by the analytics contract.
@@ -160,9 +231,8 @@ impl AnalyticsEvents {
         let topics = (
             symbol_short!("category"),
             batch_id,
-            &category_metrics.category,
         );
-        env.events().publish(topics, category_metrics.clone());
+        env.events().publish(topics, (category_metrics.category.clone(), category_metrics.clone()));
     }
 
     /// Event emitted when analytics computation starts.
@@ -185,8 +255,8 @@ impl AnalyticsEvents {
 
     /// Event emitted when an audit log is created.
     pub fn audit_logged(env: &Env, actor: &Address, operation: &Symbol, status: &Symbol) {
-        let topics = (symbol_short!("audit"), symbol_short!("log"), actor);
-        env.events().publish(topics, (operation, status));
+        let topics = (symbol_short!("audit"), symbol_short!("log"));
+        env.events().publish(topics, (actor.clone(), operation.clone(), status.clone()));
     }
 
     /// Event emitted when a transaction bundle is created.
@@ -219,7 +289,31 @@ impl AnalyticsEvents {
 
     /// Event emitted when a transaction fails validation in a bundle.
     pub fn transaction_validation_failed(env: &Env, bundle_id: u64, tx_id: u64, error: &Symbol) {
-        let topics = (symbol_short!("bundle"), symbol_short!("failed"), bundle_id);
-        env.events().publish(topics, (tx_id, error.clone()));
+        let topics = (symbol_short!("bundle"), symbol_short!("failed"));
+        env.events().publish(topics, (bundle_id, tx_id, error.clone()));
+    }
+
+    /// Event emitted when a refund batch processing starts.
+    pub fn refund_batch_started(env: &Env, batch_id: u64, request_count: u32) {
+        let topics = (symbol_short!("refund"), symbol_short!("started"));
+        env.events().publish(topics, (batch_id, request_count));
+    }
+
+    /// Event emitted for each individual refund result.
+    pub fn refund_processed(env: &Env, batch_id: u64, refund_result: &RefundResult) {
+        let topics = (symbol_short!("refund"), symbol_short!("processed"), batch_id);
+        env.events().publish(topics, refund_result.clone());
+    }
+
+    /// Event emitted when a refund batch completes.
+    pub fn refund_batch_completed(env: &Env, batch_id: u64, metrics: &RefundBatchMetrics) {
+        let topics = (symbol_short!("refund"), symbol_short!("completed"), batch_id);
+        env.events().publish(topics, metrics.clone());
+    }
+
+    /// Event emitted for refund errors or warnings.
+    pub fn refund_error(env: &Env, batch_id: u64, tx_id: u64, error_msg: Symbol) {
+        let topics = (symbol_short!("refund"), symbol_short!("error"));
+        env.events().publish(topics, (batch_id, tx_id, error_msg));
     }
 }

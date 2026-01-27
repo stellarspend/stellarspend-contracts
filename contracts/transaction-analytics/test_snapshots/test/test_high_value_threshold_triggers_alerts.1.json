@@ -291,6 +291,17 @@
                     },
                     {
                       "key": {
+                        "symbol": "total_fees"
+                      },
+                      "val": {
+                        "i128": {
+                          "hi": 0,
+                          "lo": 15
+                        }
+                      }
+                    },
+                    {
+                      "key": {
                         "symbol": "total_volume"
                       },
                       "val": {
@@ -519,12 +530,63 @@
                         "key": {
                           "vec": [
                             {
+                              "symbol": "LastBundleId"
+                            }
+                          ]
+                        },
+                        "val": {
+                          "u64": 0
+                        }
+                      },
+                      {
+                        "key": {
+                          "vec": [
+                            {
+                              "symbol": "LastRefundBatchId"
+                            }
+                          ]
+                        },
+                        "val": {
+                          "u64": 0
+                        }
+                      },
+                      {
+                        "key": {
+                          "vec": [
+                            {
+                              "symbol": "RefundedTransactions"
+                            }
+                          ]
+                        },
+                        "val": {
+                          "map": []
+                        }
+                      },
+                      {
+                        "key": {
+                          "vec": [
+                            {
                               "symbol": "TotalAuditLogs"
                             }
                           ]
                         },
                         "val": {
                           "u64": 0
+                        }
+                      },
+                      {
+                        "key": {
+                          "vec": [
+                            {
+                              "symbol": "TotalRefundAmount"
+                            }
+                          ]
+                        },
+                        "val": {
+                          "i128": {
+                            "hi": 0,
+                            "lo": 0
+                          }
                         }
                       },
                       {
@@ -699,6 +761,17 @@
                 },
                 {
                   "key": {
+                    "symbol": "total_fees"
+                  },
+                  "val": {
+                    "i128": {
+                      "hi": 0,
+                      "lo": 15
+                    }
+                  }
+                },
+                {
+                  "key": {
                     "symbol": "total_volume"
                   },
                   "val": {
@@ -752,47 +825,62 @@
               },
               {
                 "u64": 1
-              },
-              {
-                "symbol": "budget"
               }
             ],
             "data": {
-              "map": [
+              "vec": [
                 {
-                  "key": {
-                    "symbol": "category"
-                  },
-                  "val": {
-                    "symbol": "budget"
-                  }
+                  "symbol": "budget"
                 },
                 {
-                  "key": {
-                    "symbol": "total_volume"
-                  },
-                  "val": {
-                    "i128": {
-                      "hi": 0,
-                      "lo": 10000
+                  "map": [
+                    {
+                      "key": {
+                        "symbol": "category"
+                      },
+                      "val": {
+                        "symbol": "budget"
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "total_fees"
+                      },
+                      "val": {
+                        "i128": {
+                          "hi": 0,
+                          "lo": 10
+                        }
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "total_volume"
+                      },
+                      "val": {
+                        "i128": {
+                          "hi": 0,
+                          "lo": 10000
+                        }
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "tx_count"
+                      },
+                      "val": {
+                        "u32": 1
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "volume_percentage_bps"
+                      },
+                      "val": {
+                        "u32": 6622
+                      }
                     }
-                  }
-                },
-                {
-                  "key": {
-                    "symbol": "tx_count"
-                  },
-                  "val": {
-                    "u32": 1
-                  }
-                },
-                {
-                  "key": {
-                    "symbol": "volume_percentage_bps"
-                  },
-                  "val": {
-                    "u32": 6622
-                  }
+                  ]
                 }
               ]
             }
@@ -814,47 +902,62 @@
               },
               {
                 "u64": 1
-              },
-              {
-                "symbol": "transfer"
               }
             ],
             "data": {
-              "map": [
+              "vec": [
                 {
-                  "key": {
-                    "symbol": "category"
-                  },
-                  "val": {
-                    "symbol": "transfer"
-                  }
+                  "symbol": "transfer"
                 },
                 {
-                  "key": {
-                    "symbol": "total_volume"
-                  },
-                  "val": {
-                    "i128": {
-                      "hi": 0,
-                      "lo": 5100
+                  "map": [
+                    {
+                      "key": {
+                        "symbol": "category"
+                      },
+                      "val": {
+                        "symbol": "transfer"
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "total_fees"
+                      },
+                      "val": {
+                        "i128": {
+                          "hi": 0,
+                          "lo": 5
+                        }
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "total_volume"
+                      },
+                      "val": {
+                        "i128": {
+                          "hi": 0,
+                          "lo": 5100
+                        }
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "tx_count"
+                      },
+                      "val": {
+                        "u32": 2
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "volume_percentage_bps"
+                      },
+                      "val": {
+                        "u32": 3377
+                      }
                     }
-                  }
-                },
-                {
-                  "key": {
-                    "symbol": "tx_count"
-                  },
-                  "val": {
-                    "u32": 2
-                  }
-                },
-                {
-                  "key": {
-                    "symbol": "volume_percentage_bps"
-                  },
-                  "val": {
-                    "u32": 3377
-                  }
+                  ]
                 }
               ]
             }

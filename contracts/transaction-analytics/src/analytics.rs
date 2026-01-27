@@ -8,10 +8,10 @@
 
 use soroban_sdk::{Address, Env, Map, Symbol, Vec};
 
-use crate::types::{AuditLog, BatchMetrics, CategoryMetrics, Transaction, MAX_BATCH_SIZE};
 use crate::types::{
-    BatchMetrics, BundleResult, BundledTransaction, CategoryMetrics, Transaction, ValidationResult,
-    MAX_BATCH_SIZE,
+    AuditLog, BatchMetrics, CategoryMetrics, Transaction, RefundRequest, RefundResult, 
+    RefundStatus, RefundBatchMetrics, BundleResult, BundledTransaction, ValidationResult,
+    MAX_BATCH_SIZE
 };
 
 /// Calculates the processing fee for a transaction amount.
@@ -226,6 +226,146 @@ pub fn compute_batch_checksum(transactions: &Vec<Transaction>) -> u64 {
     checksum
 }
 
+/// Validates refund eligibility for a transaction.
+///
+/// Checks if a transaction is eligible for refund based on its status.
+/// In a real implementation, this would check against actual transaction status.
+pub fn validate_refund_eligibility(
+    _env: &Env,
+    tx_id: u64,
+    refunded_txs: &Map<u64, bool>,
+) -> RefundStatus {
+    // Check if already refunded
+    if refunded_txs.contains_key(tx_id) {
+        return RefundStatus::AlreadyRefunded;
+    }
+
+    // Simulate checking transaction status
+    // In a real implementation, this would query the actual transaction status
+    // For demo purposes, we'll treat odd-numbered tx_ids as failed/canceled
+    if tx_id % 2 == 1 {
+        RefundStatus::Eligible
+    } else {
+        RefundStatus::NotEligible
+    }
+}
+
+/// Processes a batch of refund requests.
+///
+/// Handles partial failures gracefully - continues processing even if some refunds fail.
+/// Returns individual results for each refund attempt.
+pub fn process_refund_batch(
+    env: &Env,
+    refund_requests: &Vec<RefundRequest>,
+    transaction_lookup: &Map<u64, Transaction>,
+    refunded_txs: &mut Map<u64, bool>,
+) -> Vec<RefundResult> {
+    let mut results: Vec<RefundResult> = Vec::new(env);
+    
+    for request in refund_requests.iter() {
+        let status = validate_refund_eligibility(env, request.tx_id, refunded_txs);
+        
+        match status {
+            RefundStatus::Eligible => {
+                // Check if transaction exists
+                if let Some(transaction) = transaction_lookup.get(request.tx_id) {
+                    // Mark as refunded to prevent duplicates
+                    refunded_txs.set(request.tx_id, true);
+                    
+                    let result = RefundResult {
+                        tx_id: request.tx_id,
+                        success: true,
+                        status: RefundStatus::Eligible,
+                        amount_refunded: transaction.amount,
+                        error_message: None,
+                    };
+                    results.push_back(result);
+                } else {
+                    let result = RefundResult {
+                        tx_id: request.tx_id,
+                        success: false,
+                        status: RefundStatus::NotFound,
+                        amount_refunded: 0,
+                        error_message: Some(Symbol::new(env, "TxNotFound")),
+                    };
+                    results.push_back(result);
+                }
+            },
+            _ => {
+                // Handle ineligible refunds
+                let error_msg = match status {
+                    RefundStatus::AlreadyRefunded => Some(Symbol::new(env, "AlreadyRefunded")),
+                    RefundStatus::Pending => Some(Symbol::new(env, "TxPending")),
+                    RefundStatus::NotEligible => Some(Symbol::new(env, "NotEligible")),
+                    RefundStatus::NotFound => Some(Symbol::new(env, "TxNotFound")),
+                    _ => Some(Symbol::new(env, "UnknownError")),
+                };
+                
+                let result = RefundResult {
+                    tx_id: request.tx_id,
+                    success: false,
+                    status,
+                    amount_refunded: 0,
+                    error_message: error_msg,
+                };
+                results.push_back(result);
+            }
+        }
+    }
+    
+    results
+}
+
+/// Computes aggregated metrics from a batch of refund results.
+pub fn compute_refund_metrics(
+    _env: &Env,
+    refund_results: &Vec<RefundResult>,
+    processed_at: u64,
+) -> RefundBatchMetrics {
+    let request_count = refund_results.len();
+    
+    if request_count == 0 {
+        return RefundBatchMetrics {
+            request_count: 0,
+            successful_refunds: 0,
+            failed_refunds: 0,
+            total_refunded_amount: 0,
+            avg_refund_amount: 0,
+            processed_at,
+        };
+    }
+    
+    let mut successful_refunds: u32 = 0;
+    let mut failed_refunds: u32 = 0;
+    let mut total_refunded_amount: i128 = 0;
+    
+    for result in refund_results.iter() {
+        if result.success {
+            successful_refunds += 1;
+            total_refunded_amount = total_refunded_amount
+                .checked_add(result.amount_refunded)
+                .unwrap_or(i128::MAX);
+        } else {
+            failed_refunds += 1;
+        }
+    }
+    
+    let avg_refund_amount = if successful_refunds > 0 {
+        total_refunded_amount / (successful_refunds as i128)
+    } else {
+        0
+    };
+    
+    RefundBatchMetrics {
+        request_count: request_count as u32,
+        successful_refunds,
+        failed_refunds,
+        total_refunded_amount,
+        avg_refund_amount,
+        processed_at,
+    }
+}
+
 /// Validates a single transaction for bundling.
 ///
 /// Returns a ValidationResult indicating whether the transaction is valid
@@ -253,9 +393,6 @@ pub fn validate_transaction_for_bundle(
             error: Symbol::new(env, "same_address"),
         };
     }
-
-    // Validate amount is not zero (optional - you might want to allow zero)
-    // For now, we'll allow zero amounts
 
     // Transaction is valid
     ValidationResult {
@@ -287,7 +424,7 @@ pub fn validate_bundle_transactions(
 ///
 /// Computes bundle metrics and determines if the bundle can be created.
 pub fn create_bundle_result(
-    env: &Env,
+    _env: &Env,
     bundle_id: u64,
     bundled_transactions: &Vec<BundledTransaction>,
     validation_results: &Vec<ValidationResult>,
@@ -327,6 +464,33 @@ pub fn create_bundle_result(
         created_at,
     }
 }
+
+/// Validates a batch of refund requests.
+pub fn validate_refund_batch(env: &Env, refund_requests: &Vec<RefundRequest>) -> Result<(), &'static str> {
+    let count = refund_requests.len() as u32;
+    
+    if count == 0 {
+        return Err("Refund batch cannot be empty");
+    }
+    
+    if count > MAX_BATCH_SIZE {
+        return Err("Refund batch exceeds maximum size");
+    }
+    
+    // Check for duplicate transaction IDs
+    let mut seen_tx_ids: Map<u64, bool> = Map::new(env);
+    
+    for request in refund_requests.iter() {
+        if seen_tx_ids.contains_key(request.tx_id) {
+            return Err("Duplicate transaction ID in refund batch");
+        }
+        seen_tx_ids.set(request.tx_id, true);
+    }
+    
+    Ok(())
+}
+
+// Removed duplicate functions
 
 #[cfg(test)]
 mod tests {
