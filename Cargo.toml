@@ -8,6 +8,7 @@ members = [
     "contracts/batch-conversion",
     "contracts/batch-rewards",
     "contracts/budget-recommendations",
+    "contracts/shared-budgets",
     "contracts/savings-goals",
     "contracts/budget-allocation",
 ]
