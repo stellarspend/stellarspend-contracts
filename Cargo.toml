@@ -6,9 +6,14 @@ members = [
     "contracts/contract-upgrade/new_contract",
     "contracts/batch-transfer",
     "contracts/batch-conversion",
+    "contracts/batch-rewards",
     "contracts/budget-recommendations",
+    "contracts/multi-currency-wallet",
+    "contracts/spending-limits",
     "contracts/savings-goals",
+    "contracts/escrow",
     "contracts/budget-allocation",
+
 ]
 
 [workspace.package]

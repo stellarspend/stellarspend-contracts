@@ -35,6 +35,14 @@ pub use crate::types::{
     AnalyticsEvents, AuditLog, BatchMetrics, BundleResult, BundledTransaction, 
     CategoryMetrics, DataKey, Transaction, ValidationResult, RefundRequest, 
     RefundResult, RefundStatus, RefundBatchMetrics, MAX_BATCH_SIZE,
+    create_bundle_result, find_high_value_transactions, validate_audit_logs, validate_batch,
+    validate_bundle_transactions, validate_transaction_for_bundle,
+};
+pub use crate::types::{
+    AnalyticsEvents, AuditLog, BatchMetrics, BatchStatusUpdateResult, BundleResult,
+    BundledTransaction, CategoryMetrics, DataKey, RatingInput, RatingResult, RatingStatus,
+    StatusUpdateResult, Transaction, TransactionStatus, TransactionStatusUpdate, ValidationResult,
+    MAX_BATCH_SIZE,
 };
 
 /// Error codes for the analytics contract.
@@ -315,6 +323,122 @@ impl TransactionAnalyticsContract {
     }
 
     // Rating functionality removed for refund implementation
+    pub fn update_transaction_statuses(
+        env: Env,
+        caller: Address,
+        updates: Vec<TransactionStatusUpdate>,
+    ) -> BatchStatusUpdateResult {
+        caller.require_auth();
+        Self::require_admin(&env, &caller);
+
+        let count = updates.len();
+        if count == 0 {
+            panic_with_error!(&env, AnalyticsError::EmptyBatch);
+        }
+        if count > MAX_BATCH_SIZE {
+            panic_with_error!(&env, AnalyticsError::BatchTooLarge);
+        }
+
+        let mut results: Vec<StatusUpdateResult> = Vec::new(&env);
+        let mut successful: u32 = 0;
+        let mut failed: u32 = 0;
+
+        for update in updates.iter() {
+            let known = env
+                .storage()
+                .persistent()
+                .has(&DataKey::KnownTransaction(update.tx_id));
+
+            if !known {
+                failed += 1;
+                AnalyticsEvents::transaction_status_update_failed(&env, update.tx_id);
+                results.push_back(StatusUpdateResult {
+                    tx_id: update.tx_id,
+                    is_valid: false,
+                });
+                continue;
+            }
+
+            let previous_status: Option<TransactionStatus> = env
+                .storage()
+                .persistent()
+                .get(&DataKey::TransactionStatus(update.tx_id));
+
+            env.storage()
+                .persistent()
+                .set(&DataKey::TransactionStatus(update.tx_id), &update.status);
+
+            successful += 1;
+            AnalyticsEvents::transaction_status_updated(
+                &env,
+                update.tx_id,
+                previous_status.clone(),
+                update.status.clone(),
+            );
+
+            results.push_back(StatusUpdateResult {
+                tx_id: update.tx_id,
+                is_valid: true,
+            });
+        }
+
+        BatchStatusUpdateResult {
+            total_requests: count,
+            successful,
+            failed,
+            results,
+        }
+    }
+
+    pub fn submit_ratings(
+        env: Env,
+        user: Address,
+        ratings: Vec<RatingInput>,
+    ) -> Vec<RatingResult> {
+        user.require_auth();
+
+        let count = ratings.len();
+        if count == 0 {
+            panic_with_error!(&env, AnalyticsError::EmptyBatch);
+        }
+        if count > MAX_BATCH_SIZE {
+            panic_with_error!(&env, AnalyticsError::BatchTooLarge);
+        }
+
+        let mut results: Vec<RatingResult> = Vec::new(&env);
+
+        for input in ratings.iter() {
+            let mut status = RatingStatus::Success;
+
+            if input.score == 0 || input.score > 5 {
+                status = RatingStatus::InvalidScore;
+            } else {
+                let known = env
+                    .storage()
+                    .persistent()
+                    .has(&DataKey::KnownTransaction(input.tx_id));
+                if !known {
+                    status = RatingStatus::UnknownTransaction;
+                } else {
+                    env.storage()
+                        .persistent()
+                        .set(&DataKey::Rating(input.tx_id, user.clone()), &input.score);
+                }
+            }
+
+            let result = RatingResult {
+                tx_id: input.tx_id,
+                score: input.score,
+                status: status.clone(),
+            };
+
+            AnalyticsEvents::rating_submitted(&env, &user, input.tx_id, input.score, status);
+
+            results.push_back(result);
+        }
+
+        results
+    }
 
     /// Returns the admin address.
     pub fn get_admin(env: Env) -> Address {
@@ -322,6 +446,13 @@ impl TransactionAnalyticsContract {
             .instance()
             .get(&DataKey::Admin)
             .expect("Contract not initialized")
+    }
+
+    /// Returns the stored status for a transaction, if any.
+    pub fn get_transaction_status(env: Env, tx_id: u64) -> Option<TransactionStatus> {
+        env.storage()
+            .persistent()
+            .get(&DataKey::TransactionStatus(tx_id))
     }
 
     /// Updates the admin address.
@@ -367,7 +498,7 @@ impl TransactionAnalyticsContract {
         Self::require_admin(&env, &caller);
 
         // Validate bundle size
-        let tx_count = bundled_transactions.len();
+        let tx_count = bundled_transactions.len() as u32;
         if tx_count == 0 {
             panic_with_error!(&env, AnalyticsError::EmptyBundle);
         }
@@ -384,7 +515,7 @@ impl TransactionAnalyticsContract {
             + 1;
 
         // Emit bundling started event
-        AnalyticsEvents::bundling_started(&env, bundle_id, tx_count as u32);
+        AnalyticsEvents::bundling_started(&env, bundle_id, tx_count);
 
         // Validate all transactions (handles partial failures gracefully)
         let validation_results = validate_bundle_transactions(&env, &bundled_transactions);

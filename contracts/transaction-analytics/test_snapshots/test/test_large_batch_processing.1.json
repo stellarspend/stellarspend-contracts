@@ -5574,6 +5574,24 @@
                       "val": {
                         "u32": 10000
                       }
+                  "key": {
+                    "symbol": "total_fees"
+                  },
+                  "val": {
+                    "i128": {
+                      "hi": 0,
+                      "lo": 105
+                    }
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "total_volume"
+                  },
+                  "val": {
+                    "i128": {
+                      "hi": 0,
+                      "lo": 127500
                     }
                   ]
                 }

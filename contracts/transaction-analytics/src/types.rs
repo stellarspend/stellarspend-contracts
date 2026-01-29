@@ -122,6 +122,64 @@ pub struct BundleResult {
     pub created_at: u64,
 }
 
+/// Input for submitting a rating for a transaction.
+#[derive(Clone, Debug)]
+#[contracttype]
+pub struct RatingInput {
+    pub tx_id: u64,
+    pub score: u32,
+}
+
+/// Status of a submitted rating.
+#[derive(Clone, Debug)]
+#[contracttype]
+pub enum RatingStatus {
+    Success,
+    InvalidScore,
+    UnknownTransaction,
+}
+
+/// Result of a submitted rating.
+#[derive(Clone, Debug)]
+#[contracttype]
+pub struct RatingResult {
+    pub tx_id: u64,
+    pub score: u32,
+    pub status: RatingStatus,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[contracttype]
+pub enum TransactionStatus {
+    Pending,
+    Completed,
+    Failed,
+    Refunded,
+}
+
+#[derive(Clone, Debug)]
+#[contracttype]
+pub struct TransactionStatusUpdate {
+    pub tx_id: u64,
+    pub status: TransactionStatus,
+}
+
+#[derive(Clone, Debug)]
+#[contracttype]
+pub struct StatusUpdateResult {
+    pub tx_id: u64,
+    pub is_valid: bool,
+}
+
+#[derive(Clone, Debug)]
+#[contracttype]
+pub struct BatchStatusUpdateResult {
+    pub total_requests: u32,
+    pub successful: u32,
+    pub failed: u32,
+    pub results: Vec<StatusUpdateResult>,
+}
+
 /// Storage keys for contract state.
 #[derive(Clone)]
 #[contracttype]
@@ -143,6 +201,7 @@ pub enum DataKey {
     LastBundleId,
     /// Stored bundle result for a specific bundle ID
     BundleResult(u64),
+     #Batch-refund
 
     /// Last refund batch ID
     LastRefundBatchId,
@@ -170,6 +229,12 @@ pub enum RefundStatus {
     NotEligible,
     /// Transaction ID not found
     NotFound,
+      /// Marker for a known transaction ID
+    KnownTransaction(u64),
+    /// Stored rating per (tx_id, user)
+    Rating(u64, Address),
+    /// Stored status per transaction ID
+    TransactionStatus(u64),
 }
 
 /// Request structure for a single transaction refund.
@@ -214,6 +279,7 @@ pub struct RefundBatchMetrics {
     pub avg_refund_amount: i128,
     /// Timestamp when batch was processed
     pub processed_at: u64,
+main
 }
 
 /// Events emitted by the analytics contract.
@@ -257,6 +323,33 @@ impl AnalyticsEvents {
     pub fn audit_logged(env: &Env, actor: &Address, operation: &Symbol, status: &Symbol) {
         let topics = (symbol_short!("audit"), symbol_short!("log"));
         env.events().publish(topics, (actor.clone(), operation.clone(), status.clone()));
+    }
+
+    /// Event emitted when a rating is submitted.
+    pub fn rating_submitted(
+        env: &Env,
+        user: &Address,
+        tx_id: u64,
+        score: u32,
+        status: RatingStatus,
+    ) {
+        let topics = (symbol_short!("rating"), symbol_short!("submit"), user);
+        env.events().publish(topics, (tx_id, score, status));
+    }
+
+    pub fn transaction_status_updated(
+        env: &Env,
+        tx_id: u64,
+        previous_status: Option<TransactionStatus>,
+        new_status: TransactionStatus,
+    ) {
+        let topics = (symbol_short!("status"), symbol_short!("updated"));
+        env.events().publish(topics, (tx_id, previous_status, new_status));
+    }
+
+    pub fn transaction_status_update_failed(env: &Env, tx_id: u64) {
+        let topics = (symbol_short!("status"), symbol_short!("failed"));
+        env.events().publish(topics, tx_id);
     }
 
     /// Event emitted when a transaction bundle is created.
