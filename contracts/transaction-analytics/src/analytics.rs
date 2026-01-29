@@ -3,11 +3,7 @@ use soroban_sdk::{Address, Env, Map, Symbol, Vec};
 use crate::types::{
     AuditLog, BatchMetrics, CategoryMetrics, Transaction, RefundRequest, RefundResult, 
     RefundStatus, RefundBatchMetrics, BundleResult, BundledTransaction, ValidationResult,
-    MAX_BATCH_SIZE
-use crate::AuditLog;
-use crate::types::{
-    BatchMetrics, BundleResult, BundledTransaction, CategoryMetrics, Transaction,
-    ValidationResult, MAX_BATCH_SIZE,
+    MAX_BATCH_SIZE,
 };
 
 /// Calculates the processing fee for a transaction amount.

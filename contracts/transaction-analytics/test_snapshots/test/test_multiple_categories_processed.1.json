@@ -874,24 +874,6 @@
                       "val": {
                         "u32": 3000
                       }
-                  "key": {
-                    "symbol": "total_fees"
-                  },
-                  "val": {
-                    "i128": {
-                      "hi": 0,
-                      "lo": 0
-                    }
-                  }
-                },
-                {
-                  "key": {
-                    "symbol": "total_volume"
-                  },
-                  "val": {
-                    "i128": {
-                      "hi": 0,
-                      "lo": 300
                     }
                   ]
                 }
@@ -969,24 +951,6 @@
                       "val": {
                         "u32": 2000
                       }
-                  "key": {
-                    "symbol": "total_fees"
-                  },
-                  "val": {
-                    "i128": {
-                      "hi": 0,
-                      "lo": 0
-                    }
-                  }
-                },
-                {
-                  "key": {
-                    "symbol": "total_volume"
-                  },
-                  "val": {
-                    "i128": {
-                      "hi": 0,
-                      "lo": 200
                     }
                   ]
                 }
@@ -1064,24 +1028,6 @@
                       "val": {
                         "u32": 5000
                       }
-                  "key": {
-                    "symbol": "total_fees"
-                  },
-                  "val": {
-                    "i128": {
-                      "hi": 0,
-                      "lo": 0
-                    }
-                  }
-                },
-                {
-                  "key": {
-                    "symbol": "total_volume"
-                  },
-                  "val": {
-                    "i128": {
-                      "hi": 0,
-                      "lo": 500
                     }
                   ]
                 }

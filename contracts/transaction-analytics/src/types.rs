@@ -201,7 +201,6 @@ pub enum DataKey {
     LastBundleId,
     /// Stored bundle result for a specific bundle ID
     BundleResult(u64),
-     #Batch-refund
 
     /// Last refund batch ID
     LastRefundBatchId,
@@ -213,6 +212,10 @@ pub enum DataKey {
     RefundedTransactions,
     /// Known transaction IDs (for validation)
     KnownTransaction(u64),
+    /// Stored rating per (tx_id, user)
+    Rating(u64, Address),
+    /// Stored status per transaction ID
+    TransactionStatus(u64),
 }
 
 /// Status indicating refund eligibility for a transaction.
@@ -229,12 +232,6 @@ pub enum RefundStatus {
     NotEligible,
     /// Transaction ID not found
     NotFound,
-      /// Marker for a known transaction ID
-    KnownTransaction(u64),
-    /// Stored rating per (tx_id, user)
-    Rating(u64, Address),
-    /// Stored status per transaction ID
-    TransactionStatus(u64),
 }
 
 /// Request structure for a single transaction refund.
@@ -279,7 +276,6 @@ pub struct RefundBatchMetrics {
     pub avg_refund_amount: i128,
     /// Timestamp when batch was processed
     pub processed_at: u64,
-main
 }
 
 /// Events emitted by the analytics contract.

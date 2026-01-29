@@ -879,24 +879,6 @@
                       "val": {
                         "u32": 6622
                       }
-                  "key": {
-                    "symbol": "total_fees"
-                  },
-                  "val": {
-                    "i128": {
-                      "hi": 0,
-                      "lo": 10
-                    }
-                  }
-                },
-                {
-                  "key": {
-                    "symbol": "total_volume"
-                  },
-                  "val": {
-                    "i128": {
-                      "hi": 0,
-                      "lo": 10000
                     }
                   ]
                 }
@@ -974,24 +956,6 @@
                       "val": {
                         "u32": 3377
                       }
-                  "key": {
-                    "symbol": "total_fees"
-                  },
-                  "val": {
-                    "i128": {
-                      "hi": 0,
-                      "lo": 5
-                    }
-                  }
-                },
-                {
-                  "key": {
-                    "symbol": "total_volume"
-                  },
-                  "val": {
-                    "i128": {
-                      "hi": 0,
-                      "lo": 5100
                     }
                   ]
                 }
