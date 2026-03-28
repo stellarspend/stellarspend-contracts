@@ -6,6 +6,7 @@
 pub mod delegation;
 pub mod errors;
 pub mod fees;
+pub mod storage;
 // Re-export commonly used types and functions
 pub use errors::{
     ErrorCategory, ErrorContext, ErrorDocumentation, ErrorHelpers, ErrorSeverity, RetryStrategy,
@@ -300,6 +301,7 @@ pub enum DataKey {
     Config(String),
     State(String),
     Metadata(String),
+    AuditLog,
 }
 
 /// Standardized contract trait

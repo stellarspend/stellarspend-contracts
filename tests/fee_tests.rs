@@ -1161,3 +1161,45 @@ fn test_very_small_transactions_with_min_fee() {
     assert_eq!(net, 1 - 50); // Negative is allowed for transaction logic
 }
 
+#[test]
+fn test_fee_config_audit_trail() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(FeesContract, ());
+    let client = FeesContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    
+    // 1. Initialization should record first log (0 -> 500)
+    client.initialize(&admin, &500u32);
+    
+    let logs = client.get_audit_log();
+    assert_eq!(logs.len(), 1);
+    let log1 = logs.get(0).unwrap();
+    assert_eq!(log1.previous_rate, 0);
+    assert_eq!(log1.new_rate, 500);
+    assert_eq!(log1.admin, admin);
+    assert!(log1.timestamp > 0);
+
+    // 2. Update should record second log (500 -> 1000)
+    client.set_percentage(&admin, &1000u32);
+    
+    let logs2 = client.get_audit_log();
+    assert_eq!(logs2.len(), 2);
+    let log2 = logs2.get(1).unwrap();
+    assert_eq!(log2.previous_rate, 500);
+    assert_eq!(log2.new_rate, 1000);
+    assert_eq!(log2.admin, admin);
+
+    // 3. Another update (1000 -> 250)
+    client.set_percentage(&admin, &250u32);
+    
+    let logs3 = client.get_audit_log();
+    assert_eq!(logs3.len(), 3);
+    let log3 = logs3.get(2).unwrap();
+    assert_eq!(log3.previous_rate, 1000);
+    assert_eq!(log3.new_rate, 250);
+    assert_eq!(log3.admin, admin);
+}
+

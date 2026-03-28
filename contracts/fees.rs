@@ -2,6 +2,7 @@ use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, panic_with_error, symbol_short, Address,
     Env, Vec,
 };
+use crate::storage::{self, FeeConfigLog};
 
 /// Represents a fee distribution recipient and their share.
 #[derive(Clone, Debug)]
@@ -34,6 +35,8 @@ pub enum DataKey {
     MinFee,
     /// Maximum fee threshold. Fees cannot exceed this value.
     MaxFee,
+    /// Audit log for configuration changes.
+    AuditLog,
 }
 
 #[contracterror]
@@ -159,6 +162,9 @@ impl FeesContract {
         env.storage()
             .instance()
             .set(&DataKey::TotalFeesCollected, &0i128);
+        
+        // Record initial configuration in audit log
+        storage::write_audit_log(&env, 0, percentage_bps, admin);
     }
 
     /// Updates the fee percentage. Only the current admin may call.
@@ -176,9 +182,14 @@ impl FeesContract {
         if percentage_bps > 10_000 {
             panic_with_error!(&env, FeeError::InvalidPercentage);
         }
+        let previous_rate = Self::get_percentage(env.clone());
         env.storage()
             .instance()
             .set(&DataKey::FeePercentage, &percentage_bps);
+        
+        // Record update in audit log
+        storage::write_audit_log(&env, previous_rate, percentage_bps, caller.clone());
+        
         FeeEvents::config_updated(&env, &caller, percentage_bps);
     }
 
@@ -623,5 +634,10 @@ impl FeesContract {
             .instance()
             .get(&DataKey::MaxFee)
             .unwrap_or(i128::MAX)
+    }
+
+    /// Returns the history of configuration changes.
+    pub fn get_audit_log(env: Env) -> Vec<FeeConfigLog> {
+        storage::get_audit_log(&env)
     }
 }
