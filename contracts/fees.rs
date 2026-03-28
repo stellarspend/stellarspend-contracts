@@ -25,6 +25,7 @@ pub enum FeeError {
     InvalidPercentage = 4,
     InvalidAmount = 5,
     Overflow = 6,
+    ValidationFailed = 7,
 }
 
 /// Events emitted by the fees contract.
@@ -143,6 +144,18 @@ impl FeesContract {
             .checked_div(10_000)
             .unwrap_or_else(|| panic_with_error!(&env, FeeError::Overflow));
         fee
+    }
+
+    /// Validates that the provided `fee_to_validate` matches the expected fee for `amount`.
+    ///
+    /// # Security
+    /// - [SEC-FEES-08] Ensures deterministic fee validation against stored contract state.
+    /// - Panics with `ValidationFailed` if the fees do not match exactly.
+    pub fn validate_fee(env: Env, amount: i128, fee_to_validate: i128) {
+        let expected_fee = Self::calculate_fee(env.clone(), amount);
+        if expected_fee != fee_to_validate {
+            panic_with_error!(&env, FeeError::ValidationFailed);
+        }
     }
 
     /// Deducts the configured fee from `amount`.

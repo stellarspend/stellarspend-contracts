@@ -93,3 +93,32 @@ fn test_update_configuration_emits_event() {
         .any(|e| e.topics.0 == "fee" && e.topics.1 == "config_updated"));
     assert_eq!(client.get_percentage(), 250u32);
 }
+
+#[test]
+fn test_validate_fee_success() {
+    let (env, _admin, client) = setup_fee_contract();
+    let amount: i128 = 2_000;
+    // 2_000 * 5% = 100
+    client.validate_fee(&amount, &100);
+}
+
+#[test]
+fn test_validate_fee_failure() {
+    let (env, _admin, client) = setup_fee_contract();
+    let amount: i128 = 2_000;
+    // 2_000 * 5% = 100, so 99 should fail
+    let result = std::panic::catch_unwind(|| {
+        client.validate_fee(&amount, &99);
+    });
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_validate_fee_invalid_amount() {
+    let (env, _admin, client) = setup_fee_contract();
+    // input amount 0 should trigger InvalidAmount panic inside calculate_fee
+    let result = std::panic::catch_unwind(|| {
+        client.validate_fee(&0, &0);
+    });
+    assert!(result.is_err());
+}
