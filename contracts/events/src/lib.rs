@@ -3,6 +3,7 @@
 use soroban_sdk::{
     contract, contractimpl, contracttype, token, Address, Env, Symbol,
 };
+pub mod fee_events;
 
 mod events;
 use events::{
@@ -10,6 +11,30 @@ use events::{
     InitializeEventData, StakeEventData, UnstakeEventData,
 };
 
+#[cfg(test)]
+mod test {
+    use super::fee_events::*;
+    use soroban_sdk::{Env, Address};
+
+    #[test]
+    fn test_fee_event_logging() {
+        let env = Env::default();
+        let user = Address::generate(&env);
+
+        log_fee_collected(&env, user.clone(), 500);
+
+        let events = env.events().all();
+        assert_eq!(events.len(), 1);
+
+        let event = &events[0];
+
+        let (logged_user, amount, _timestamp): (Address, i128, u64) =
+            event.data.clone().try_into().unwrap();
+
+        assert_eq!(logged_user, user);
+        assert_eq!(amount, 500);
+    }
+}
 // ─── Storage Keys ─────────────────────────────────────────────────────────────
 
 #[contracttype]
