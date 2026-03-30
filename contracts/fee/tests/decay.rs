@@ -1,5 +1,6 @@
 mod support;
 
+use soroban_sdk::testutils::Ledger;
 use support::setup;
 
 #[test]

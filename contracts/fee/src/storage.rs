@@ -28,6 +28,7 @@ pub enum DataKey {
     TotalBatchCalls,
     PendingFees(u64),
     UserActivity(Address),
+    UserFeeOverride(Address),
 }
 
 pub fn has_admin(env: &Env) -> bool {
@@ -210,4 +211,22 @@ pub fn write_last_active(env: &Env, user: &Address, timestamp: u64) {
     env.storage()
         .persistent()
         .set(&DataKey::UserActivity(user.clone()), &timestamp);
+}
+
+pub fn read_user_fee_override(env: &Env, user: &Address) -> Option<u32> {
+    env.storage()
+        .instance()
+        .get(&DataKey::UserFeeOverride(user.clone()))
+}
+
+pub fn write_user_fee_override(env: &Env, user: &Address, fee_bps: u32) {
+    env.storage()
+        .instance()
+        .set(&DataKey::UserFeeOverride(user.clone()), &fee_bps);
+}
+
+pub fn remove_user_fee_override(env: &Env, user: &Address) {
+    env.storage()
+        .instance()
+        .remove(&DataKey::UserFeeOverride(user.clone()));
 }

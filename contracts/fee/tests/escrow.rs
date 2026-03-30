@@ -8,7 +8,7 @@ fn fees_are_held_then_released_from_escrow() {
 
     assert_eq!(ctx.client.get_escrow_balance(), 0);
     assert_eq!(ctx.client.get_pending_fees(&1), 0);
-handle hash
+
     let pending = ctx.client.collect_fee(&ctx.payer, &150i128);
     assert_eq!(pending, 150);
     assert_eq!(ctx.client.get_escrow_balance(), 150);

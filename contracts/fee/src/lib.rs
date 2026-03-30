@@ -12,15 +12,11 @@ use crate::escrow::{
     collect_batch_to_escrow, collect_to_escrow, release_cycle_fees, rollover_cycle_fees,
 };
 use crate::storage::{
-    has_admin, read_admin, read_current_cycle, read_escrow_balance, read_fee_bps, read_locked,
-    read_min_fee, read_pending_fees, read_token, read_total_batch_calls, read_total_collected,
-    read_total_released, read_treasury, write_admin, write_current_cycle, write_fee_bps,
-    write_locked, write_min_fee, write_token, write_treasury,
     has_admin, read_admin, read_current_cycle, read_escrow_balance, read_fee_bps, read_last_active,
-		read_locked, read_min_fee, read_pending_fees, read_token, read_total_batch_calls,
-		read_total_collected, read_total_released, read_treasury, write_admin,
-		write_current_cycle, write_fee_bps, write_last_active, write_locked, write_min_fee,
-		write_token, write_treasury,
+    read_locked, read_min_fee, read_pending_fees, read_token, read_total_batch_calls,
+    read_total_collected, read_total_released, read_treasury, read_user_fee_override,
+    remove_user_fee_override, write_admin, write_current_cycle, write_fee_bps, write_last_active,
+    write_locked, write_min_fee, write_token, write_treasury, write_user_fee_override,
 };
 pub use crate::storage::{BatchFeeResult, DataKey, MAX_BATCH_SIZE, MAX_FEE_BPS};
 use crate::validation::{validate_fee_bps_or_panic, validate_min_fee_or_panic};
@@ -104,6 +100,18 @@ impl FeeEvents {
         let topics = (symbol_short!("fee"), symbol_short!("config"));
         env.events()
             .publish(topics, (symbol_short!("min_fee"), min_fee));
+    }
+
+    pub fn user_fee_override_set(env: &Env, user: &Address, fee_bps: u32) {
+        let topics = (symbol_short!("fee"), symbol_short!("override"));
+        env.events()
+            .publish(topics, (symbol_short!("set"), user.clone(), fee_bps));
+    }
+
+    pub fn user_fee_override_removed(env: &Env, user: &Address) {
+        let topics = (symbol_short!("fee"), symbol_short!("override"));
+        env.events()
+            .publish(topics, (symbol_short!("remove"), user.clone()));
     }
 }
 
@@ -349,6 +357,56 @@ impl FeeContract {
                 .unwrap_or_else(|| panic_with_error!(&env, FeeContractError::Overflow));
         }
         total
+    }
+
+    /// Calculate the fee for a given amount, checking user-specific overrides first.
+    /// If a user has an override, it takes precedence over the global fee_bps.
+    pub fn calculate_fee(env: Env, user: Address, amount: i128) -> i128 {
+        if amount <= 0 {
+            panic_with_error!(&env, FeeContractError::InvalidAmount);
+        }
+
+        let fee_bps = read_user_fee_override(&env, &user).unwrap_or_else(|| read_fee_bps(&env));
+
+        let min_fee = read_min_fee(&env);
+        let raw_fee = amount
+            .checked_mul(fee_bps as i128)
+            .unwrap_or_else(|| panic_with_error!(&env, FeeContractError::Overflow))
+            .checked_div(10_000)
+            .unwrap_or_else(|| panic_with_error!(&env, FeeContractError::Overflow));
+
+        if raw_fee < min_fee {
+            min_fee
+        } else {
+            raw_fee
+        }
+    }
+
+    /// Set a user-specific fee override. Only admin can call.
+    pub fn set_user_fee_override(env: Env, admin: Address, user: Address, fee_bps: u32) {
+        admin.require_auth();
+        Self::require_admin(&env, &admin);
+        Self::require_unlocked(&env);
+
+        validate_fee_bps_or_panic(&env, fee_bps);
+
+        write_user_fee_override(&env, &user, fee_bps);
+        FeeEvents::user_fee_override_set(&env, &user, fee_bps);
+    }
+
+    /// Remove a user-specific fee override. Only admin can call.
+    pub fn remove_user_fee_override(env: Env, admin: Address, user: Address) {
+        admin.require_auth();
+        Self::require_admin(&env, &admin);
+        Self::require_unlocked(&env);
+
+        remove_user_fee_override(&env, &user);
+        FeeEvents::user_fee_override_removed(&env, &user);
+    }
+
+    /// Get the effective fee rate for a user (override if exists, otherwise global).
+    pub fn get_user_fee_bps(env: Env, user: Address) -> u32 {
+        read_user_fee_override(&env, &user).unwrap_or_else(|| read_fee_bps(&env))
     }
 
     /// Validate a configuration tuple. Returns true or panics on invalid inputs.

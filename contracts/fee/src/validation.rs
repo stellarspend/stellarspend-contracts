@@ -12,7 +12,7 @@ pub fn validate_fee_bps_or_panic(env: &Env, fee_bps: u32) -> bool {
     }
     true
 }
-handle hash
+
 /// Validate minimum fee is non-negative.
 /// Panics with InvalidConfig on failure. Returns true on success.
 pub fn validate_min_fee_or_panic(env: &Env, min_fee: i128) -> bool {

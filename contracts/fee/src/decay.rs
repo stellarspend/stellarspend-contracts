@@ -13,7 +13,7 @@ pub fn calculate_fee_decay(
     if current_time <= last_active {
         return base_fee;
     }
-handle hash
+
     let time_elapsed = (current_time - last_active) as i128;
     
     // decay = time_elapsed * decay_rate
