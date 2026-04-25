@@ -12,6 +12,12 @@ pub const DEFAULT_MIN_FEE: i128 = 0;
 /// Default maximum fee (1,000,000)
 pub const DEFAULT_MAX_FEE: i128 = 1_000_000;
 
+/// Default lock state at initialization.
+pub const DEFAULT_LOCKED: bool = false;
+
+/// Panic message used when a required initialization key is missing.
+pub const NOT_INITIALIZED_MSG: &str = "Contract not initialized";
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[contracttype]
 pub struct BatchFeeResult {
@@ -21,23 +27,51 @@ pub struct BatchFeeResult {
     pub pending_fees: i128,
 }
 
+/// Canonical registry of all storage keys used by the fee contract.
+///
+/// Every read or write to contract storage MUST go through a variant of this
+/// enum (typically via the helper functions defined below). New storage slots
+/// must be added here so that there is a single source of truth for which
+/// keys exist and how they are scoped.
 #[derive(Clone)]
 #[contracttype]
 pub enum DataKey {
+    // --- Configuration (instance storage, set at init / by admin) ---
+    /// Contract administrator address.
     Admin,
+    /// Address of the fee-bearing token.
     Token,
+    /// Treasury address that receives released fees.
     Treasury,
+    /// Current fee rate in basis points.
     FeeBps,
+    /// Minimum absolute fee charged per collection.
     MinFee,
+    /// Maximum absolute fee charged per collection.
     MaxFee,
+    /// Lock flag that pauses configuration changes.
     IsLocked,
+
+    // --- Runtime state (instance storage, mutated by contract logic) ---
+    /// Current fee cycle identifier.
     CurrentCycle,
+    /// Total fees held in escrow across all cycles.
     EscrowBalance,
+    /// Lifetime sum of fees collected.
     TotalCollected,
+    /// Lifetime sum of fees released to treasury.
     TotalReleased,
+    /// Lifetime count of batch calls.
     TotalBatchCalls,
+
+    // --- Per-cycle data (persistent storage) ---
+    /// Pending fees keyed by cycle id.
     PendingFees(u64),
+
+    // --- Per-user data (persistent storage) ---
+    /// Last activity timestamp keyed by user address.
     UserActivity(Address),
+    /// User tier symbol keyed by user address.
     UserTier(Address),
 }
 
@@ -53,7 +87,7 @@ pub fn read_admin(env: &Env) -> Address {
     env.storage()
         .instance()
         .get(&DataKey::Admin)
-        .expect("Contract not initialized")
+        .expect(NOT_INITIALIZED_MSG)
 }
 
 pub fn write_token(env: &Env, token: &Address) {
@@ -64,7 +98,7 @@ pub fn read_token(env: &Env) -> Address {
     env.storage()
         .instance()
         .get(&DataKey::Token)
-        .expect("Contract not initialized")
+        .expect(NOT_INITIALIZED_MSG)
 }
 
 pub fn write_treasury(env: &Env, treasury: &Address) {
@@ -75,7 +109,7 @@ pub fn read_treasury(env: &Env) -> Address {
     env.storage()
         .instance()
         .get(&DataKey::Treasury)
-        .expect("Contract not initialized")
+        .expect(NOT_INITIALIZED_MSG)
 }
 
 pub fn write_fee_bps(env: &Env, fee_bps: u32) {
@@ -86,7 +120,7 @@ pub fn read_fee_bps(env: &Env) -> u32 {
     env.storage()
         .instance()
         .get(&DataKey::FeeBps)
-        .expect("Contract not initialized")
+        .expect(NOT_INITIALIZED_MSG)
 }
 
 pub fn write_min_fee(env: &Env, min_fee: i128) {
@@ -94,7 +128,10 @@ pub fn write_min_fee(env: &Env, min_fee: i128) {
 }
 
 pub fn read_min_fee(env: &Env) -> i128 {
-    env.storage().instance().get(&DataKey::MinFee).unwrap_or(0)
+    env.storage()
+        .instance()
+        .get(&DataKey::MinFee)
+        .unwrap_or(DEFAULT_MIN_FEE)
 }
 
 pub fn write_max_fee(env: &Env, max_fee: i128) {
@@ -113,7 +150,7 @@ pub fn read_locked(env: &Env) -> bool {
     env.storage()
         .instance()
         .get(&DataKey::IsLocked)
-        .unwrap_or(false)
+        .unwrap_or(DEFAULT_LOCKED)
 }
 
 pub fn write_current_cycle(env: &Env, cycle: u64) {
@@ -124,7 +161,7 @@ pub fn read_current_cycle(env: &Env) -> u64 {
     env.storage()
         .instance()
         .get(&DataKey::CurrentCycle)
-        .expect("Contract not initialized")
+        .expect(NOT_INITIALIZED_MSG)
 }
 
 pub fn read_pending_fees(env: &Env, cycle: u64) -> i128 {
