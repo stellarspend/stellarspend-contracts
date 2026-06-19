@@ -2,7 +2,10 @@
 
 #![cfg(test)]
 
-use crate::{EscrowContract, EscrowContractClient, EscrowStatus, ReversalRequest, ReversalResult};
+use crate::{
+    EscrowContract, EscrowContractClient, EscrowStatus, ReleaseRequest, ReleaseResult,
+    ReversalRequest, ReversalResult,
+};
 use soroban_sdk::{
     testutils::{Address as _, Events as _, Ledger},
     token, Address, Env, Vec,
@@ -50,6 +53,11 @@ fn setup_test_env() -> (
 /// Helper to create a reversal request.
 fn create_reversal_request(escrow_id: u64) -> ReversalRequest {
     ReversalRequest { escrow_id }
+}
+
+/// Helper to create a release request.
+fn create_release_request(escrow_id: u64) -> ReleaseRequest {
+    ReleaseRequest { escrow_id }
 }
 
 /// Helper to create an escrow and return its ID.
@@ -819,6 +827,73 @@ fn test_release_escrow() {
     // Check escrow status
     let escrow = client.get_escrow(&escrow_id).unwrap();
     assert_eq!(escrow.status, EscrowStatus::Released);
+}
+
+#[test]
+#[should_panic]
+fn test_release_escrow_unauthorized_caller_panics() {
+    let (env, _admin, _token, _token_client, token_admin, client) = setup_test_env();
+
+    let depositor = Address::generate(&env);
+    let recipient = Address::generate(&env);
+    let unauthorized = Address::generate(&env);
+    let amount = 10_000_000;
+
+    let escrow_id = create_test_escrow(
+        &env,
+        &client,
+        &token_admin,
+        &depositor,
+        &recipient,
+        amount,
+        20000,
+    );
+
+    client.release_escrow(&unauthorized, &escrow_id);
+}
+
+#[test]
+fn test_batch_release_unauthorized_caller_fails_without_releasing() {
+    let (env, _admin, _token, token_client, token_admin, client) = setup_test_env();
+
+    let depositor = Address::generate(&env);
+    let recipient = Address::generate(&env);
+    let unauthorized = Address::generate(&env);
+    let amount = 10_000_000;
+
+    let escrow_id = create_test_escrow(
+        &env,
+        &client,
+        &token_admin,
+        &depositor,
+        &recipient,
+        amount,
+        20000,
+    );
+
+    let mut requests: Vec<ReleaseRequest> = Vec::new(&env);
+    requests.push_back(create_release_request(escrow_id));
+
+    let result = client.batch_release_escrows(&unauthorized, &requests);
+
+    assert_eq!(result.total_requests, 1);
+    assert_eq!(result.successful, 0);
+    assert_eq!(result.failed, 1);
+    assert_eq!(result.total_released, 0);
+
+    match result.results.get(0).unwrap() {
+        ReleaseResult::Failure(id, error_code) => {
+            assert_eq!(id, escrow_id);
+            assert_eq!(error_code, 3);
+        }
+        _ => panic!("Expected unauthorized release to fail"),
+    }
+
+    assert_eq!(
+        client.get_escrow(&escrow_id).unwrap().status,
+        EscrowStatus::Active
+    );
+    assert_eq!(token_client.balance(&recipient), 0);
 }
 
 #[test]
