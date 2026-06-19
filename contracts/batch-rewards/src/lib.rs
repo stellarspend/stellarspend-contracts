@@ -7,10 +7,11 @@ mod validation;
 #[cfg(test)]
 mod test;
 
-use soroban_sdk::{contract, contractimpl, panic_with_error, token, Address, Env, Vec};
+use soroban_sdk::{contract, contractimpl, panic_with_error, token, Address, Env, String, Vec};
 
 pub use crate::types::{
-    BatchRewardResult, DataKey, RewardEvents, RewardRequest, RewardResult, MAX_BATCH_SIZE,
+    BatchRewardResult, DataKey, IdempotencyRecord, RewardEvents, RewardRequest, RewardResult,
+    MAX_BATCH_SIZE,
 };
 use crate::validation::{validate_address, validate_amount};
 use shared::validation::validate_batch_size;
@@ -35,6 +36,10 @@ pub enum BatchRewardsError {
     InsufficientBalance = 7,
     /// Invalid reward amount
     InvalidAmount = 8,
+    /// Idempotency token was already used
+    DuplicateBatch = 9,
+    /// Idempotency token is empty
+    InvalidIdempotencyToken = 10,
 }
 
 impl From<BatchRewardsError> for soroban_sdk::Error {
@@ -122,9 +127,43 @@ impl BatchRewardsContract {
         token: Address,
         rewards: Vec<RewardRequest>,
     ) -> BatchRewardResult {
+        Self::distribute_rewards_internal(env, caller, token, rewards, None)
+    }
+
+    /// Distributes rewards once for a caller-provided idempotency token.
+    ///
+    /// Reusing the same token rejects the replay before any token transfer runs.
+    pub fn distribute_rewards_once(
+        env: Env,
+        caller: Address,
+        token: Address,
+        idempotency_token: String,
+        rewards: Vec<RewardRequest>,
+    ) -> BatchRewardResult {
+        if idempotency_token.len() == 0 {
+            panic_with_error!(&env, BatchRewardsError::InvalidIdempotencyToken);
+        }
+
+        let idempotency_key = DataKey::IdempotencyToken(idempotency_token);
+        Self::distribute_rewards_internal(env, caller, token, rewards, Some(idempotency_key))
+    }
+
+    fn distribute_rewards_internal(
+        env: Env,
+        caller: Address,
+        token: Address,
+        rewards: Vec<RewardRequest>,
+        idempotency_key: Option<DataKey>,
+    ) -> BatchRewardResult {
         // Verify authorization
         caller.require_auth();
         Self::require_admin(&env, &caller);
+
+        if let Some(key) = &idempotency_key {
+            if env.storage().persistent().has(key) {
+                panic_with_error!(&env, BatchRewardsError::DuplicateBatch);
+            }
+        }
 
         // Validate batch size
         let request_count = rewards.len();
@@ -163,6 +202,15 @@ impl BatchRewardsContract {
 
         if available_balance < total_required {
             panic_with_error!(&env, BatchRewardsError::InsufficientBalance);
+        }
+
+        if let Some(key) = &idempotency_key {
+            let record = IdempotencyRecord {
+                caller: caller.clone(),
+                batch_id,
+                processed_at: env.ledger().timestamp(),
+            };
+            env.storage().persistent().set(key, &record);
         }
 
         // Process each reward request

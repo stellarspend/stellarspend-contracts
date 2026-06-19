@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, symbol_short, Address, Env, Vec};
+use soroban_sdk::{contracttype, symbol_short, Address, Env, String, Vec};
 
 pub const MAX_BATCH_SIZE: u32 = 100;
 
@@ -26,6 +26,14 @@ pub struct BatchRewardResult {
     pub results: Vec<RewardResult>,
 }
 
+#[derive(Clone, Debug)]
+#[contracttype]
+pub struct IdempotencyRecord {
+    pub caller: Address,
+    pub batch_id: u64,
+    pub processed_at: u64,
+}
+
 #[derive(Clone)]
 #[contracttype]
 pub enum DataKey {
@@ -33,6 +41,7 @@ pub enum DataKey {
     TotalBatches,
     TotalRewardsProcessed,
     TotalVolumeDistributed,
+    IdempotencyToken(String),
 }
 
 pub struct RewardEvents;
