@@ -150,7 +150,11 @@ pub fn write_fee_bps(env: &Env, fee_bps: u32) {
 }
 
 pub fn read_fee_bps(env: &Env) -> u32 {
-    read_config(env).fee_bps
+    if has_admin(env) {
+        read_config(env).fee_bps
+    } else {
+        DEFAULT_FEE_BPS
+    }
 }
 
 pub fn write_min_fee(env: &Env, min_fee: i128) {
@@ -160,7 +164,11 @@ pub fn write_min_fee(env: &Env, min_fee: i128) {
 }
 
 pub fn read_min_fee(env: &Env) -> i128 {
-    read_config(env).min_fee
+    if has_admin(env) {
+        read_config(env).min_fee
+    } else {
+        DEFAULT_MIN_FEE
+    }
 }
 
 pub fn write_max_fee(env: &Env, max_fee: i128) {
@@ -170,7 +178,11 @@ pub fn write_max_fee(env: &Env, max_fee: i128) {
 }
 
 pub fn read_max_fee(env: &Env) -> i128 {
-    read_config(env).max_fee
+    if has_admin(env) {
+        read_config(env).max_fee
+    } else {
+        DEFAULT_MAX_FEE
+    }
 }
 
 pub fn write_locked(env: &Env, is_locked: bool) {

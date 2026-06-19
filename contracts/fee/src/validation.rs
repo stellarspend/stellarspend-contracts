@@ -40,7 +40,7 @@ pub fn validate_discount_vs_base_or_panic(env: &Env, base_bps: u32, discount_bps
 /// This is a safer alternative to validate_fee_bps_or_panic that allows
 /// callers to handle errors gracefully.
 pub fn validate_fee_bps(fee_bps: u32) -> Result<(), FeeContractError> {
-    if fee_bps == 0 || fee_bps > MAX_FEE_BPS {
+    if fee_bps > MAX_FEE_BPS {
         Err(FeeContractError::InvalidConfig)
     } else {
         Ok(())

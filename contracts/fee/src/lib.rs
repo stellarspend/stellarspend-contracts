@@ -15,27 +15,28 @@ mod validation;
 #[cfg(test)]
 mod test;
 
-use soroban_sdk::{contract, contractimpl, panic_with_error, Address, Env, Vec};
+use soroban_sdk::{contract, contractimpl, panic_with_error, Address, Env, Symbol, Vec};
 
 use crate::auth::require_admin;
 use crate::decay::calculate_fee_decay;
 use crate::escrow::{
     collect_batch_to_escrow, collect_to_escrow, release_cycle_fees, rollover_cycle_fees,
 };
-use crate::events::{ConfigEvents, FeeEvents};
+use crate::events::{ConfigEvents, FeeEvents, TierEvents};
+use crate::fee_validation::validate_fee_percentage_bounds;
 use crate::reconciliation::reconcile;
 pub use crate::reconciliation::ReconciliationResult;
 use crate::storage::{
-    has_admin, read_admin, read_current_cycle, read_escrow_balance, read_fee_bps, read_last_active,
-    read_locked, read_max_fee, read_min_fee, read_pending_fees, read_token, read_total_batch_calls,
-    read_total_collected, read_total_released, read_treasury, write_admin, write_current_cycle,
-    write_fee_bps, write_last_active, write_locked, write_max_fee, write_min_fee, write_token,
-    write_treasury, FeeConfig, FeeStats, DEFAULT_FEE_BPS, DEFAULT_MAX_FEE, DEFAULT_MIN_FEE,
+    has_admin, is_valid_tier, read_admin, read_current_cycle, read_escrow_balance, read_fee_bps,
+    read_last_active, read_locked, read_max_fee, read_min_fee, read_pending_fees, read_token,
+    read_total_batch_calls, read_total_collected, read_total_released, read_treasury,
+    read_user_tier, remove_user_tier as delete_user_tier, write_current_cycle, write_fee_bps,
+    write_last_active, write_locked, write_max_fee, write_min_fee, write_treasury, write_user_tier,
+    FeeConfig, FeeStats, DEFAULT_FEE_BPS, DEFAULT_MAX_FEE, DEFAULT_MIN_FEE,
 };
 pub use crate::storage::{BatchFeeResult, DataKey, MAX_BATCH_SIZE, MAX_FEE_BPS};
 use crate::validation::{
-    validate_amount_positive_or_panic, validate_fee_bps_or_panic, validate_max_fee_or_panic,
-    validate_min_fee_or_panic,
+    validate_amount_positive_or_panic, validate_max_fee_or_panic, validate_min_fee_or_panic,
 };
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -266,7 +267,6 @@ impl FeeContract {
     /// - min_fee to DEFAULT_MIN_FEE (0)
     /// Emits a reset event with the restored default values.
     pub fn reset_fee_config(env: Env, admin: Address) {
-        admin.require_auth();
         Self::require_admin(&env, &admin);
         Self::require_unlocked(&env);
 
@@ -274,6 +274,51 @@ impl FeeContract {
         write_min_fee(&env, DEFAULT_MIN_FEE);
 
         ConfigEvents::fee_reset(&env, &admin);
+    }
+
+    pub fn set_user_tier(env: Env, admin: Address, user: Address, tier: Symbol) {
+        require_admin(&env, &admin);
+        Self::require_unlocked(&env);
+        if !is_valid_tier(&env, &tier) {
+            panic_with_error!(&env, FeeContractError::InvalidTier);
+        }
+
+        write_user_tier(&env, &user, &tier);
+        TierEvents::tier_set(&env, &admin, &user, &tier);
+    }
+
+    pub fn get_user_tier(env: Env, user: Address) -> Option<Symbol> {
+        Self::require_initialized(&env);
+        read_user_tier(&env, &user)
+    }
+
+    pub fn remove_user_tier(env: Env, admin: Address, user: Address) {
+        require_admin(&env, &admin);
+        Self::require_unlocked(&env);
+
+        delete_user_tier(&env, &user);
+        TierEvents::tier_removed(&env, &admin, &user);
+    }
+
+    pub fn calculate_fee_amount(env: Env, amount: i128, fee_bps: u32) -> i128 {
+        if amount < 0 {
+            panic_with_error!(&env, FeeContractError::InvalidAmount);
+        }
+        if fee_bps > MAX_FEE_BPS {
+            panic_with_error!(&env, FeeContractError::InvalidConfig);
+        }
+
+        amount
+            .checked_mul(fee_bps as i128)
+            .and_then(|value| value.checked_div(10_000))
+            .unwrap_or_else(|| panic_with_error!(&env, FeeContractError::Overflow))
+    }
+
+    pub fn validate_config(_env: Env, fee_bps: u32, min_fee: i128) -> bool {
+        if fee_bps > MAX_FEE_BPS || min_fee < 0 {
+            return false;
+        }
+        true
     }
 
     pub fn get_admin(env: Env) -> Address {
@@ -344,10 +389,49 @@ impl FeeContract {
         read_total_batch_calls(&env)
     }
 
+    pub fn get_reconciliation_status(env: Env) -> ReconciliationResult {
+        Self::require_initialized(&env);
+        reconcile(&env)
+    }
+
+    pub fn reconcile_fees(env: Env, admin: Address) -> ReconciliationResult {
+        require_admin(&env, &admin);
+
+        let result = reconcile(&env);
+        if result.is_reconciled {
+            FeeEvents::fee_reconciled(&env, result.stored_balance, result.calculated_balance);
+        } else {
+            FeeEvents::fee_discrepancy(
+                &env,
+                result.stored_balance,
+                result.calculated_balance,
+                result.discrepancy,
+            );
+        }
+        result
+    }
+
     pub fn preview_batch_fee(env: Env, _payer: Address, amounts: Vec<i128>) -> i128 {
+        Self::require_initialized(&env);
+
+        let batch_size = amounts.len();
+        if batch_size == 0 {
+            panic_with_error!(&env, FeeContractError::EmptyBatch);
+        }
+        if batch_size > MAX_BATCH_SIZE {
+            panic_with_error!(&env, FeeContractError::BatchTooLarge);
+        }
+
+        let min_fee = read_min_fee(&env);
         let mut total: i128 = 0;
         for amount in amounts.iter() {
-            total = total.checked_add(amount).unwrap_or(0);
+            validate_amount_positive_or_panic(&env, amount);
+            if amount < min_fee {
+                panic_with_error!(&env, FeeContractError::InvalidAmount);
+            }
+            total = total
+                .checked_add(amount)
+                .unwrap_or_else(|| panic_with_error!(&env, FeeContractError::Overflow));
         }
         total
     }
@@ -360,7 +444,7 @@ impl FeeContract {
 
     fn require_initialized(env: &Env) {
         if !has_admin(env) {
-            panic!("Contract not initialized");
+            panic_with_error!(env, FeeContractError::NotInitialized);
         }
     }
 

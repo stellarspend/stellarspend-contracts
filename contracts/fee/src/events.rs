@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, symbol_short, Address, Env, String, Symbol};
+use soroban_sdk::{contracttype, symbol_short, Address, Env, IntoVal, String, Symbol};
 
 use crate::storage::{DEFAULT_FEE_BPS, DEFAULT_MIN_FEE};
 use crate::utils::format_amount;
@@ -171,6 +171,23 @@ impl FeeEvents {
             },
         );
     }
+
+    pub fn fee_bps_updated(env: &Env, fee_bps: u32) {
+        publish(env, symbol_short!("fee"), symbol_short!("fee_bps"), fee_bps);
+    }
+
+    pub fn treasury_updated(env: &Env, treasury: &Address) {
+        publish(
+            env,
+            symbol_short!("fee"),
+            symbol_short!("treasury"),
+            treasury.clone(),
+        );
+    }
+
+    pub fn min_fee_updated(env: &Env, min_fee: i128) {
+        publish(env, symbol_short!("fee"), symbol_short!("min_fee"), min_fee);
+    }
 }
 
 //
@@ -228,10 +245,8 @@ pub struct FeeResetEventData {
 
 impl ConfigEvents {
     pub fn fee_reset(env: &Env, admin: &Address) {
-        publish(
-            env,
-            symbol_short!("fee"),
-            symbol_short!("reset"),
+        env.events().publish(
+            (symbol_short!("fee"), symbol_short!("reset")),
             FeeResetEventData {
                 admin: admin.clone(),
                 fee_bps: DEFAULT_FEE_BPS,

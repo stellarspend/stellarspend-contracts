@@ -1,3 +1,5 @@
+use alloc::format;
+
 use soroban_sdk::{Env, String, Symbol};
 
 /// Shared validation errors for simple reusable helpers.
@@ -65,7 +67,7 @@ pub fn increment_counter(env: &Env, counter_key: &Symbol) -> u64 {
 /// tracking and reconciliation of individual transactions.
 pub fn generate_transaction_reference_id(
     env: &Env,
-    sender: &soroban_sdk::Address,
+    _sender: &soroban_sdk::Address,
     counter_key: &Symbol,
 ) -> String {
     // Increment the transaction counter to ensure uniqueness
@@ -80,10 +82,7 @@ pub fn generate_transaction_reference_id(
 
     // Combine components to create reference ID
     // Format: TXN-{ledger}{counter}
-    let ref_id = String::from_str(
-        env,
-        &format!("TXN-{}{}", ledger_str, counter_str[..8].to_string()),
-    );
+    let ref_id = String::from_str(env, &format!("TXN-{}{}", ledger_str, &counter_str[..8]));
 
     ref_id
 }

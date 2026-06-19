@@ -1,6 +1,5 @@
 mod support;
 
-use soroban_sdk::Address;
 use soroban_sdk::{testutils::Address as _, Address};
 use support::setup;
 
@@ -120,7 +119,6 @@ fn reconciliation_balanced_after_multiple_cycles() {
 #[test]
 fn reconcile_fees_requires_admin() {
     let ctx = setup();
-    let non_admin = Address::generate(&ctx.env);
 
     // get_reconciliation_status has no admin check
     let result = ctx.client.get_reconciliation_status();
