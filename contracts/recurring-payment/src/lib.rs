@@ -57,6 +57,7 @@ impl RecurringPaymentContract {
             interval,
             next_execution: start_time,
             active: true,
+            paused: false,
             execution_count: 0,
             missed_count: 0,
             last_missed_at: 0,
@@ -87,6 +88,9 @@ impl RecurringPaymentContract {
         if !payment.active {
             panic!("Payment is not active");
         }
+        if payment.paused {
+            panic!("Payment is paused");
+        }
 
         let current_time = env.ledger().timestamp();
         if current_time < payment.next_execution {
@@ -107,7 +111,7 @@ impl RecurringPaymentContract {
                 (symbol_short!("recur"), symbol_short!("missed"), payment_id),
                 (payment.missed_count, payment.last_missed_at),
             );
-            panic!("Insufficient funds for payment");
+            return;
         }
         token_client.transfer(&payment.sender, &payment.recipient, &payment.amount);
 
@@ -173,6 +177,66 @@ impl RecurringPaymentContract {
                 symbol_short!("canceled"),
                 payment_id,
             ),
+            payment.sender,
+        );
+    }
+
+    /// Pauses a recurring payment without canceling its schedule.
+    ///
+    /// Only the original sender may pause the payment.
+    pub fn pause_payment(env: Env, payment_id: u64) {
+        let mut payment: RecurringPayment = env
+            .storage()
+            .instance()
+            .get(&DataKey::Payment(payment_id))
+            .expect("Payment not found");
+
+        payment.sender.require_auth();
+
+        if !payment.active {
+            panic!("Payment is not active");
+        }
+        if payment.paused {
+            panic!("Payment is already paused");
+        }
+
+        payment.paused = true;
+        env.storage()
+            .instance()
+            .set(&DataKey::Payment(payment_id), &payment);
+
+        env.events().publish(
+            (symbol_short!("recur"), symbol_short!("paused"), payment_id),
+            payment.sender,
+        );
+    }
+
+    /// Resumes a paused recurring payment.
+    ///
+    /// Only the original sender may resume the payment.
+    pub fn resume_payment(env: Env, payment_id: u64) {
+        let mut payment: RecurringPayment = env
+            .storage()
+            .instance()
+            .get(&DataKey::Payment(payment_id))
+            .expect("Payment not found");
+
+        payment.sender.require_auth();
+
+        if !payment.active {
+            panic!("Payment is not active");
+        }
+        if !payment.paused {
+            panic!("Payment is not paused");
+        }
+
+        payment.paused = false;
+        env.storage()
+            .instance()
+            .set(&DataKey::Payment(payment_id), &payment);
+
+        env.events().publish(
+            (symbol_short!("recur"), symbol_short!("resumed"), payment_id),
             payment.sender,
         );
     }
