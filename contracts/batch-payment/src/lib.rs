@@ -1,11 +1,13 @@
 #![no_std]
 
+#[cfg(test)]
 mod test;
 mod types;
 
-use crate::types::Payment;
 use shared::utils::generate_transaction_reference_id;
 use soroban_sdk::{contract, contractimpl, symbol_short, token, Address, Env, String, Symbol, Vec};
+
+pub use crate::types::{Payment, PaymentReceipt};
 
 #[contract]
 pub struct BatchPaymentContract;
@@ -56,6 +58,14 @@ impl BatchPaymentContract {
             total_amount += payment.amount;
             count += 1;
 
+            let receipt = PaymentReceipt {
+                batch_reference_id: batch_reference_id.clone(),
+                recipient: payment.recipient.clone(),
+                token: token.clone(),
+                amount: payment.amount,
+                index: count,
+            };
+
             // Emit per-payment event with batch reference ID
             // Topics: (payment, batch_id, recipient)
             // Data: (token, amount)
@@ -66,6 +76,15 @@ impl BatchPaymentContract {
             );
             env.events()
                 .publish(topics, (token.clone(), payment.amount));
+
+            env.events().publish(
+                (
+                    symbol_short!("payment"),
+                    symbol_short!("receipt"),
+                    payment.recipient.clone(),
+                ),
+                receipt,
+            );
         }
 
         // Emit batch completion event with reference ID
