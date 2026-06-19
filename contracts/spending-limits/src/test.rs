@@ -29,12 +29,29 @@ fn setup_test_contract() -> (Env, Address, SpendingLimitsContractClient<'static>
 }
 
 /// Helper function to create a valid spending limit request.
-fn create_valid_request(env: &Env, user: &Address, limit: i128) -> SpendingLimitRequest {
+fn create_valid_request(_env: &Env, user: &Address, limit: i128) -> SpendingLimitRequest {
     SpendingLimitRequest {
         user: user.clone(),
         monthly_limit: limit,
         daily_limit: if limit >= 30 { limit / 30 } else { limit },
         hourly_limit: if limit >= 30 { limit / 30 } else { limit },
+        reset_window_seconds: 86_400,
+        category: Some(symbol_short!("general")),
+        strategy: LimitStrategy::Static,
+    }
+}
+
+fn create_enforcement_request(
+    user: &Address,
+    monthly_limit: i128,
+    daily_limit: i128,
+    hourly_limit: i128,
+) -> SpendingLimitRequest {
+    SpendingLimitRequest {
+        user: user.clone(),
+        monthly_limit,
+        daily_limit,
+        hourly_limit,
         reset_window_seconds: 86_400,
         category: Some(symbol_short!("general")),
         strategy: LimitStrategy::Static,
@@ -183,7 +200,7 @@ fn test_batch_update_invalid_limit_too_high() {
 
     let mut requests: Vec<SpendingLimitRequest> = Vec::new(&env);
     let mut request = create_valid_request(&env, &user, 50_000_000_000);
-    request.monthly_limit = 100_000_000_000_000_001; // Above maximum
+    request.monthly_limit = 1_000_000_000_000_000_001; // Above maximum
     requests.push_back(request);
 
     let result = client.batch_update_spending_limits(&admin, &requests);
@@ -398,7 +415,9 @@ fn test_minimum_valid_limit() {
     let user = Address::generate(&env);
 
     let mut requests: Vec<SpendingLimitRequest> = Vec::new(&env);
-    requests.push_back(create_valid_request(&env, &user, 1_000_000)); // Minimum: 0.1 XLM
+    requests.push_back(create_enforcement_request(
+        &user, 10_000_000, 10_000_000, 10_000_000,
+    )); // Minimum: 1 XLM
 
     let result = client.batch_update_spending_limits(&admin, &requests);
 
@@ -429,18 +448,23 @@ fn test_enforce_spending_limit_allows_within_daily_and_monthly() {
     let (env, admin, client) = setup_test_contract();
     let user = Address::generate(&env);
 
-    // Configure a monthly limit of 300 units; derived daily limit is 10 units.
+    // Configure a monthly limit of 900M stroops with a 30M daily limit.
     client.whitelist_destination(&admin, &user);
     let mut requests: Vec<SpendingLimitRequest> = Vec::new(&env);
-    requests.push_back(create_valid_request(&env, &user, 300));
+    requests.push_back(create_enforcement_request(
+        &user,
+        900_000_000,
+        30_000_000,
+        30_000_000,
+    ));
     client.batch_update_spending_limits(&admin, &requests);
 
     // Same timestamp (same logical day/month).
     env.ledger().set_timestamp(86_400); // day 1
 
-    // Two spends of 5 each are within daily (10) and monthly (300) limits.
-    client.enforce_spending_limit(&user, &5, &None::<Symbol>);
-    client.enforce_spending_limit(&user, &5, &None::<Symbol>);
+    // Two spends of 15M each are within daily (30M) and monthly (900M) limits.
+    client.enforce_spending_limit(&user, &15_000_000, &None::<Symbol>);
+    client.enforce_spending_limit(&user, &15_000_000, &None::<Symbol>);
 }
 
 #[test]
@@ -448,21 +472,80 @@ fn test_enforce_spending_limit_resets_after_window() {
     let (env, admin, client) = setup_test_contract();
     let user = Address::generate(&env);
 
-    // Configure a monthly limit with a 24-hour reset window.
+    // Configure a valid monthly limit with a 24-hour reset window.
     client.whitelist_destination(&admin, &user);
     let mut requests: Vec<SpendingLimitRequest> = Vec::new(&env);
-    let mut request = create_valid_request(&env, &user, 300);
+    let mut request = create_enforcement_request(&user, 900_000_000, 30_000_000, 30_000_000);
     request.reset_window_seconds = 86_400;
     requests.push_back(request);
     client.batch_update_spending_limits(&admin, &requests);
 
     // Use the starting window
     env.ledger().set_timestamp(0);
-    client.enforce_spending_limit(&user, &10, &None::<Symbol>);
+    client.enforce_spending_limit(&user, &30_000_000, &None::<Symbol>);
 
     // Advance past the configured reset window and verify the counter resets.
     env.ledger().set_timestamp(86_401);
-    client.enforce_spending_limit(&user, &10, &None::<Symbol>);
+    client.enforce_spending_limit(&user, &30_000_000, &None::<Symbol>);
+}
+
+#[test]
+fn test_daily_limit_resets_and_allows_full_next_day_usage() {
+    let (env, admin, client) = setup_test_contract();
+    let user = Address::generate(&env);
+
+    client.whitelist_destination(&admin, &user);
+    let mut requests: Vec<SpendingLimitRequest> = Vec::new(&env);
+    requests.push_back(create_enforcement_request(
+        &user,
+        900_000_000,
+        30_000_000,
+        20_000_000,
+    ));
+    client.batch_update_spending_limits(&admin, &requests);
+
+    env.ledger().set_timestamp(86_401);
+    client.enforce_spending_limit(&user, &20_000_000, &None::<Symbol>);
+    env.ledger().set_timestamp(86_401 + 3_601);
+    client.enforce_spending_limit(&user, &10_000_000, &None::<Symbol>);
+
+    env.ledger().set_timestamp(2 * 86_400 + 1);
+    client.enforce_spending_limit(&user, &20_000_000, &None::<Symbol>);
+    env.ledger().set_timestamp(2 * 86_400 + 1 + 3_601);
+    client.enforce_spending_limit(&user, &10_000_000, &None::<Symbol>);
+
+    let limit = client.get_spending_limit(&user).unwrap();
+    assert_eq!(limit.current_spending, 60_000_000);
+}
+
+#[test]
+#[should_panic]
+fn test_daily_limit_is_enforced_again_after_reset() {
+    let (env, admin, client) = setup_test_contract();
+    let user = Address::generate(&env);
+
+    client.whitelist_destination(&admin, &user);
+    let mut requests: Vec<SpendingLimitRequest> = Vec::new(&env);
+    requests.push_back(create_enforcement_request(
+        &user,
+        900_000_000,
+        30_000_000,
+        20_000_000,
+    ));
+    client.batch_update_spending_limits(&admin, &requests);
+
+    env.ledger().set_timestamp(86_401);
+    client.enforce_spending_limit(&user, &20_000_000, &None::<Symbol>);
+    env.ledger().set_timestamp(86_401 + 3_601);
+    client.enforce_spending_limit(&user, &10_000_000, &None::<Symbol>);
+
+    env.ledger().set_timestamp(2 * 86_400 + 1);
+    client.enforce_spending_limit(&user, &20_000_000, &None::<Symbol>);
+    env.ledger().set_timestamp(2 * 86_400 + 1 + 3_601);
+    client.enforce_spending_limit(&user, &10_000_000, &None::<Symbol>);
+
+    env.ledger().set_timestamp(2 * 86_400 + 1 + 7_202);
+    client.enforce_spending_limit(&user, &1, &None::<Symbol>);
 }
 
 #[test]
@@ -471,28 +554,22 @@ fn test_enforce_spending_limit_daily_exceeded() {
     let (env, admin, client) = setup_test_contract();
     let user = Address::generate(&env);
 
-    // Monthly 300 -> daily 10
+    // Monthly 900M -> daily 30M.
     client.whitelist_destination(&admin, &user);
     let mut requests: Vec<SpendingLimitRequest> = Vec::new(&env);
-    requests.push_back(create_valid_request(&env, &user, 300));
+    requests.push_back(create_enforcement_request(
+        &user,
+        900_000_000,
+        30_000_000,
+        30_000_000,
+    ));
     let result = client.batch_update_spending_limits(&admin, &requests);
     assert_eq!(result.successful, 1);
     assert!(client.get_spending_limit(&user).is_some());
 
     env.ledger().set_timestamp(2 * 86_400); // day 2
 
-    // 2 * 5 is allowed; the third spend pushes daily total above 10 and should panic.
-    client.enforce_spending_limit(&user, &5, &None::<Symbol>);
-    client.enforce_spending_limit(&user, &5, &None::<Symbol>);
-    client.enforce_spending_limit(&user, &1, &None::<Symbol>);
-    // 2 * 5 is allowed.
-    client.enforce_spending_limit(&user, &5, &None::<Symbol>);
-    client.enforce_spending_limit(&user, &5, &None::<Symbol>);
-
-    let limit = client.get_spending_limit(&user).unwrap();
-    assert_eq!(limit.current_spending, 10);
-
-    // The third spend pushes daily total above 10 and should panic.
+    client.enforce_spending_limit(&user, &30_000_000, &None::<Symbol>);
     client.enforce_spending_limit(&user, &1, &None::<Symbol>);
 }
 
@@ -502,27 +579,32 @@ fn test_enforce_spending_limit_monthly_exceeded_over_multiple_days() {
     let (env, admin, client) = setup_test_contract();
     let user = Address::generate(&env);
 
-    // Monthly 30, daily 1 (30 / 30) => 1 unit per day max, 30 units per month.
+    // Monthly 300M, daily 10M, 30 days fills the monthly limit.
     client.whitelist_destination(&admin, &user);
     let mut requests: Vec<SpendingLimitRequest> = Vec::new(&env);
-    requests.push_back(create_valid_request(&env, &user, 30));
+    requests.push_back(create_enforcement_request(
+        &user,
+        300_000_000,
+        10_000_000,
+        10_000_000,
+    ));
     let result = client.batch_update_spending_limits(&admin, &requests);
     assert_eq!(result.successful, 1);
     assert!(client.get_spending_limit(&user).is_some());
 
-    // Spend 1 unit on 30 different "days" within the same logical month window.
+    // Spend 10M on 30 different "days" within the same logical month window.
     for d in 0..30u64 {
         env.ledger().set_timestamp(d * 86_400);
-        client.enforce_spending_limit(&user, &1, &None::<Symbol>);
+        client.enforce_spending_limit(&user, &10_000_000, &None::<Symbol>);
     }
 
     let limit = client.get_spending_limit(&user).unwrap();
-    assert_eq!(limit.current_spending, 30);
+    assert_eq!(limit.current_spending, 300_000_000);
 
     // Next day is still within the same 30-day "month" bucket and should exceed the
     // monthly limit, even though the daily limit would allow it.
     env.ledger().set_timestamp(30 * 86_400);
-    client.enforce_spending_limit(&user, &1, &None::<Symbol>);
+    client.enforce_spending_limit(&user, &10_000_000, &None::<Symbol>);
 }
 
 #[test]
@@ -541,7 +623,7 @@ fn test_enforce_without_limit_does_not_block() {
 
 #[test]
 fn test_add_approved_category() {
-    let (env, admin, client) = setup_test_contract();
+    let (_env, admin, client) = setup_test_contract();
     let category = symbol_short!("medical");
 
     client.add_approved_category(&admin, &category);
@@ -553,7 +635,7 @@ fn test_add_approved_category() {
 
 #[test]
 fn test_add_and_remove_approved_category() {
-    let (env, admin, client) = setup_test_contract();
+    let (_env, admin, client) = setup_test_contract();
     let cat = symbol_short!("medical");
 
     client.add_approved_category(&admin, &cat);
@@ -565,7 +647,7 @@ fn test_add_and_remove_approved_category() {
 
 #[test]
 fn test_add_duplicate_approved_category_is_idempotent() {
-    let (env, admin, client) = setup_test_contract();
+    let (_env, admin, client) = setup_test_contract();
     let cat = symbol_short!("medical");
 
     client.add_approved_category(&admin, &cat);
@@ -581,14 +663,18 @@ fn test_add_exception_grants_bypass() {
     let user = Address::generate(&env);
     let cat = symbol_short!("medical");
 
-    // Configure a tight limit: monthly 30 -> daily 1
+    // Configure a tight but valid limit.
     let mut requests: Vec<SpendingLimitRequest> = Vec::new(&env);
-    requests.push_back(create_valid_request(&env, &user, 30));
+    requests.push_back(create_enforcement_request(
+        &user,
+        300_000_000,
+        10_000_000,
+        10_000_000,
+    ));
     client.batch_update_spending_limits(&admin, &requests);
 
     env.ledger().set_timestamp(86_400);
 
-    // Without exception, a spend of 2 on day 1 (daily limit = 1) should be blocked.
     // Now add an approved category and grant an exception.
     client.add_approved_category(&admin, &cat);
     client.add_exception(&admin, &user, &cat);
@@ -597,7 +683,7 @@ fn test_add_exception_grants_bypass() {
     assert!(client.is_exempt(&user, &cat));
 
     // Spend exceeds the daily limit but has an exception — must succeed
-    client.enforce_spending_limit(&user, &999, &Some(cat.clone()));
+    client.enforce_spending_limit(&user, &999_000_000, &Some(cat.clone()));
 }
 
 #[test]
@@ -606,9 +692,15 @@ fn test_exception_does_not_bypass_without_category() {
     let user = Address::generate(&env);
     let cat = symbol_short!("medical");
 
-    // Tight limit: monthly 30 -> daily 1
+    // Tight but valid limit.
+    client.whitelist_destination(&admin, &user);
     let mut requests: Vec<SpendingLimitRequest> = Vec::new(&env);
-    requests.push_back(create_valid_request(&env, &user, 30));
+    requests.push_back(create_enforcement_request(
+        &user,
+        300_000_000,
+        10_000_000,
+        10_000_000,
+    ));
     client.batch_update_spending_limits(&admin, &requests);
 
     client.add_approved_category(&admin, &cat);
@@ -617,9 +709,7 @@ fn test_exception_does_not_bypass_without_category() {
     env.ledger().set_timestamp(86_400);
 
     // Spending with no category should still enforce limits normally
-    client.enforce_spending_limit(&user, &1, &None::<Symbol>);
-    // Limit is now consumed; the second call without category must still succeed within limit.
-    // (daily limit = 1, already used 1 — next no-category call should panic)
+    client.enforce_spending_limit(&user, &10_000_000, &None::<Symbol>);
 }
 
 #[test]
@@ -639,9 +729,14 @@ fn test_remove_exception_disables_bypass() {
     let user = Address::generate(&env);
     let cat = symbol_short!("medical");
 
-    // Tight limit
+    // Tight but valid limit.
     let mut requests: Vec<SpendingLimitRequest> = Vec::new(&env);
-    requests.push_back(create_valid_request(&env, &user, 30));
+    requests.push_back(create_enforcement_request(
+        &user,
+        300_000_000,
+        10_000_000,
+        10_000_000,
+    ));
     client.batch_update_spending_limits(&admin, &requests);
 
     client.add_approved_category(&admin, &cat);
@@ -674,9 +769,14 @@ fn test_non_exempt_user_still_restricted() {
     let other_user = Address::generate(&env);
     let cat = symbol_short!("medical");
 
-    // Tight limit for other_user
+    // Tight but valid limit for other_user.
     let mut requests: Vec<SpendingLimitRequest> = Vec::new(&env);
-    requests.push_back(create_valid_request(&env, &other_user, 30));
+    requests.push_back(create_enforcement_request(
+        &other_user,
+        300_000_000,
+        10_000_000,
+        10_000_000,
+    ));
     client.batch_update_spending_limits(&admin, &requests);
 
     // Grant exception to user (not other_user)
@@ -696,18 +796,21 @@ fn test_enforce_spending_limit_hourly_exceeded() {
     let user = Address::generate(&env);
 
     let mut requests: Vec<SpendingLimitRequest> = Vec::new(&env);
-    // 300 monthly, 10 daily, but override hourly_limit to 5.
-    let mut request = create_valid_request(&env, &user, 300);
-    request.hourly_limit = 5;
-    requests.push_back(request);
+    client.whitelist_destination(&admin, &user);
+    requests.push_back(create_enforcement_request(
+        &user,
+        300_000_000,
+        20_000_000,
+        10_000_000,
+    ));
     client.batch_update_spending_limits(&admin, &requests);
 
     env.ledger().set_timestamp(3600); // 1 hour
 
-    // Spend of 5 is allowed.
-    client.enforce_spending_limit(&user, &5, &None::<Symbol>);
+    // Spend of 10M is allowed.
+    client.enforce_spending_limit(&user, &10_000_000, &None::<Symbol>);
 
-    // This second spend in the same hour exceeds hourly limit of 5 and should panic.
+    // This second spend in the same hour exceeds hourly limit of 10M and should panic.
     client.enforce_spending_limit(&user, &1, &None::<Symbol>);
 }
 
@@ -717,21 +820,25 @@ fn test_enforce_spending_limit_hourly_resets() {
     let user = Address::generate(&env);
 
     let mut requests: Vec<SpendingLimitRequest> = Vec::new(&env);
-    let mut request = create_valid_request(&env, &user, 300);
-    request.hourly_limit = 5;
-    requests.push_back(request);
+    client.whitelist_destination(&admin, &user);
+    requests.push_back(create_enforcement_request(
+        &user,
+        300_000_000,
+        20_000_000,
+        10_000_000,
+    ));
     client.batch_update_spending_limits(&admin, &requests);
 
     env.ledger().set_timestamp(3600); // hour 1
 
-    // Spend of 5 is allowed.
-    client.enforce_spending_limit(&user, &5, &None::<Symbol>);
+    // Spend of 10M is allowed.
+    client.enforce_spending_limit(&user, &10_000_000, &None::<Symbol>);
 
     // Advance 1 hour and 1 second.
     env.ledger().set_timestamp(3600 + 3601); // hour 2
 
-    // Another spend of 5 is allowed now because the hourly window has reset.
-    client.enforce_spending_limit(&user, &5, &None::<Symbol>);
+    // Another spend of 10M is allowed now because the hourly window has reset.
+    client.enforce_spending_limit(&user, &10_000_000, &None::<Symbol>);
 }
 
 #[test]
@@ -743,6 +850,8 @@ fn test_adaptive_strategy_increases_limit_near_usage_threshold() {
 
     let mut requests: Vec<SpendingLimitRequest> = Vec::new(&env);
     let mut request = create_valid_request(&env, &user, 1_000_000_000);
+    request.daily_limit = 1_000_000_000;
+    request.hourly_limit = 1_000_000_000;
     request.strategy = LimitStrategy::Adaptive;
     requests.push_back(request);
     client.batch_update_spending_limits(&admin, &requests);
@@ -787,19 +896,19 @@ fn test_admin_can_override_spending_limit() {
 
     let mut requests = Vec::new(&env);
 
-    requests.push_back(create_valid_request(&env, &user, 50_000));
+    requests.push_back(create_valid_request(&env, &user, 300_000_000));
 
     client.batch_update_spending_limits(&admin, &requests);
 
     let before = client.get_spending_limit(&user).unwrap();
 
-    assert_eq!(before.monthly_limit, 50_000);
+    assert_eq!(before.monthly_limit, 300_000_000);
 
-    client.override_spending_limit(&admin, &user, &100_000);
+    client.override_spending_limit(&admin, &user, &600_000_000);
 
     let after = client.get_spending_limit(&user).unwrap();
 
-    assert_eq!(after.monthly_limit, 100_000);
+    assert_eq!(after.monthly_limit, 600_000_000);
 }
 
 #[test]
@@ -812,11 +921,11 @@ fn test_non_admin_cannot_override_limit() {
 
     let mut requests = Vec::new(&env);
 
-    requests.push_back(create_valid_request(&env, &user, 50_000));
+    requests.push_back(create_valid_request(&env, &user, 300_000_000));
 
     client.batch_update_spending_limits(&admin, &requests);
 
-    client.override_spending_limit(&attacker, &user, &100_000);
+    client.override_spending_limit(&attacker, &user, &600_000_000);
 }
 
 #[test]
@@ -827,11 +936,11 @@ fn test_override_emits_audit_event() {
 
     let mut requests = Vec::new(&env);
 
-    requests.push_back(create_valid_request(&env, &user, 50_000));
+    requests.push_back(create_valid_request(&env, &user, 300_000_000));
 
     client.batch_update_spending_limits(&admin, &requests);
 
-    client.override_spending_limit(&admin, &user, &100_000);
+    client.override_spending_limit(&admin, &user, &600_000_000);
 
     let events = env.events().all();
 
@@ -854,18 +963,18 @@ fn test_override_changes_enforcement_limit() {
 
     let mut requests = Vec::new(&env);
 
-    let mut req = create_valid_request(&env, &user, 100);
+    let mut req = create_valid_request(&env, &user, 300_000_000);
 
-    req.daily_limit = 100;
-    req.hourly_limit = 100;
+    req.daily_limit = 300_000_000;
+    req.hourly_limit = 300_000_000;
 
     requests.push_back(req);
 
     client.batch_update_spending_limits(&admin, &requests);
 
-    client.override_spending_limit(&admin, &user, &500);
+    client.override_spending_limit(&admin, &user, &600_000_000);
 
     let updated = client.get_spending_limit(&user).unwrap();
 
-    assert_eq!(updated.monthly_limit, 500);
+    assert_eq!(updated.monthly_limit, 600_000_000);
 }
