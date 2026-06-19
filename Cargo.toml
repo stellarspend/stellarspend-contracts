@@ -9,6 +9,7 @@ members = [
     "contracts/shared",
     "contracts/transfer",
     "contracts/batch-transfer",
+    "contracts/pausable",
     "contracts/batch-conversion",
     "contracts/batch-rewards",
     "contracts/batch-payment",
