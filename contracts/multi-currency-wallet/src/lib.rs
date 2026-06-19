@@ -31,7 +31,9 @@ pub use crate::types::{
     BalanceUpdateRequest, BalanceUpdateResult, BatchBalanceMetrics, BatchBalanceResult,
     CurrencyBalance, DataKey, ErrorCode, WalletEvents, MAX_BATCH_SIZE,
 };
-use crate::validation::{validate_and_compute_balance, validate_balance_request};
+use crate::validation::{
+    validate_and_compute_balance, validate_balance_request, validate_transfer_currency_consistency,
+};
 
 /// Error codes for the multi-currency wallet contract.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -134,7 +136,7 @@ impl MultiCurrencyWalletContract {
         WalletEvents::batch_started(&env, batch_id, request_count);
 
         // Get current ledger timestamp
-        let current_ledger = env.ledger().sequence() as u64;
+        let current_ledger = (env.ledger().sequence() as u64).max(1);
 
         // Initialize result tracking
         let mut results: Vec<BalanceUpdateResult> = Vec::new(&env);
@@ -145,13 +147,20 @@ impl MultiCurrencyWalletContract {
         let mut unique_users: Vec<Address> = Vec::new(&env);
         let mut unique_currencies: Vec<Symbol> = Vec::new(&env);
 
-        // Process each request
+        // Normalize currencies once so validation and storage use the same asset keys.
+        let mut normalized_requests: Vec<BalanceUpdateRequest> = Vec::new(&env);
         for request in requests.iter() {
             let mut request = request;
             request.currency = shared::assets::normalize_asset_symbol(&env, &request.currency);
+            normalized_requests.push_back(request);
+        }
 
+        // Process each request
+        for request in normalized_requests.iter() {
             // Validate the request
-            match validate_balance_request(&request) {
+            match validate_balance_request(&request).and_then(|_| {
+                validate_transfer_currency_consistency(&request, &normalized_requests)
+            }) {
                 Ok(()) => {
                     // Validate and compute new balance
                     match validate_and_compute_balance(

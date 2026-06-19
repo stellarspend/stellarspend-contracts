@@ -23,7 +23,7 @@ fn setup_test_contract() -> (Env, Address, MultiCurrencyWalletContractClient<'st
 
 /// Helper function to create a valid balance update request.
 fn create_valid_request(
-    env: &Env,
+    _env: &Env,
     user: &Address,
     currency: Symbol,
     amount: i128,
@@ -219,6 +219,105 @@ fn test_balance_subtract_operation() {
         client.get_balance(&user, &symbol_short!("USDC")),
         700_000_000
     );
+}
+
+#[test]
+fn test_same_currency_transfer_pair_succeeds() {
+    let (env, admin, client) = setup_test_contract();
+    let sender = Address::generate(&env);
+    let recipient = Address::generate(&env);
+
+    let mut seed_requests: Vec<BalanceUpdateRequest> = Vec::new(&env);
+    seed_requests.push_back(create_valid_request(
+        &env,
+        &sender,
+        symbol_short!("USDC"),
+        1000_000_000,
+        symbol_short!("set"),
+    ));
+    client.batch_update_balances(&admin, &seed_requests);
+
+    let mut transfer_requests: Vec<BalanceUpdateRequest> = Vec::new(&env);
+    transfer_requests.push_back(create_valid_request(
+        &env,
+        &sender,
+        symbol_short!("USDC"),
+        250_000_000,
+        symbol_short!("subtract"),
+    ));
+    transfer_requests.push_back(create_valid_request(
+        &env,
+        &recipient,
+        symbol_short!("USDC"),
+        250_000_000,
+        symbol_short!("add"),
+    ));
+
+    let result = client.batch_update_balances(&admin, &transfer_requests);
+
+    assert_eq!(result.successful, 2);
+    assert_eq!(result.failed, 0);
+    assert_eq!(
+        client.get_balance(&sender, &symbol_short!("USDC")),
+        750_000_000
+    );
+    assert_eq!(
+        client.get_balance(&recipient, &symbol_short!("USDC")),
+        250_000_000
+    );
+}
+
+#[test]
+fn test_cross_currency_transfer_pair_is_rejected() {
+    let (env, admin, client) = setup_test_contract();
+    let sender = Address::generate(&env);
+    let recipient = Address::generate(&env);
+
+    let mut seed_requests: Vec<BalanceUpdateRequest> = Vec::new(&env);
+    seed_requests.push_back(create_valid_request(
+        &env,
+        &sender,
+        symbol_short!("USDC"),
+        1000_000_000,
+        symbol_short!("set"),
+    ));
+    client.batch_update_balances(&admin, &seed_requests);
+
+    let mut transfer_requests: Vec<BalanceUpdateRequest> = Vec::new(&env);
+    transfer_requests.push_back(create_valid_request(
+        &env,
+        &sender,
+        symbol_short!("USDC"),
+        250_000_000,
+        symbol_short!("subtract"),
+    ));
+    transfer_requests.push_back(create_valid_request(
+        &env,
+        &recipient,
+        symbol_short!("XLM"),
+        250_000_000,
+        symbol_short!("add"),
+    ));
+
+    let result = client.batch_update_balances(&admin, &transfer_requests);
+
+    assert_eq!(result.successful, 0);
+    assert_eq!(result.failed, 2);
+
+    for balance_result in result.results.iter() {
+        match balance_result {
+            BalanceUpdateResult::Failure(_, _, error_code) => {
+                assert_eq!(error_code, ErrorCode::INVALID_CURRENCY);
+            }
+            BalanceUpdateResult::Success(_) => panic!("Expected cross-currency transfer failure"),
+        }
+    }
+
+    assert_eq!(
+        client.get_balance(&sender, &symbol_short!("USDC")),
+        1000_000_000
+    );
+    assert_eq!(client.get_balance(&recipient, &symbol_short!("XLM")), 0);
 }
 
 #[test]
