@@ -137,6 +137,24 @@ fn test_user_can_unfreeze_own_budget() {
 }
 
 #[test]
+fn test_archive_and_unarchive_budget() {
+    let (_, admin, user, client) = setup();
+    client.update_budget(&admin, &user, &1_000, &None);
+
+    client.archive_budget(&admin, &user);
+    assert!(client.get_budget(&user).is_none());
+
+    let archived = client.get_archived_budget(&user).unwrap();
+    assert_eq!(archived.amount, 1_000);
+    assert!(archived.is_archived);
+
+    client.unarchive_budget(&admin, &user);
+    let restored = client.get_budget(&user).unwrap();
+    assert_eq!(restored.amount, 1_000);
+    assert!(!restored.is_archived);
+}
+
+#[test]
 fn test_budget_recovery() {
     let (_, admin, user, client) = setup();
     let (food, travel) = setup_categories(&client, &admin, &user);

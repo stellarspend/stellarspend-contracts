@@ -87,6 +87,7 @@ pub struct BudgetRecord {
     pub last_updated: u64,
     pub expires_at: Option<u64>,
     pub is_active: bool,
+    pub is_archived: bool,
 }
 
 /// Permission record for a delegated budget manager.
@@ -299,6 +300,7 @@ impl BudgetContract {
             last_updated: current_time,
             expires_at,
             is_active,
+            is_archived: false,
         };
 
         env.storage()
@@ -441,6 +443,63 @@ impl BudgetContract {
         env.storage()
             .persistent()
             .set(&DataKey::Budget(user.clone()), &record);
+    }
+
+    pub fn archive_budget(env: Env, admin: Address, user: Address) {
+        admin.require_auth();
+        Self::require_admin(&env, &admin);
+
+        let mut record = env
+            .storage()
+            .persistent()
+            .get::<DataKey, BudgetRecord>(&DataKey::Budget(user.clone()))
+            .unwrap_or_else(|| panic_with_error!(&env, BudgetError::UserNotFound));
+
+        if record.is_archived {
+            return;
+        }
+
+        record.is_archived = true;
+        env.storage()
+            .persistent()
+            .remove(&DataKey::Budget(user.clone()));
+        env.storage()
+            .persistent()
+            .set(&DataKey::ArchivedBudget(user.clone()), &record);
+
+        env.events().publish(
+            (symbol_short!("budget"), symbol_short!("archived")),
+            (user, env.ledger().timestamp()),
+        );
+    }
+
+    pub fn unarchive_budget(env: Env, admin: Address, user: Address) {
+        admin.require_auth();
+        Self::require_admin(&env, &admin);
+
+        let mut record = env
+            .storage()
+            .persistent()
+            .get::<DataKey, BudgetRecord>(&DataKey::ArchivedBudget(user.clone()))
+            .unwrap_or_else(|| panic_with_error!(&env, BudgetError::BudgetNotFound));
+
+        if !record.is_archived {
+            return;
+        }
+
+        record.is_archived = false;
+        record.is_active = true;
+        env.storage()
+            .persistent()
+            .remove(&DataKey::ArchivedBudget(user.clone()));
+        env.storage()
+            .persistent()
+            .set(&DataKey::Budget(user.clone()), &record);
+
+        env.events().publish(
+            (symbol_short!("budget"), symbol_short!("unarchived")),
+            (user, env.ledger().timestamp()),
+        );
     }
 
     pub fn deactivate_if_expired(env: Env, user: Address) {
@@ -798,14 +857,32 @@ impl BudgetContract {
 
     /// Retrieves the budget for a specific user (default/native asset).
     pub fn get_budget(env: Env, user: Address) -> Option<BudgetRecord> {
-        env.storage().persistent().get(&DataKey::Budget(user))
+        env.storage()
+            .persistent()
+            .get::<DataKey, BudgetRecord>(&DataKey::Budget(user))
+            .filter(|record| !record.is_archived)
+    }
+
+    /// Retrieves the archived budget for a specific user.
+    pub fn get_archived_budget(env: Env, user: Address) -> Option<BudgetRecord> {
+        env.storage()
+            .persistent()
+            .get::<DataKey, BudgetRecord>(&DataKey::ArchivedBudget(user))
     }
 
     /// Retrieves the budget for a specific user and asset.
     pub fn get_budget_by_asset(env: Env, user: Address, asset: Address) -> Option<BudgetRecord> {
         env.storage()
             .persistent()
-            .get(&DataKey::BudgetAsset(user, asset))
+            .get::<DataKey, BudgetRecord>(&DataKey::BudgetAsset(user.clone(), asset.clone()))
+            .filter(|record| !record.is_archived)
+    }
+
+    /// Retrieves the archived budget for a specific user and asset.
+    pub fn get_archived_budget_by_asset(env: Env, user: Address, asset: Address) -> Option<BudgetRecord> {
+        env.storage()
+            .persistent()
+            .get::<DataKey, BudgetRecord>(&DataKey::ArchivedBudgetAsset(user, asset))
     }
 
     /// Returns all asset contract IDs for a user's multi-asset budgets.
