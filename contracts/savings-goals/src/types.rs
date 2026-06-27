@@ -97,6 +97,7 @@ pub struct SavingsGoalProgress {
     pub is_complete: bool,
 }
 
+<<<<<<< HEAD
 /// Represents a historical snapshot of a savings goal.
 #[derive(Clone, Debug)]
 #[contracttype]
@@ -107,6 +108,20 @@ pub struct GoalSnapshot {
     pub amount: i128,
     /// Ledger sequence when the snapshot was recorded
     pub timestamp: u64,
+=======
+/// Represents a completion certificate for a savings goal.
+#[derive(Clone, Debug)]
+#[contracttype]
+pub struct GoalCertificate {
+    /// Unique goal ID
+    pub goal_id: u64,
+    /// User's address
+    pub user: Address,
+    /// Target amount that was achieved
+    pub target_amount: i128,
+    /// Timestamp when the certificate was issued (ledger sequence)
+    pub completed_at: u64,
+>>>>>>> 067107d (fix(contracts): fix CI compilation errors across batch-transfer, spending-limits, multi-currency-wallet, and batch-rewards)
 }
 
 /// Result of processing a single goal creation.
@@ -319,6 +334,7 @@ pub enum DataKey {
     GoalPrereqs(u64),
     /// Total milestones achieved lifetime
     TotalMilestonesAchieved,
+<<<<<<< HEAD
     /// Ledger sequence at which a goal was automatically closed
     GoalClosedAt(u64),
     /// Maps (user, goal_name) -> goal_id for duplicate detection
@@ -345,6 +361,10 @@ pub enum DataKey {
     GoalBeneficiary(u64),
     /// #779: Auto-allocation idempotency key (user, token)
     AutoAllocationIdempotency(Address, Bytes),
+=======
+    /// Stored certificate by goal_id
+    Certificate(u64),
+>>>>>>> 067107d (fix(contracts): fix CI compilation errors across batch-transfer, spending-limits, multi-currency-wallet, and batch-rewards)
 }
 
 /// Error codes for goal validation and creation.
@@ -371,6 +391,7 @@ pub mod ErrorCode {
     pub const UNAUTHORIZED_USER: u32 = 8;
     /// Goal has already achieved this milestone
     pub const MILESTONE_ALREADY_ACHIEVED: u32 = 9;
+<<<<<<< HEAD
     /// Goal is closed (target met) and no longer accepts contributions
     pub const GOAL_CLOSED: u32 = 11;
     /// Contribution amount is invalid (zero or negative)
@@ -393,6 +414,10 @@ pub mod ErrorCode {
     pub const ALLOCATION_PERCENTAGES_INVALID: u32 = 18;
     /// #779: Auto-allocation token already used (duplicate)
     pub const DUPLICATE_ALLOCATION_REQUEST: u32 = 19;
+=======
+    /// Cannot merge goals (invalid parameters)
+    pub const CANNOT_MERGE: u32 = 11;
+>>>>>>> 067107d (fix(contracts): fix CI compilation errors across batch-transfer, spending-limits, multi-currency-wallet, and batch-rewards)
 }
 
 /// Events emitted by the savings goals contract.
@@ -517,6 +542,7 @@ impl GoalEvents {
             .publish(topics, (batch_id, successful, failed, total_percentage));
     }
 
+<<<<<<< HEAD
     /// Event emitted when a goal is automatically closed because the target amount was reached.
     pub fn goal_closed(
         env: &Env,
@@ -623,5 +649,17 @@ impl GoalEvents {
         );
         env.events()
             .publish(topics, (user.clone(), total_amount, goal_count));
+=======
+    /// Event emitted when a goal completion certificate is issued.
+    pub fn certificate_issued(env: &Env, goal_id: u64, timestamp: u64) {
+        let topics = (symbol_short!("cert"), symbol_short!("issued"), goal_id);
+        env.events().publish(topics, (goal_id, timestamp));
+    }
+
+    /// Event emitted when two goals are merged.
+    pub fn goals_merged(env: &Env, source_id: u64, target_id: u64, amount_merged: i128) {
+        let topics = (symbol_short!("goal"), symbol_short!("merged"), target_id);
+        env.events().publish(topics, (source_id, target_id, amount_merged));
+>>>>>>> 067107d (fix(contracts): fix CI compilation errors across batch-transfer, spending-limits, multi-currency-wallet, and batch-rewards)
     }
 }

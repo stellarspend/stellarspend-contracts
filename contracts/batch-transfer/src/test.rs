@@ -199,8 +199,23 @@ fn test_batch_transfer_rejects_duplicate_recipients() {
         Err(Ok(error)) => assert_eq!(error, expected_error),
         other => panic!("expected duplicate recipient error, got {:?}", other),
     }
+<<<<<<< HEAD
     assert_eq!(token_client.balance(&recipient), 0);
     assert_eq!(token_client.balance(&admin), amount * 2);
+=======
+
+    match result.results.get(1).unwrap() {
+        TransferResult::Failure(recv, failed_amount, error_code) => {
+            assert_eq!(recv.clone(), recipient);
+            assert_eq!(failed_amount.clone(), amount);
+            assert_eq!(error_code, 3); // Duplicate recipient
+        }
+        _ => panic!("Expected duplicate recipient to fail"),
+    }
+
+    assert_eq!(token_client.balance(&recipient), amount);
+    assert_eq!(token_client.balance(&admin), amount);
+>>>>>>> 067107d (fix(contracts): fix CI compilation errors across batch-transfer, spending-limits, multi-currency-wallet, and batch-rewards)
 }
 
 #[test]

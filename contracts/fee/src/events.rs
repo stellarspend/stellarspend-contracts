@@ -138,12 +138,23 @@ impl FeeEvents {
     }
 
     pub fn treasury_updated(env: &Env, treasury: &Address) {
+<<<<<<< HEAD
         publish(
             env,
             symbol_short!("fee"),
             symbol_short!("treasury"),
             treasury.clone(),
         );
+=======
+        let topics = (symbol_short!("config"), symbol_short!("treasury"));
+        env.events()
+            .publish(topics, (symbol_short!("treasury"), treasury.clone()));
+>>>>>>> 067107d (fix(contracts): fix CI compilation errors across batch-transfer, spending-limits, multi-currency-wallet, and batch-rewards)
+    }
+
+    pub fn reconciliation_completed(env: &Env, is_match: bool, difference: i128) {
+        let topics = (symbol_short!("fee"), symbol_short!("reconcile"));
+        env.events().publish(topics, (is_match, difference));
     }
 
     pub fn min_fee_updated(env: &Env, min_fee: i128) {

@@ -69,10 +69,14 @@ pub enum DataKey {
     BudgetCategories(Address),    // User's budget categories
     TotalAllocated,               // Track global stats if needed
     BudgetSnapshot(u64, Address), // Snapshot of budget state at timestamp
+<<<<<<< HEAD
     SnapshotTimestamps,           // List of all snapshot timestamps
     BudgetRenewalConfig(Address), // Per-user budget renewal configuration
     BudgetVersion(Address, u64),  // Budget version snapshots (user, version_number)
     BudgetVersionCounter(Address), // Number of versions created for a user
+=======
+    SnapshotTimestamps, // List of all snapshot timestamps
+>>>>>>> 067107d (fix(contracts): fix CI compilation errors across batch-transfer, spending-limits, multi-currency-wallet, and batch-rewards)
 }
 
 /// Result of a batch budget allocation operation

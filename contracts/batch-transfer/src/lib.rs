@@ -11,10 +11,14 @@ pub use crate::types::{
     TransferRequest, TransferResult, MAX_BATCH_SIZE,
 };
 //bbbb
+<<<<<<< HEAD
 use crate::validation::{
     validate_address, validate_amount, validate_batch_not_empty, validate_unique_recipients,
 };
 use shared::validation::validate_batch_size;
+=======
+use crate::validation::{validate_address, validate_amount, validate_unique_recipient};
+>>>>>>> 067107d (fix(contracts): fix CI compilation errors across batch-transfer, spending-limits, multi-currency-wallet, and batch-rewards)
 
 /// Error codes for the batch transfer contract.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]

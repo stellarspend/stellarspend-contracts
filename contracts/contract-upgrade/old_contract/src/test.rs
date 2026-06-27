@@ -7,8 +7,15 @@ use soroban_sdk::{testutils::Address as _, vec, Address, BytesN, Env, Error, Inv
 
 const DELAY: u64 = 48 * 60 * 60;
 
+<<<<<<< HEAD
 fn dummy_hash(e: &Env) -> BytesN<32> {
     BytesN::from_array(e, &[7u8; 32])
+=======
+mod new_contract {
+    soroban_sdk::contractimport!(
+       file = "../../../target/wasm32-unknown-unknown/release/soroban_upgradeable_contract_new_contract.wasm"
+    );
+>>>>>>> 067107d (fix(contracts): fix CI compilation errors across batch-transfer, spending-limits, multi-currency-wallet, and batch-rewards)
 }
 
 /// Assert that a `try_*` client call failed with the given contract error.
@@ -51,6 +58,7 @@ fn test_admin_can_configure_signers_and_delay() {
     client.set_upgrade_signers(&vec![&env, s1, s2, s3], &2);
     client.set_timelock_delay(&3600);
 
+<<<<<<< HEAD
     assert_eq!(client.get_signers().len(), 3);
     assert_eq!(client.get_threshold(), 2);
     assert_eq!(client.get_timelock_delay(), 3600);
@@ -165,4 +173,44 @@ fn test_cancel_clears_pending_and_allows_reschedule() {
     // After cancellation a new proposal can be scheduled again.
     client.schedule_upgrade(&admin, &dummy_hash(&env), &2);
     assert!(client.get_pending_upgrade().is_some());
+=======
+    assert_eq!(1, client.version());
+
+    let new_wasm_hash = install_new_wasm(&env);
+
+    client.upgrade(&new_wasm_hash, &2);
+    assert_eq!(2, client.version());
+
+    // new_v2_fn was added in the new contract, so the existing
+    // client is out of date. Generate a new one.
+    let client = new_contract::Client::new(&env, &contract_id);
+    assert_eq!(1010101, client.new_v2_fn());
+
+    // New contract version requires the `NewAdmin` key to be initialized, but since the constructor
+    // hasn't been called, it is not initialized, thus calling try_upgrade won't work.
+    let new_update_result = client.try_upgrade(&new_wasm_hash, &3);
+    assert!(new_update_result.is_err());
+
+    // `handle_upgrade` sets the `NewAdmin` key properly.
+    client.handle_upgrade();
+
+    // Now upgrade should succeed (though we are not actually changing the Wasm).
+    client.upgrade(&new_wasm_hash, &2);
+    // The new admin is the same as the old admin, so the authorization is still performed for
+    // the `admin` address.
+    assert_eq!(
+        env.auths(),
+        std::vec![(
+            admin,
+            AuthorizedInvocation {
+                function: AuthorizedFunction::Contract((
+                    contract_id.clone(),
+                    symbol_short!("upgrade"),
+                    (new_wasm_hash, 2u32).into_val(&env),
+                )),
+                sub_invocations: std::vec![]
+            }
+        )]
+    )
+>>>>>>> 067107d (fix(contracts): fix CI compilation errors across batch-transfer, spending-limits, multi-currency-wallet, and batch-rewards)
 }

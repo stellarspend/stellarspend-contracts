@@ -25,7 +25,7 @@ use crate::escrow::{
 use crate::events::{ConfigEvents, FeeEvents, TierEvents};
 use crate::fee_validation::validate_fee_percentage_bounds;
 use crate::reconciliation::reconcile;
-pub use crate::reconciliation::ReconciliationResult;
+pub use crate::reconciliation::{ReconciliationResult, ReconciliationReport, reconcile_treasury};
 use crate::storage::{
     has_admin, is_valid_tier, read_admin, read_current_cycle, read_escrow_balance, read_fee_bps,
     read_last_active, read_locked, read_max_fee, read_min_fee, read_pending_fees, read_token,
@@ -35,11 +35,18 @@ use crate::storage::{
     write_user_tier, FeeConfig, FeeStats, DEFAULT_FEE_BPS, DEFAULT_MAX_FEE, DEFAULT_MIN_FEE,
 };
 pub use crate::storage::{BatchFeeResult, DataKey, MAX_BATCH_SIZE, MAX_FEE_BPS};
+<<<<<<< HEAD
 use crate::utils::compute_fee;
 use crate::validation::{
     validate_amount_positive_or_panic, validate_fee_bps_or_panic, validate_max_fee_or_panic,
     validate_min_fee_or_panic,
 };
+=======
+use crate::auth::require_admin;
+use crate::fee_validation::validate_fee_percentage_bounds;
+use crate::validation::{validate_min_fee_or_panic, validate_max_fee_or_panic, validate_amount_positive_or_panic};
+
+>>>>>>> 067107d (fix(contracts): fix CI compilation errors across batch-transfer, spending-limits, multi-currency-wallet, and batch-rewards)
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(u32)]
@@ -225,6 +232,23 @@ impl FeeContract {
         FeeEvents::unlocked(&env);
     }
 
+    pub fn reconcile_treasury(env: Env, _admin: Address) -> ReconciliationReport {
+        require_admin(&env, &_admin);
+        let report = reconcile_treasury(&env);
+        FeeEvents::reconciliation_completed(&env, report.is_match, report.difference);
+        report
+    }
+
+    pub fn get_reconciliation_status(env: Env) -> ReconciliationResult {
+        Self::require_initialized(&env);
+        reconcile(&env)
+    }
+
+    pub fn reconcile_fees(env: Env, _admin: Address) -> ReconciliationResult {
+        require_admin(&env, &_admin);
+        reconcile(&env)
+    }
+
     pub fn set_fee_bps(env: Env, _admin: Address, fee_bps: u32) {
         require_admin(&env, &_admin);
         Self::require_unlocked(&env);
@@ -403,12 +427,16 @@ impl FeeContract {
         read_total_batch_calls(&env)
     }
 
+<<<<<<< HEAD
     pub fn preview_batch_fee(env: Env, _payer: Address, amounts: Vec<i128>) -> i128 {
         let batch_size = amounts.len();
         if batch_size == 0 {
             panic_with_error!(&env, FeeContractError::EmptyBatch);
         }
         let min_fee = read_min_fee(&env);
+=======
+    pub fn preview_batch_fee(_env: Env, _payer: Address, amounts: Vec<i128>) -> i128 {
+>>>>>>> 067107d (fix(contracts): fix CI compilation errors across batch-transfer, spending-limits, multi-currency-wallet, and batch-rewards)
         let mut total: i128 = 0;
         for amount in amounts.iter() {
             if amount < min_fee {
