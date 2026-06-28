@@ -1,42 +1,42 @@
-//! Validation utilities for batch wallet creation.
+use std::collections::HashSet;
 
-use crate::types::WalletCreateRequest;
-use soroban_sdk::{Address, Env, Vec};
-
-/// Validates an owner address.
-pub fn validate_address(_address: &Address) -> Result<(), ()> {
-    // For now, assume all addresses are valid
-    Ok(())
+#[derive(Debug, PartialEq)]
+pub enum ValidationError {
+    DuplicateWallet(String),
+    EmptyBatch,
 }
 
-/// Checks if a wallet already exists for the given address.
-pub fn wallet_exists(env: &Env, address: &Address) -> bool {
-    use crate::types::DataKey;
-    env.storage()
-        .persistent()
-        .has(&DataKey::Wallets(address.clone()))
-}
-
-/// Checks for duplicate wallet creation requests within a batch.
-///
-/// # Arguments
-/// * `requests` - The vector of wallet creation requests to check
-///
-/// # Returns
-/// Ok(()) if no duplicates, or Err(duplicate_address) if a duplicate is found
-pub fn check_batch_duplicates(requests: &Vec<WalletCreateRequest>) -> Result<(), Address> {
-    // Simple O(n^2) duplicate check for batch
-    for i in 0..requests.len() {
-        let request_i = requests.get(i).unwrap();
-
-        for j in (i + 1)..requests.len() {
-            let request_j = requests.get(j).unwrap();
-
-            if request_i.owner == request_j.owner {
-                // Found duplicate - return the duplicate address
-                return Err(request_i.owner.clone());
-            }
+pub fn validate_no_duplicates(wallets: &[String]) -> Result<(), ValidationError> {
+    if wallets.is_empty() {
+        return Err(ValidationError::EmptyBatch);
+    }
+    let mut seen = HashSet::new();
+    for w in wallets {
+        if !seen.insert(w) {
+            return Err(ValidationError::DuplicateWallet(w.clone()));
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_no_duplicates_passes() {
+        let wallets = vec!["GAAA".into(), "GBBB".into(), "GCCC".into()];
+        assert_eq!(validate_no_duplicates(&wallets), Ok(()));
+    }
+
+    #[test]
+    fn test_duplicate_rejected() {
+        let wallets = vec!["GAAA".into(), "GBBB".into(), "GAAA".into()];
+        assert_eq!(validate_no_duplicates(&wallets), Err(ValidationError::DuplicateWallet("GAAA".into())));
+    }
+
+    #[test]
+    fn test_empty_batch_rejected() {
+        assert_eq!(validate_no_duplicates(&[]), Err(ValidationError::EmptyBatch));
+    }
 }
