@@ -118,6 +118,7 @@ impl BatchConversionContract {
 
         // Initialize result vectors
         let mut results: Vec<ConversionResult> = Vec::new(&env);
+        let mut shared_results: Vec<shared::batch_result::BatchItemResult> = Vec::new(&env);
         let mut successful_count: u32 = 0;
         let mut failed_count: u32 = 0;
         let mut total_converted: i128 = 0;
@@ -174,6 +175,12 @@ impl BatchConversionContract {
                     request.amount_in,
                     error_code.clone(),
                 ));
+                shared_results.push_back(shared::batch_result::BatchItemResult {
+                    success: false,
+                    target: request.user.clone(),
+                    amount: request.amount_in,
+                    error_code: error_code.clone(),
+                });
                 failed_count += 1;
                 ConversionEvents::conversion_failure(
                     &env,
@@ -198,6 +205,12 @@ impl BatchConversionContract {
                         request.amount_in,
                         amount_out,
                     ));
+                    shared_results.push_back(shared::batch_result::BatchItemResult {
+                        success: true,
+                        target: request.user.clone(),
+                        amount: request.amount_in,
+                        error_code: 0,
+                    });
                     successful_count += 1;
                     total_converted = total_converted
                         .checked_add(request.amount_in)
@@ -222,6 +235,12 @@ impl BatchConversionContract {
                         request.amount_in,
                         error_code,
                     ));
+                    shared_results.push_back(shared::batch_result::BatchItemResult {
+                        success: false,
+                        target: request.user.clone(),
+                        amount: request.amount_in,
+                        error_code,
+                    });
                     failed_count += 1;
                     ConversionEvents::conversion_failure(
                         &env,
@@ -282,6 +301,7 @@ impl BatchConversionContract {
             failed: failed_count,
             total_converted,
             results,
+            shared_results,
         }
     }
 
