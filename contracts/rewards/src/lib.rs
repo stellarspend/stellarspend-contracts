@@ -14,7 +14,7 @@ pub mod validation;
 
 use soroban_sdk::{contract, contractimpl, panic_with_error, Address, Env, Vec};
 
-use crate::rewards::{credit_reward, debit_reward, register_reward_account};
+use crate::rewards::{credit_reward, debit_reward, get_rewards_balance, register_reward_account};
 use crate::storage::{get_reward_account, get_reward_index};
 pub use crate::types::{DataKey, RewardAccount, RewardStatus, RewardTransaction, RewardType};
 
@@ -108,6 +108,13 @@ impl RewardsContract {
     /// Returns the `RewardAccount` metadata for `participant`, if registered.
     pub fn get_account(env: Env, participant: Address) -> Option<RewardAccount> {
         get_reward_account(&env, &participant)
+    }
+
+    /// Returns the current unclaimed reward balance for `owner`.
+    ///
+    /// Returns `0` if no reward account exists or the balance is zero.
+    pub fn get_rewards_balance(env: Env, owner: Address) -> i128 {
+        get_rewards_balance(&env, &owner)
     }
 
     /// Credits `amount` reward points to `participant`'s account.

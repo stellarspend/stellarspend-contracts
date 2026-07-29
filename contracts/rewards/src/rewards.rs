@@ -116,6 +116,13 @@ pub fn credit_reward(
     Ok(tx)
 }
 
+/// Returns the current unclaimed reward balance for `owner`.
+///
+/// Returns `0` if no reward account exists or the balance is zero.
+pub fn get_rewards_balance(env: &Env, owner: &Address) -> i128 {
+    get_reward_balance(env, owner)
+}
+
 /// Debits `amount` reward points from `participant`'s account.
 ///
 /// Atomically reduces the claimable balance, increments the lifetime-claimed
