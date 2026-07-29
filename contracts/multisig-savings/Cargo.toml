@@ -1,5 +1,5 @@
 [package]
-name = "savings-goals"
+name = "multisig-savings"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -13,13 +13,9 @@ testutils = ["soroban-sdk/testutils"]
 
 [dependencies]
 soroban-sdk.workspace = true
-penalty = { path = "../penalty" }
-multisig-savings = { path = "../multisig-savings" }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
-penalty = { path = "../penalty" }
-multisig-savings = { path = "../multisig-savings", features = ["testutils"] }
 
 [profile.release]
 opt-level = "z"

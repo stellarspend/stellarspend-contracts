@@ -253,7 +253,7 @@ fn benchmark_goal_withdrawal() {
     let cpu_before = cpu_instructions(&env);
     let mem_before = mem_bytes(&env);
 
-    client.withdraw_from_goal(&user, &goal_id, &5_000_000i128);
+    client.withdraw_from_goal(&user, &goal_id, &5_000_000i128, &None);
 
     let cpu_used = cpu_instructions(&env) - cpu_before;
     let mem_used = mem_bytes(&env) - mem_before;

@@ -43,6 +43,7 @@ members = [
     "contracts/penalty",
     "contracts/transaction-analytics",
     "contracts/treasury",
+    "contracts/multisig-savings",
 ]
 
 [package]
@@ -127,6 +128,7 @@ repository = "https://github.com/stellarspend/stellarspend-contracts"
 [workspace.dependencies]
 soroban-sdk = "=22.0.0"
 shared = { path = "contracts/shared" }
+multisig-savings = { path = "contracts/multisig-savings" }
 
 [profile.release]
 opt-level = "z"

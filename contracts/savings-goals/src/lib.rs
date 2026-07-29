@@ -29,6 +29,7 @@ use soroban_sdk::{
     contract, contractimpl, panic_with_error, symbol_short, Address, Bytes, Env, Symbol, Vec,
 };
 use penalty::PenaltyContractClient;
+use multisig_savings as ms;
 
 pub use crate::types::{
     BatchGoalMetrics, BatchGoalResult, BatchMilestoneMetrics, BatchMilestoneResult,
@@ -80,6 +81,10 @@ pub enum SavingsGoalError {
     InvalidAlertThreshold = 17,
     /// Duplicate idempotency token for a contribution retry
     DuplicateContributionRequest = 18,
+    /// A multisig proposal is required before this withdrawal can proceed
+    MultisigApprovalRequired = 19,
+    /// The provided proposal has not been approved / executed yet
+    MultisigProposalNotApproved = 20,
 }
 
 impl From<SavingsGoalError> for soroban_sdk::Error {
@@ -804,7 +809,18 @@ impl SavingsGoalsContract {
     }
 
     /// Withdraws funds from a savings goal. Rejects withdrawals before unlock time when locked.
-    pub fn withdraw_from_goal(env: Env, caller: Address, goal_id: u64, amount: i128) -> i128 {
+    ///
+    /// For multisig-protected goals the caller must first create a proposal via
+    /// `configure_multisig_goal` / `propose_withdrawal` and collect the required
+    /// approvals, then pass `Some(proposal_id)` here. Passing `None` for a
+    /// multisig-protected goal will panic with `MultisigApprovalRequired`.
+    pub fn withdraw_from_goal(
+        env: Env,
+        caller: Address,
+        goal_id: u64,
+        amount: i128,
+        proposal_id: Option<u64>,
+    ) -> i128 {
         caller.require_auth();
 
         if amount <= 0 {
@@ -829,6 +845,23 @@ impl SavingsGoalsContract {
             GoalEvents::goal_withdraw_locked(&env, goal_id, &caller, goal.unlock_at);
             panic_with_error!(&env, SavingsGoalError::GoalLocked);
         }
+
+        // ── Multisig gate ────────────────────────────────────────────────────
+        if ms::requires_multisig(&env, goal_id) {
+            let pid = proposal_id
+                .unwrap_or_else(|| panic_with_error!(&env, SavingsGoalError::MultisigApprovalRequired));
+
+            if !ms::is_proposal_executed(&env, goal_id, pid) {
+                panic_with_error!(&env, SavingsGoalError::MultisigProposalNotApproved);
+            }
+
+            // Ensure the approved amount matches what is being withdrawn
+            let prop = ms::get_proposal(&env, goal_id, pid);
+            if prop.amount != amount {
+                panic_with_error!(&env, SavingsGoalError::MultisigProposalNotApproved);
+            }
+        }
+        // ────────────────────────────────────────────────────────────────────
 
         let penalty = if goal.is_complete {
             0
@@ -865,6 +898,92 @@ impl SavingsGoalsContract {
             .get(&DataKey::GoalMilestonesPercent(goal_id))
             .unwrap_or(Vec::new(&env))
     }
+
+    // ── Multisig management ──────────────────────────────────────────────────
+
+    /// Configure (or reconfigure) multisig protection for a goal.
+    /// Only the goal owner may call this.
+    ///
+    /// # Arguments
+    /// * `signers`             - Ordered list of authorized approvers (1..=N)
+    /// * `threshold`           - Number of approvals required (1..=len(signers))
+    /// * `proposal_ttl_seconds`- Seconds before an unexecuted proposal expires
+    pub fn configure_multisig_goal(
+        env: Env,
+        caller: Address,
+        goal_id: u64,
+        signers: Vec<Address>,
+        threshold: u32,
+        proposal_ttl_seconds: u64,
+    ) {
+        caller.require_auth();
+
+        let goal: SavingsGoal = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Goal(goal_id))
+            .unwrap_or_else(|| panic_with_error!(&env, SavingsGoalError::GoalNotFound));
+
+        if goal.user != caller {
+            panic_with_error!(&env, SavingsGoalError::Unauthorized);
+        }
+
+        ms::configure_goal(&env, goal_id, signers, threshold, proposal_ttl_seconds);
+    }
+
+    /// Create a withdrawal proposal for a multisig-protected goal.
+    /// The caller must be one of the goal's signers.
+    /// Returns the new proposal ID, which is needed for `withdraw_from_goal`.
+    pub fn propose_withdrawal(
+        env: Env,
+        caller: Address,
+        goal_id: u64,
+        amount: i128,
+    ) -> u64 {
+        // goal must exist
+        let _goal: SavingsGoal = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Goal(goal_id))
+            .unwrap_or_else(|| panic_with_error!(&env, SavingsGoalError::GoalNotFound));
+
+        ms::create_proposal(&env, goal_id, caller, amount)
+    }
+
+    /// Approve a pending withdrawal proposal.
+    /// The caller must be one of the goal's configured signers.
+    /// Returns the updated approval count.
+    pub fn approve_withdrawal(
+        env: Env,
+        caller: Address,
+        goal_id: u64,
+        proposal_id: u64,
+    ) -> u32 {
+        ms::approve_proposal(&env, goal_id, proposal_id, caller)
+    }
+
+    /// Explicitly execute a proposal that has reached quorum.
+    /// (Normally auto-executed on the final approval; this is a manual fallback.)
+    pub fn execute_withdrawal_proposal(
+        env: Env,
+        caller: Address,
+        goal_id: u64,
+        proposal_id: u64,
+    ) {
+        ms::execute_proposal(&env, goal_id, proposal_id, caller);
+    }
+
+    /// Returns whether the goal has multisig protection configured.
+    pub fn is_multisig_goal(env: Env, goal_id: u64) -> bool {
+        ms::is_configured(&env, goal_id)
+    }
+
+    /// Returns the current approval count for a proposal.
+    pub fn get_proposal_approval_count(env: Env, goal_id: u64, proposal_id: u64) -> u32 {
+        ms::get_proposal(&env, goal_id, proposal_id).approval_count
+    }
+
+    // ── End multisig management ──────────────────────────────────────────────
 
     /// Returns whether a goal is currently locked against withdrawals.
     pub fn is_goal_locked(env: Env, goal_id: u64) -> bool {

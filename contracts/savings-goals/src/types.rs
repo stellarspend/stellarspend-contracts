@@ -300,6 +300,9 @@ pub enum DataKey {
     Certificate(u64),
     /// Penalty contract address for early-withdrawal fee calculation
     PenaltyContract,
+    /// Active withdrawal proposal ID for a multisig-protected goal.
+    /// Cleared after the proposal executes or expires.
+    GoalMultisigProposal(u64),
 }
 
 /// Error codes for goal validation and creation.

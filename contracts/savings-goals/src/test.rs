@@ -1137,7 +1137,7 @@ fn test_locked_goal_rejects_withdrawal() {
     assert!(goal.unlock_at > 0);
     assert!(client.is_goal_locked(&1));
 
-    let result = client.try_withdraw_from_goal(&user, &1, &10_000_000);
+    let result = client.try_withdraw_from_goal(&user, &1, &10_000_000, &None);
     assert!(result.is_err());
 }
 
@@ -1161,7 +1161,7 @@ fn test_unlocked_goal_allows_withdrawal() {
     client.batch_set_savings_goals(&admin, &requests);
 
     assert!(!client.is_goal_locked(&1));
-    let remaining = client.withdraw_from_goal(&user, &1, &10_000_000);
+    let remaining = client.withdraw_from_goal(&user, &1, &10_000_000, &None);
     assert_eq!(remaining, 40_000_000);
 }
 
@@ -1188,7 +1188,7 @@ fn test_withdrawal_allowed_after_lock_expires() {
     env.ledger().set_timestamp(goal.unlock_at + 1);
 
     assert!(!client.is_goal_locked(&1));
-    let remaining = client.withdraw_from_goal(&user, &1, &10_000_000);
+    let remaining = client.withdraw_from_goal(&user, &1, &10_000_000, &None);
     assert_eq!(remaining, 40_000_000);
 }
 
@@ -1211,7 +1211,7 @@ fn test_early_withdrawal_applies_configured_penalty() {
     });
     client.batch_set_savings_goals(&admin, &requests);
 
-    let remaining = client.withdraw_from_goal(&user, &1, &10_000_000);
+    let remaining = client.withdraw_from_goal(&user, &1, &10_000_000, &None);
     assert_eq!(remaining, 39_000_000);
 }
 
@@ -1234,7 +1234,7 @@ fn test_withdrawal_has_no_penalty_when_goal_is_complete() {
     });
     client.batch_set_savings_goals(&admin, &requests);
 
-    let remaining = client.withdraw_from_goal(&user, &1, &10_000_000);
+    let remaining = client.withdraw_from_goal(&user, &1, &10_000_000, &None);
     assert_eq!(remaining, 90_000_000);
 }
 
@@ -1764,4 +1764,237 @@ fn test_progress_query_returns_accurate_completion_data() {
     assert_eq!(progress3.target_amount, 100_000_000);
     assert_eq!(progress3.progress_percentage, 100);
     assert_eq!(progress3.is_complete, true);
+}
+
+// ============================================================================
+// Multisig withdrawal tests
+// ============================================================================
+
+/// Helper: create a basic goal with an initial balance and return its ID.
+fn setup_goal_with_balance(
+    env: &Env,
+    admin: &Address,
+    user: &Address,
+    client: &SavingsGoalsContractClient,
+    balance: i128,
+) -> u64 {
+    let mut requests: Vec<SavingsGoalRequest> = Vec::new(env);
+    requests.push_back(SavingsGoalRequest {
+        user: user.clone(),
+        goal_name: Symbol::new(env, "ms_goal"),
+        target_amount: balance * 2,
+        deadline: env.ledger().sequence() as u64 + 10_000,
+        initial_contribution: balance,
+        priority: 1,
+        lock_duration_seconds: 0,
+        penalty_bps: 0,
+        expiration_seconds: 0,
+    });
+    let result = client.batch_set_savings_goals(admin, &requests);
+    // Return the ID of the last created goal
+    match result.results.get(0).unwrap() {
+        crate::types::GoalResult::Success(g) => g.goal_id,
+        crate::types::GoalResult::Failure(_, _) => panic!("goal creation failed"),
+    }
+}
+
+/// Build a Vec<Address> with three distinct signers.
+fn make_signers(env: &Env, a: &Address, b: &Address, c: &Address) -> soroban_sdk::Vec<Address> {
+    let mut v = soroban_sdk::Vec::new(env);
+    v.push_back(a.clone());
+    v.push_back(b.clone());
+    v.push_back(c.clone());
+    v
+}
+
+/// AC: Creating a multisig-protected goal requires specifying signers and a threshold.
+#[test]
+fn test_configure_multisig_goal_persists() {
+    let (env, admin, client) = setup_test_contract();
+    let user = Address::generate(&env);
+    let signer_a = Address::generate(&env);
+    let signer_b = Address::generate(&env);
+    let signer_c = Address::generate(&env);
+
+    let goal_id = setup_goal_with_balance(&env, &admin, &user, &client, 50_000_000);
+
+    let signers = make_signers(&env, &signer_a, &signer_b, &signer_c);
+    client.configure_multisig_goal(&user, &goal_id, &signers, &2, &3600);
+
+    assert!(client.is_multisig_goal(&goal_id));
+}
+
+/// AC: A withdrawal on a multisig goal without a proposal_id panics.
+#[test]
+#[should_panic]
+fn test_multisig_withdrawal_without_proposal_panics() {
+    let (env, admin, client) = setup_test_contract();
+    let user = Address::generate(&env);
+    let signer_a = Address::generate(&env);
+    let signer_b = Address::generate(&env);
+    let signer_c = Address::generate(&env);
+
+    let goal_id = setup_goal_with_balance(&env, &admin, &user, &client, 50_000_000);
+    let signers = make_signers(&env, &signer_a, &signer_b, &signer_c);
+    client.configure_multisig_goal(&user, &goal_id, &signers, &2, &3600);
+
+    // No proposal — must panic with MultisigApprovalRequired
+    client.withdraw_from_goal(&user, &goal_id, &10_000_000, &None);
+}
+
+/// AC: Cannot execute before enough distinct signers approve.
+#[test]
+#[should_panic]
+fn test_withdrawal_blocked_under_threshold() {
+    let (env, admin, client) = setup_test_contract();
+    let user = Address::generate(&env);
+    let signer_a = Address::generate(&env);
+    let signer_b = Address::generate(&env);
+    let signer_c = Address::generate(&env);
+
+    let goal_id = setup_goal_with_balance(&env, &admin, &user, &client, 50_000_000);
+    let signers = make_signers(&env, &signer_a, &signer_b, &signer_c);
+    client.configure_multisig_goal(&user, &goal_id, &signers, &2, &3600);
+
+    let proposal_id = client.propose_withdrawal(&signer_a, &goal_id, &10_000_000);
+    // Only one approval (threshold is 2)
+    client.approve_withdrawal(&signer_a, &goal_id, &proposal_id);
+
+    // Passing the proposal_id but it isn't executed yet — should panic
+    client.withdraw_from_goal(&user, &goal_id, &10_000_000, &Some(proposal_id));
+}
+
+/// AC: Same signer approving twice does not count twice (panics on second attempt).
+#[test]
+#[should_panic]
+fn test_duplicate_approval_rejected_in_savings_goals() {
+    let (env, admin, client) = setup_test_contract();
+    let user = Address::generate(&env);
+    let signer_a = Address::generate(&env);
+    let signer_b = Address::generate(&env);
+    let signer_c = Address::generate(&env);
+
+    let goal_id = setup_goal_with_balance(&env, &admin, &user, &client, 50_000_000);
+    let signers = make_signers(&env, &signer_a, &signer_b, &signer_c);
+    client.configure_multisig_goal(&user, &goal_id, &signers, &2, &3600);
+
+    let proposal_id = client.propose_withdrawal(&signer_a, &goal_id, &10_000_000);
+    client.approve_withdrawal(&signer_a, &goal_id, &proposal_id);
+    // Second approval from same signer — must panic DuplicateApproval
+    client.approve_withdrawal(&signer_a, &goal_id, &proposal_id);
+}
+
+/// AC: Non-signers cannot approve proposals.
+#[test]
+#[should_panic]
+fn test_non_signer_cannot_approve_in_savings_goals() {
+    let (env, admin, client) = setup_test_contract();
+    let user = Address::generate(&env);
+    let signer_a = Address::generate(&env);
+    let signer_b = Address::generate(&env);
+    let signer_c = Address::generate(&env);
+    let outsider = Address::generate(&env);
+
+    let goal_id = setup_goal_with_balance(&env, &admin, &user, &client, 50_000_000);
+    let signers = make_signers(&env, &signer_a, &signer_b, &signer_c);
+    client.configure_multisig_goal(&user, &goal_id, &signers, &2, &3600);
+
+    let proposal_id = client.propose_withdrawal(&signer_a, &goal_id, &10_000_000);
+    // Outsider tries to approve — must panic UnauthorizedSigner
+    client.approve_withdrawal(&outsider, &goal_id, &proposal_id);
+}
+
+/// AC: Proposals expire after a configurable window and cannot be executed afterward.
+#[test]
+#[should_panic]
+fn test_expired_proposal_blocks_withdrawal() {
+    let (env, admin, client) = setup_test_contract();
+    let user = Address::generate(&env);
+    let signer_a = Address::generate(&env);
+    let signer_b = Address::generate(&env);
+    let signer_c = Address::generate(&env);
+
+    let goal_id = setup_goal_with_balance(&env, &admin, &user, &client, 50_000_000);
+    let signers = make_signers(&env, &signer_a, &signer_b, &signer_c);
+    // TTL = 100 seconds
+    client.configure_multisig_goal(&user, &goal_id, &signers, &2, &100);
+
+    let proposal_id = client.propose_withdrawal(&signer_a, &goal_id, &10_000_000);
+
+    // Advance ledger past TTL
+    env.ledger().set_timestamp(env.ledger().timestamp() + 200);
+
+    // Approval on expired proposal must panic ProposalExpired
+    client.approve_withdrawal(&signer_a, &goal_id, &proposal_id);
+}
+
+/// Full 2-of-3 happy path: propose → A approves → B approves (auto-execute) → withdraw succeeds.
+#[test]
+fn test_2_of_3_full_withdrawal_flow() {
+    let (env, admin, client) = setup_test_contract();
+    let user = Address::generate(&env);
+    let signer_a = Address::generate(&env);
+    let signer_b = Address::generate(&env);
+    let signer_c = Address::generate(&env);
+
+    let goal_id = setup_goal_with_balance(&env, &admin, &user, &client, 50_000_000);
+    let signers = make_signers(&env, &signer_a, &signer_b, &signer_c);
+    client.configure_multisig_goal(&user, &goal_id, &signers, &2, &3600);
+
+    // Step 1: create proposal
+    let proposal_id = client.propose_withdrawal(&signer_a, &goal_id, &10_000_000);
+
+    // Step 2: signer A approves — not yet executed
+    let count_a = client.approve_withdrawal(&signer_a, &goal_id, &proposal_id);
+    assert_eq!(count_a, 1);
+
+    // Withdrawal at this point must still fail (under threshold)
+    let early_result = client.try_withdraw_from_goal(
+        &user, &goal_id, &10_000_000, &Some(proposal_id),
+    );
+    assert!(early_result.is_err());
+
+    // Step 3: signer B approves — quorum reached, proposal auto-executes
+    let count_b = client.approve_withdrawal(&signer_b, &goal_id, &proposal_id);
+    assert_eq!(count_b, 2);
+
+    // Step 4: withdrawal now succeeds
+    let remaining = client.withdraw_from_goal(&user, &goal_id, &10_000_000, &Some(proposal_id));
+    assert_eq!(remaining, 40_000_000);
+}
+
+/// Verify approval count query works correctly.
+#[test]
+fn test_get_proposal_approval_count() {
+    let (env, admin, client) = setup_test_contract();
+    let user = Address::generate(&env);
+    let signer_a = Address::generate(&env);
+    let signer_b = Address::generate(&env);
+    let signer_c = Address::generate(&env);
+
+    let goal_id = setup_goal_with_balance(&env, &admin, &user, &client, 50_000_000);
+    let signers = make_signers(&env, &signer_a, &signer_b, &signer_c);
+    client.configure_multisig_goal(&user, &goal_id, &signers, &2, &3600);
+
+    let proposal_id = client.propose_withdrawal(&signer_a, &goal_id, &10_000_000);
+    assert_eq!(client.get_proposal_approval_count(&goal_id, &proposal_id), 0);
+
+    client.approve_withdrawal(&signer_a, &goal_id, &proposal_id);
+    assert_eq!(client.get_proposal_approval_count(&goal_id, &proposal_id), 1);
+
+    client.approve_withdrawal(&signer_b, &goal_id, &proposal_id);
+    assert_eq!(client.get_proposal_approval_count(&goal_id, &proposal_id), 2);
+}
+
+/// Non-multisig goals still work with proposal_id = None.
+#[test]
+fn test_plain_goal_withdrawal_unaffected() {
+    let (env, admin, client) = setup_test_contract();
+    let user = Address::generate(&env);
+
+    let goal_id = setup_goal_with_balance(&env, &admin, &user, &client, 50_000_000);
+
+    // No multisig configured — plain withdrawal should work
+    let remaining = client.withdraw_from_goal(&user, &goal_id, &10_000_000, &None);
+    assert_eq!(remaining, 40_000_000);
 }
