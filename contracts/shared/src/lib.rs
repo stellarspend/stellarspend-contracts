@@ -6,9 +6,11 @@ use soroban_sdk::{contracttype, Address, Env, String};
 
 pub mod assets;
 pub mod auth;
+pub mod authorization;
 pub mod date_utils;
 pub mod errors;
 pub mod sanitizer;
+pub mod reentrancy;
 pub mod utils;
 pub mod validation;
 

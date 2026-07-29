@@ -7,7 +7,7 @@ use crate::{
     CrossContractError, CrossContractInteraction, CrossContractInteractionClient,
 };
 use soroban_sdk::{
-    contract, contractimpl, testutils::Address as _, Address, Bytes, Env, Symbol, Vec,
+    contract, contractimpl, testutils::Address as _, Address, Bytes, Env, Symbol, Val, Vec,
 };
 
 // Mock external contract for testing
@@ -30,6 +30,123 @@ impl MockExternalContract {
     pub fn no_params(_env: Env) -> Symbol {
         Symbol::new(&_env, "success")
     }
+}
+
+#[contract]
+pub struct ReentrantAttackerContract;
+
+#[contractimpl]
+impl ReentrantAttackerContract {
+    /// Stores the target contract and admin address for the attack.
+    pub fn initialize(env: Env, target_contract: Address, target_admin: Address) {
+        env.storage().instance().set(&AttackerDataKey::TargetContract, &target_contract);
+        env.storage().instance().set(&AttackerDataKey::TargetAdmin, &target_admin);
+        env.storage()
+            .instance()
+            .set(&AttackerDataKey::AttackBlocked, &false);
+    }
+
+    /// Initiates the reentrancy attack by asking the target contract to call this
+    /// contract, then attempting to re-enter the target contract from that callback.
+    pub fn trigger_attack(env: Env, require_whitelist: bool) -> bool {
+        let target_contract: Address = env
+            .storage()
+            .instance()
+            .get(&AttackerDataKey::TargetContract)
+            .unwrap();
+        let target_admin: Address = env
+            .storage()
+            .instance()
+            .get(&AttackerDataKey::TargetAdmin)
+            .unwrap();
+
+        let first_callback = CrossContractCall {
+            contract_address: env.current_contract_address(),
+            function_name: Symbol::new(&env, "first_callback"),
+            args: Vec::new(&env),
+            continue_on_failure: false,
+        };
+
+        let result = env.try_invoke_contract::<CallResult, soroban_sdk::Error>(
+            &target_contract,
+            &Symbol::new(&env, "execute_call"),
+            vec![
+                env,
+                target_admin.into_val(&env),
+                first_callback.into_val(&env),
+                require_whitelist.into_val(&env),
+            ],
+        );
+
+        let _ = result;
+        env.storage()
+            .instance()
+            .get(&AttackerDataKey::AttackBlocked)
+            .unwrap_or(false)
+    }
+
+    /// Called by the target contract during the outer execute_call. This function
+    /// attempts to re-enter the target contract while the guard is still active.
+    pub fn first_callback(env: Env) -> Symbol {
+        let target_contract: Address = env
+            .storage()
+            .instance()
+            .get(&AttackerDataKey::TargetContract)
+            .unwrap();
+        let target_admin: Address = env
+            .storage()
+            .instance()
+            .get(&AttackerDataKey::TargetAdmin)
+            .unwrap();
+
+        let nested_call = CrossContractCall {
+            contract_address: env.current_contract_address(),
+            function_name: Symbol::new(&env, "nested_callback"),
+            args: Vec::new(&env),
+            continue_on_failure: false,
+        };
+
+        let nested_result = env.try_invoke_contract::<CallResult, soroban_sdk::Error>(
+            &target_contract,
+            &Symbol::new(&env, "execute_call"),
+            vec![
+                env,
+                target_admin.into_val(&env),
+                nested_call.into_val(&env),
+                false.into_val(&env),
+            ],
+        );
+
+        let blocked = match nested_result {
+            Ok(Ok(call_result)) => !call_result.success,
+            _ => true,
+        };
+
+        env.storage()
+            .instance()
+            .set(&AttackerDataKey::AttackBlocked, &blocked);
+
+        Symbol::new(&env, if blocked { "blocked" } else { "allowed" })
+    }
+
+    pub fn nested_callback(_env: Env) -> Symbol {
+        Symbol::new(&_env, "ok")
+    }
+
+    pub fn get_attack_blocked(env: Env) -> bool {
+        env.storage()
+            .instance()
+            .get(&AttackerDataKey::AttackBlocked)
+            .unwrap_or(false)
+    }
+}
+
+#[contracttype]
+#[derive(Clone)]
+pub enum AttackerDataKey {
+    TargetContract,
+    TargetAdmin,
+    AttackBlocked,
 }
 
 fn create_test_env() -> (Env, Address, Address, Address) {
@@ -169,6 +286,21 @@ fn test_execute_call_with_whitelist_whitelisted() {
     let result = client.execute_call(&admin, &call, &true);
 
     assert_eq!(client.get_total_calls(), 1);
+}
+
+#[test]
+fn test_reentrancy_guard_blocks_nested_execute_call() {
+    let (env, admin, _, _) = create_test_env();
+    let target_id = env.register_contract(None, CrossContractInteraction);
+    let target_client = CrossContractInteractionClient::new(&env, &target_id);
+    target_client.initialize(&admin);
+
+    let attacker_id = env.register_contract(None, ReentrantAttackerContract);
+    let attacker_client = ReentrantAttackerContractClient::new(&env, &attacker_id);
+    attacker_client.initialize(&target_id, &admin);
+
+    let blocked = attacker_client.trigger_attack(&false);
+    assert!(blocked, "Reentrancy guard should block the callback attack");
 }
 
 #[test]
