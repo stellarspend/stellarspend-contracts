@@ -7,6 +7,9 @@ use soroban_sdk::{contracttype, Address};
 /// TTL bump for persistent storage entries (~1 year in ledgers at ~5s/ledger).
 pub const PERSISTENT_TTL_BUMP: u32 = 6_307_200;
 
+/// Default schema version for reward account metadata.
+pub const DEFAULT_METADATA_VERSION: u32 = 1;
+
 // ── Storage keys ──────────────────────────────────────────────────────────────
 
 /// All storage keys used by the rewards contract.
@@ -84,13 +87,25 @@ pub enum RewardStatus {
     Cancelled,
 }
 
+/// Status of a reward account.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum AccountStatus {
+    /// Account is active and operating normally.
+    Active,
+    /// Account is suspended.
+    Suspended,
+    /// Account is inactive.
+    Inactive,
+}
+
 // ── Structs ───────────────────────────────────────────────────────────────────
 
 /// Metadata associated with a reward account.
 ///
 /// Persisted under `DataKey::RewardAccount(address)`.
 #[contracttype]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RewardAccount {
     /// The owner of this reward account.
     pub owner: Address,
@@ -100,10 +115,14 @@ pub struct RewardAccount {
     pub lifetime_earned: i128,
     /// Total rewards claimed over the lifetime of the account in stroops.
     pub lifetime_claimed: i128,
-    /// Ledger sequence at which the account was first created.
+    /// Unix timestamp at which the account was first created.
     pub created_at: u64,
-    /// Ledger sequence of the most recent balance update.
+    /// Unix timestamp of the most recent account update.
     pub last_updated: u64,
+    /// Current protocol status of the account.
+    pub account_status: AccountStatus,
+    /// Version of the metadata schema.
+    pub metadata_version: u32,
 }
 
 /// A record of a single reward issuance or claim event.

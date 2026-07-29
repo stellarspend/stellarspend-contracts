@@ -12,7 +12,10 @@ use crate::storage::{
     get_reward_balance, get_reward_tx_counter, set_lifetime_claimed, set_lifetime_earned,
     set_reward_account, set_reward_balance, set_reward_transaction, set_reward_tx_counter,
 };
-use crate::types::{RewardAccount, RewardStatus, RewardTransaction, RewardType};
+use crate::types::{
+    AccountStatus, RewardAccount, RewardStatus, RewardTransaction, RewardType,
+    DEFAULT_METADATA_VERSION,
+};
 use crate::validation::{
     validate_account_not_registered, validate_account_registered, validate_contract_initialized,
     validate_reward_amount, validate_sufficient_balance,
@@ -33,7 +36,7 @@ pub fn register_reward_account(env: &Env, participant: &Address) -> Result<(), R
     validate_contract_initialized(env)?;
     validate_account_not_registered(env, participant)?;
 
-    let now = env.ledger().sequence() as u64;
+    let now = env.ledger().timestamp();
 
     let account = RewardAccount {
         owner: participant.clone(),
@@ -42,6 +45,8 @@ pub fn register_reward_account(env: &Env, participant: &Address) -> Result<(), R
         lifetime_claimed: 0,
         created_at: now,
         last_updated: now,
+        account_status: AccountStatus::Active,
+        metadata_version: DEFAULT_METADATA_VERSION,
     };
 
     set_reward_account(env, participant, &account);
@@ -86,7 +91,7 @@ pub fn credit_reward(
         .checked_add(amount)
         .ok_or(RewardsError::Overflow)?;
 
-    let now = env.ledger().sequence() as u64;
+    let now = env.ledger().timestamp();
 
     let mut account = get_reward_account(env, participant).ok_or(RewardsError::AccountNotFound)?;
     account.balance = new_balance;
@@ -150,7 +155,7 @@ pub fn debit_reward(
         .checked_add(amount)
         .ok_or(RewardsError::Overflow)?;
 
-    let now = env.ledger().sequence() as u64;
+    let now = env.ledger().timestamp();
 
     let mut account = get_reward_account(env, participant).ok_or(RewardsError::AccountNotFound)?;
     account.balance = new_balance;
