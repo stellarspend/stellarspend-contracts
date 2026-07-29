@@ -40,6 +40,10 @@ impl TransactionsContract {
         multisig::get_threshold(&env)
     }
 
+    pub fn get_multisig_threshold(env: Env) -> u32 {
+        multisig::get_multisig_threshold(&env)
+    }
+
     pub fn get_high_value_threshold(env: Env) -> i128 {
         multisig::get_high_value_threshold(&env)
     }
