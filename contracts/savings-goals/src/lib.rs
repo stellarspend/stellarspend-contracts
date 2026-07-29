@@ -1135,6 +1135,23 @@ impl SavingsGoalsContract {
             .unwrap_or(Vec::new(&env))
     }
 
+    /// Returns the number of savings goals an address has created.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `owner` - The address whose goal count is queried
+    ///
+    /// # Returns
+    /// * `u32` - The number of goals created by `owner`, or 0 if none exist
+    pub fn get_goal_count(env: Env, owner: Address) -> u32 {
+        let goals: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&DataKey::UserGoals(owner))
+            .unwrap_or(Vec::new(&env));
+        goals.len()
+    }
+
     /// Returns a previously recorded contribution for a goal.
     pub fn get_contribution_record(
         env: Env,
