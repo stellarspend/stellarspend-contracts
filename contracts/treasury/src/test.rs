@@ -35,6 +35,23 @@ fn initializes_with_zero_balances() {
     assert_eq!(client.get_total_reserve(), 0);
 }
 
+// --- Issue #984: get_treasury_balance ---
+
+#[test]
+fn get_treasury_balance_returns_zero_on_empty_treasury() {
+    let (_env, _admin, client) = setup();
+    assert_eq!(client.get_treasury_balance(), 0);
+}
+
+#[test]
+fn get_treasury_balance_returns_correct_total() {
+    let (_env, _admin, client) = setup();
+    client.credit_penalty(&100i128);
+    client.credit_fee(&200i128);
+    client.credit_reward(&300i128);
+    assert_eq!(client.get_treasury_balance(), 600);
+}
+
 #[test]
 fn credit_penalty_updates_total() {
     let (_env, _admin, client) = setup();
