@@ -15,8 +15,14 @@ pub mod validation;
 use soroban_sdk::{contract, contractimpl, panic_with_error, Address, Env, Vec};
 
 use crate::rewards::{credit_reward, debit_reward, register_reward_account};
-use crate::storage::{get_reward_account, get_reward_index};
-pub use crate::types::{DataKey, RewardAccount, RewardStatus, RewardTransaction, RewardType};
+use crate::storage::{
+    get_account_status, get_metadata_version, get_reward_account, get_reward_index,
+    set_account_status,
+};
+pub use crate::types::{
+    AccountStatus, DataKey, RewardAccount, RewardStatus, RewardTransaction, RewardType,
+    DEFAULT_METADATA_VERSION,
+};
 
 /// Error codes for the rewards contract.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -183,6 +189,32 @@ impl RewardsContract {
     /// `get_reward_transaction(id)` to retrieve full transaction details.
     pub fn get_transactions_for(env: Env, participant: Address) -> Vec<u64> {
         get_reward_index(&env, &participant)
+    }
+
+    /// Returns the `AccountStatus` for `participant`, if registered.
+    pub fn get_account_status(env: Env, participant: Address) -> Option<AccountStatus> {
+        get_account_status(&env, &participant)
+    }
+
+    /// Returns the `metadata_version` for `participant`, if registered.
+    pub fn get_metadata_version(env: Env, participant: Address) -> Option<u32> {
+        get_metadata_version(&env, &participant)
+    }
+
+    /// Updates the `AccountStatus` for `participant`.
+    ///
+    /// Requires admin authorization. Updates `last_updated` timestamp automatically.
+    pub fn set_account_status(env: Env, participant: Address, status: AccountStatus) {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .unwrap_or_else(|| panic_with_error!(&env, RewardsError::NotInitialized));
+        admin.require_auth();
+
+        if !set_account_status(&env, &participant, status) {
+            panic_with_error!(&env, RewardsError::AccountNotFound);
+        }
     }
 
     // ── Internal helpers ──────────────────────────────────────────────────
