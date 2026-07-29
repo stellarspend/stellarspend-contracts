@@ -4,9 +4,9 @@ use soroban_sdk::{testutils::Address as _, testutils::Ledger as _, Address, Env}
 
 use crate::{
     storage::{
-        get_lifetime_claimed, get_lifetime_earned,
+        get_account_status, get_lifetime_claimed, get_lifetime_earned, get_metadata_version,
         get_reward_account, get_reward_balance, get_reward_index, get_reward_transaction,
-        get_reward_tx_counter, has_reward_account, set_lifetime_claimed,
+        get_reward_tx_counter, has_reward_account, set_account_status, set_lifetime_claimed,
         set_lifetime_earned, set_reward_account, set_reward_balance,
     },
     types::{
