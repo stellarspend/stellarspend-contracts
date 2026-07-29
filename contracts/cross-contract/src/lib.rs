@@ -84,6 +84,9 @@ impl CrossContractInteraction {
             panic_with_error!(&env, e);
         }
 
+        // Record the last caller for audit purposes
+        env.storage().instance().set(&DataKey::LastCaller, &caller);
+
         // Emit call initiated event
         CrossContractEvents::call_initiated(
             &env,
@@ -132,6 +135,9 @@ impl CrossContractInteraction {
         if let Err(e) = validate_batch_calls(&env, &calls, require_whitelist) {
             panic_with_error!(&env, e);
         }
+
+        // Record the last caller for audit purposes
+        env.storage().instance().set(&DataKey::LastCaller, &caller);
 
         let total_calls = calls.len();
         let mut successful_calls: u32 = 0;
@@ -265,6 +271,12 @@ impl CrossContractInteraction {
             .instance()
             .get(&DataKey::FailedCalls)
             .unwrap_or(0)
+    }
+
+    /// Returns the address of the last contract that made a cross-contract call
+    /// into this crate, or `None` if no call has been made yet.
+    pub fn get_last_caller(env: Env) -> Option<Address> {
+        env.storage().instance().get(&DataKey::LastCaller)
     }
 
     // Private helper functions
