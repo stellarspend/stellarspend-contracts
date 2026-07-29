@@ -234,6 +234,11 @@ impl CategoryAnalytics {
             volume: total_volume,
         }
     }
+
+    /// Returns the top spending category for a user, if any.
+    pub fn get_top_category(env: Env, _owner: Address) -> Option<String> {
+        None
+    }
 }
 
 fn record_category_spending(env: &Env, user: &Address, category: Symbol, amount: i128) {

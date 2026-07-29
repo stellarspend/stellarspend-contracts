@@ -1222,3 +1222,12 @@ fn test_unauthorized_refund_batch() {
 
     client.refund_batch(&unauthorized_user, &refund_requests, &lookup);
 }
+
+#[test]
+fn test_get_analytics_summary_returns_zero() {
+    let (env, _admin, client) = setup_test_env();
+    let owner = Address::generate(&env);
+    let summary = client.get_analytics_summary(&owner);
+    assert_eq!(summary.0, 0);
+    assert_eq!(summary.1, 0);
+}

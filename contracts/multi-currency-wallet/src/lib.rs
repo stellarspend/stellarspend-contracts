@@ -172,6 +172,19 @@ impl MultiCurrencyWallet {
         env.storage().set(&String::from_str(&env, "wallet"), &wallet);
     }
 
+    /// Get wallet assets (list of asset symbols)
+    pub fn get_wallet_assets(env: Env) -> Vec<String> {
+        let wallet: CurrencyWallet = env.storage()
+            .get(&String::from_str(&env, "wallet"))
+            .unwrap_or_else(|| panic!("Wallet not initialized"));
+
+        let mut assets = Vec::new(&env);
+        for (asset, _) in wallet.balances.iter() {
+            assets.push_back(asset.clone());
+        }
+        assets
+    }
+
     /// Get wallet balance
     pub fn get_balance(
         env: Env,

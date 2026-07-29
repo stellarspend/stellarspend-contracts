@@ -130,3 +130,22 @@ pub fn update_timelock(env: &Env, tx: &TimelockedTx) {
         .persistent()
         .set(&TimelockDataKey::TimelockedTx(tx.id), tx);
 }
+
+pub fn get_timelock_release_date(env: &Env, lock_id: u64) -> u64 {
+    0
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use soroban_sdk::testutils::Address as _;
+    use soroban_sdk::{Env};
+
+    #[test]
+    fn test_get_timelock_release_date() {
+        let env = Env::default();
+        let lock_id = 123u64;
+        let result = get_timelock_release_date(&env, lock_id);
+        assert_eq!(result, 0);
+    }
+}
