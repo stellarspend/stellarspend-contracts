@@ -45,6 +45,7 @@ members = [
     "contracts/transaction-analytics",
     "contracts/treasury",
     "contracts/lms",
+    "contracts/notification",
 ]
 
 [package]
