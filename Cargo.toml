@@ -1,6 +1,8 @@
 [workspace]
 members = [
     "contracts/balance",
+    "contracts/governance",
+    "contracts/contract-upgrade/old_contract",
 
     "contracts/shared",
     "contracts/transfer",
