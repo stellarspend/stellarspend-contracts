@@ -28,7 +28,7 @@
 
 use soroban_sdk::{
     contract, contractimpl, contracterror, contracttype, panic_with_error, symbol_short,
-    Address, Env, Vec,
+    Address, Env, Symbol, Vec,
 };
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -38,6 +38,20 @@ const PERSISTENT_TTL_BUMP: u32 = 12_614_400;
 
 /// Maximum length of a freeze reason string (in bytes).
 pub const MAX_REASON_LEN: usize = 256;
+
+// ── Account status symbols ───────────────────────────────────────────────────
+//
+// Symbols returned by [`AccountStatusContract::get_account_status`].
+
+/// Account is in good standing and may transact.
+pub const STATUS_ACTIVE: &str = "active";
+
+/// Account has an active (non-expired) freeze applied by an admin.
+pub const STATUS_SUSPENDED: &str = "suspended";
+
+/// Account has been permanently closed. Reserved: this contract has no
+/// closure transition today, so `get_account_status` never returns it.
+pub const STATUS_CLOSED: &str = "closed";
 
 // ── Storage keys ─────────────────────────────────────────────────────────────
 
@@ -469,6 +483,26 @@ impl AccountStatusContract {
     pub fn get_status(env: Env, account: Address) -> AccountStatusRecord {
         Self::require_initialized(&env);
         Self::load_status(&env, &account)
+    }
+
+    /// Return the lifecycle status of `owner` as a symbol.
+    ///
+    /// # Returns
+    /// - `suspended` — the account has an active freeze (expiry aware).
+    /// - `active`    — the account has no active freeze. This is also the
+    ///                 documented default for an address that has never been
+    ///                 seen by this contract.
+    ///
+    /// `closed` ([`STATUS_CLOSED`]) is reserved for a future account-closure
+    /// transition and is never returned by this implementation.
+    pub fn get_account_status(env: Env, owner: Address) -> Symbol {
+        Self::require_initialized(&env);
+        let record = Self::load_status(&env, &owner);
+        if Self::is_currently_frozen(&env, &record) {
+            symbol_short!("suspended")
+        } else {
+            symbol_short!("active")
+        }
     }
 
     /// Return `true` if `account` is currently frozen (respects expiry).
