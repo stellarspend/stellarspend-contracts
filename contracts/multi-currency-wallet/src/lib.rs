@@ -173,6 +173,7 @@ impl MultiCurrencyWallet {
 
         env.storage()
             .set(&String::from_str(&env, "wallet"), &wallet);
+ feat/add-view-functions
     }
 
     /// Get wallet assets (list of asset symbols)
@@ -187,6 +188,7 @@ impl MultiCurrencyWallet {
             assets.push_back(asset.clone());
         }
         assets
+ main
     }
 
     /// Get wallet balance

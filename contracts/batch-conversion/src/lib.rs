@@ -236,6 +236,20 @@ impl BatchConversionContract {
             }
         }
 
+        // Store output amounts for this batch
+        let mut output_amounts: Vec<i128> = Vec::new(&env);
+        for result in results.iter() {
+            match result {
+                ConversionResult::Success(_, _, _, _, amount_out) => {
+                    output_amounts.push_back(amount_out)
+                }
+                ConversionResult::Failure(_, _, _, _, _) => output_amounts.push_back(0),
+            }
+        }
+        env.storage()
+            .persistent()
+            .set(&DataKey::BatchOutput(batch_id), &output_amounts);
+
         // Update storage (batched at the end for gas efficiency)
         let total_batches: u64 = env
             .storage()
@@ -307,6 +321,15 @@ impl BatchConversionContract {
             .instance()
             .get(&DataKey::TotalVolumeConverted)
             .unwrap_or(0)
+    }
+
+    /// Returns the output amounts for each item in a completed batch conversion.
+    /// Returns an empty vec for an unknown batch id.
+    pub fn get_batch_conversion_output(env: Env, batch_id: u64) -> Vec<i128> {
+        env.storage()
+            .persistent()
+            .get(&DataKey::BatchOutput(batch_id))
+            .unwrap_or_else(|| Vec::new(&env))
     }
 
     // Internal helper to execute a single conversion

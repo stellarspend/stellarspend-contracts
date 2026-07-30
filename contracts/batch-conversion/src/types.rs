@@ -36,6 +36,7 @@ pub enum DataKey {
     TotalBatches,
     TotalConversionsProcessed,
     TotalVolumeConverted,
+    BatchOutput(u64),
 }
 
 pub struct ConversionEvents;

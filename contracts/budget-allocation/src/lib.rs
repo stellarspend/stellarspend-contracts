@@ -16,7 +16,8 @@ mod test;
 mod types;
 
 use crate::types::{
-    BatchBudgetResult, BudgetAllocationSummary, BudgetRecord, BudgetRequest, CategoryBudgetRequest,
+    BatchBudgetResult, BudgetAllocationSummary, BudgetRecord, BudgetRenewalConfig,
+    BudgetRequest, BudgetVersion, CategoryBudgetRequest,
     DataKey, UserBudgetCategories,
 };
 use soroban_sdk::{contract, contractimpl, symbol_short, Address, Env, Map, Symbol, Vec};
@@ -361,5 +362,229 @@ impl BudgetAllocationContract {
             .instance()
             .get(&DataKey::Admin)
             .expect("Not initialized")
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // #769: AUTOMATIC BUDGET RENEWAL
+    // ────────────────────────────────────────────────────────────────────────
+
+    /// Schedules automatic budget renewal for a user.
+    ///
+    /// When enabled, the executor can call `execute_budget_renewal` to
+    /// clone the current budget state into a new versioned snapshot and
+    /// reset the budget for the next cycle.
+    ///
+    /// # Arguments
+    /// * `admin` - Must be the contract admin
+    /// * `user` - The user whose budget is configured
+    /// * `frequency_seconds` - How often to renew (e.g., 2_592_000 for 30 days)
+    /// * `renewal_amount` - The amount to set for each renewal cycle
+    pub fn schedule_budget_renewal(
+        env: Env,
+        admin: Address,
+        user: Address,
+        frequency_seconds: u64,
+        renewal_amount: i128,
+    ) {
+        admin.require_auth();
+        let stored_admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .expect("Not initialized");
+        if admin != stored_admin {
+            panic!("Unauthorized");
+        }
+
+        if frequency_seconds == 0 {
+            panic!("Renewal frequency must be greater than zero");
+        }
+        if renewal_amount < 0 {
+            panic!("Renewal amount must be non-negative");
+        }
+
+        let config = BudgetRenewalConfig {
+            user: user.clone(),
+            frequency_seconds,
+            enabled: true,
+            renewal_amount,
+            last_renewed_at: env.ledger().timestamp(),
+            renewal_count: 0,
+        };
+
+        env.storage()
+            .persistent()
+            .set(&DataKey::BudgetRenewalConfig(user.clone()), &config);
+
+        env.events().publish(
+            (symbol_short!("renewal"), symbol_short!("scheduled")),
+            (user, frequency_seconds, renewal_amount),
+        );
+    }
+
+    /// Executes a budget renewal for a user if it is due.
+    ///
+    /// # Behavior
+    /// - Checks if the renewal frequency has elapsed since `last_renewed_at`.
+    /// - If due, snapshots the current budget into a new `BudgetVersion`.
+    /// - Resets the user's budget to the configured `renewal_amount`.
+    /// - Increments the version counter and emits renewal events.
+    ///
+    /// # Returns
+    /// The new version number or 0 if renewal was not needed.
+    pub fn execute_budget_renewal(env: Env, user: Address) -> u64 {
+        let config: BudgetRenewalConfig = env
+            .storage()
+            .persistent()
+            .get(&DataKey::BudgetRenewalConfig(user.clone()))
+            .expect("No renewal configuration found for user");
+
+        if !config.enabled {
+            return 0;
+        }
+
+        let now = env.ledger().timestamp();
+        let elapsed = now.saturating_sub(config.last_renewed_at);
+
+        if elapsed < config.frequency_seconds {
+            return 0; // Not yet due
+        }
+
+        // Capture current budget as a historical version
+        let current_budget: Option<BudgetRecord> = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Budget(user.clone()));
+
+        let version_counter: u64 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::BudgetVersionCounter(user.clone()))
+            .unwrap_or(0);
+
+        let new_version = version_counter + 1;
+
+        let version = BudgetVersion {
+            version: new_version,
+            user: user.clone(),
+            amount: current_budget
+                .as_ref()
+                .map(|r| r.amount)
+                .unwrap_or(config.renewal_amount),
+            created_at: now,
+            renewal_id: config.renewal_count + 1,
+        };
+
+        // Store the version snapshot
+        env.storage().persistent().set(
+            &DataKey::BudgetVersion(user.clone(), new_version),
+            &version,
+        );
+
+        // Update version counter
+        env.storage()
+            .persistent()
+            .set(&DataKey::BudgetVersionCounter(user.clone()), &new_version);
+
+        // Reset budget to renewal amount
+        let renewed_record = BudgetRecord {
+            user: user.clone(),
+            amount: config.renewal_amount,
+            last_updated: now,
+        };
+        env.storage()
+            .persistent()
+            .set(&DataKey::Budget(user.clone()), &renewed_record);
+
+        // Update renewal config with new timestamp and counter
+        let updated_config = BudgetRenewalConfig {
+            user: user.clone(),
+            frequency_seconds: config.frequency_seconds,
+            enabled: config.enabled,
+            renewal_amount: config.renewal_amount,
+            last_renewed_at: now,
+            renewal_count: config.renewal_count + 1,
+        };
+        env.storage()
+            .persistent()
+            .set(&DataKey::BudgetRenewalConfig(user.clone()), &updated_config);
+
+        // Emit renewal events
+        env.events().publish(
+            (symbol_short!("renewal"), symbol_short!("executed")),
+            (user.clone(), new_version, config.renewal_amount),
+        );
+
+        // Also emit an audit-style event for tracking
+        env.events().publish(
+            (symbol_short!("audit"), symbol_short!("renewal")),
+            (user, new_version, now),
+        );
+
+        new_version
+    }
+
+    /// Retrieves the budget renewal configuration for a user.
+    pub fn get_budget_renewal_config(env: Env, user: Address) -> Option<BudgetRenewalConfig> {
+        env.storage()
+            .persistent()
+            .get(&DataKey::BudgetRenewalConfig(user))
+    }
+
+    /// Disables automatic budget renewal for a user.
+    pub fn disable_budget_renewal(env: Env, admin: Address, user: Address) {
+        admin.require_auth();
+        let stored_admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .expect("Not initialized");
+        if admin != stored_admin {
+            panic!("Unauthorized");
+        }
+
+        let mut config: BudgetRenewalConfig = env
+            .storage()
+            .persistent()
+            .get(&DataKey::BudgetRenewalConfig(user.clone()))
+            .expect("No renewal configuration found for user");
+
+        config.enabled = false;
+        env.storage()
+            .persistent()
+            .set(&DataKey::BudgetRenewalConfig(user.clone()), &config);
+
+        env.events().publish(
+            (symbol_short!("renewal"), symbol_short!("disabled")),
+            (user,),
+        );
+    }
+
+    /// Retrieves a specific budget version for a user.
+    pub fn get_budget_version(env: Env, user: Address, version: u64) -> Option<BudgetVersion> {
+        env.storage()
+            .persistent()
+            .get(&DataKey::BudgetVersion(user, version))
+    }
+
+    /// Retrieves all budget versions for a user.
+    pub fn get_all_budget_versions(env: Env, user: Address) -> Vec<BudgetVersion> {
+        let counter: u64 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::BudgetVersionCounter(user.clone()))
+            .unwrap_or(0);
+
+        let mut versions = Vec::new(&env);
+        for v in 1..=counter {
+            if let Some(version) = env
+                .storage()
+                .persistent()
+                .get(&DataKey::BudgetVersion(user.clone(), v))
+            {
+                versions.push_back(version);
+            }
+        }
+        versions
     }
 }

@@ -8,3 +8,4 @@ mod test;
 pub use contract::*;
 
 pub mod errors;
+pub mod quiz;

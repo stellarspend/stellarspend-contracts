@@ -28,15 +28,17 @@ fn setup_test_env() -> (
 
     // Deploy from_asset token contract
     let from_asset_admin = Address::generate(&env);
-    let from_asset_contract = env.register_stellar_asset_contract_v2(from_asset_admin.clone());
-    let from_asset: Address = from_asset_contract.address();
+    let from_asset: Address = env
+        .register_stellar_asset_contract_v2(from_asset_admin.clone())
+        .address();
     let from_token_client = token::Client::new(&env, &from_asset);
     let from_token_admin_client = token::StellarAssetClient::new(&env, &from_asset);
 
     // Deploy to_asset token contract
     let to_asset_admin = Address::generate(&env);
-    let to_asset_contract = env.register_stellar_asset_contract_v2(to_asset_admin.clone());
-    let to_asset: Address = to_asset_contract.address();
+    let to_asset: Address = env
+        .register_stellar_asset_contract_v2(to_asset_admin.clone())
+        .address();
     let to_token_client = token::Client::new(&env, &to_asset);
 
     // Deploy batch conversion contract
@@ -111,8 +113,8 @@ fn test_batch_convert_single_success() {
             assert_eq!(u.clone(), user);
             assert_eq!(f.clone(), from_asset);
             assert_eq!(t.clone(), to_asset);
-            assert_eq!(amount_in.clone(), 100);
-            assert_eq!(amount_out.clone(), 90);
+            assert_eq!(amount_in, 100);
+            assert_eq!(amount_out, 90);
         }
         _ => panic!("Expected success"),
     }
@@ -160,8 +162,8 @@ fn test_batch_convert_partial_failures_validation() {
     match result.results.get(0).unwrap() {
         ConversionResult::Failure(user, _from, _to, amount_in, error_code) => {
             assert_eq!(user.clone(), user1);
-            assert_eq!(amount_in.clone(), -1);
-            assert_eq!(error_code.clone(), 3); // invalid amount_in
+            assert_eq!(amount_in, -1);
+            assert_eq!(error_code, 3); // invalid amount_in
         }
         _ => panic!("Expected failure"),
     }
@@ -199,7 +201,7 @@ fn test_batch_convert_same_asset_rejected() {
 
     match result.results.get(0).unwrap() {
         ConversionResult::Failure(_user, _from, _to, _amount_in, error_code) => {
-            assert_eq!(error_code.clone(), 5); // same asset
+            assert_eq!(error_code, 5); // same asset
         }
         _ => panic!("Expected failure"),
     }
@@ -308,4 +310,55 @@ fn test_batch_convert_empty_batch() {
 
     let conversions: Vec<ConversionRequest> = Vec::new(&env);
     client.batch_convert_currency(&conversions);
+}
+
+#[test]
+fn test_get_batch_conversion_output_unknown_id() {
+    let (_env, _, _, _, _, _, client) = setup_test_env();
+    let output = client.get_batch_conversion_output(&9999);
+    assert_eq!(output.len(), 0);
+}
+
+#[test]
+fn test_get_batch_conversion_output_correct_amounts() {
+    let (
+        env,
+        from_asset,
+        _from_token_client,
+        from_token_admin_client,
+        to_asset,
+        _to_token_client,
+        client,
+    ) = setup_test_env();
+
+    let user1 = Address::generate(&env);
+    let user2 = Address::generate(&env);
+    from_token_admin_client.mint(&user1, &1000);
+    from_token_admin_client.mint(&user2, &1000);
+
+    let mut conversions: Vec<ConversionRequest> = Vec::new(&env);
+    // user1: valid — should produce amount_out = min_amount_out = 90
+    conversions.push_back(create_conversion_request(
+        user1.clone(),
+        from_asset.clone(),
+        to_asset.clone(),
+        100,
+        90,
+    ));
+    // user2: invalid amount — should produce 0
+    conversions.push_back(create_conversion_request(
+        user2.clone(),
+        from_asset.clone(),
+        to_asset.clone(),
+        -1,
+        80,
+    ));
+
+    client.batch_convert_currency(&conversions);
+    let batch_id = client.get_total_batches();
+
+    let output = client.get_batch_conversion_output(&batch_id);
+    assert_eq!(output.len(), 2);
+    assert_eq!(output.get(0).unwrap(), 90);
+    assert_eq!(output.get(1).unwrap(), 0);
 }

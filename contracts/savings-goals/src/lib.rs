@@ -34,7 +34,8 @@ pub use crate::types::{
     BatchGoalMetrics, BatchGoalResult, BatchMilestoneMetrics, BatchMilestoneResult,
     ContributionRecord, DataKey, ErrorCode, GoalCertificate, GoalEvents, GoalResult, GoalSnapshot,
     MilestoneAchievement, MilestoneAchievementRequest, MilestoneResult, SavingsGoal,
-    SavingsGoalProgress, SavingsGoalRequest, MAX_BATCH_SIZE, REVERSAL_PERIOD_SECS,
+    SavingsGoalProgress, SavingsGoalRequest, AllocationGoal, AutoAllocationRequest,
+    AutoAllocationResult, MAX_BATCH_SIZE, REVERSAL_PERIOD_SECS,
 };
 use crate::validation::{validate_goal_name_unique, validate_goal_request};
 
@@ -1525,6 +1526,313 @@ impl SavingsGoalsContract {
         let topics = (symbol_short!("goal"), symbol_short!("merged"));
         env.events()
             .publish(topics, (source_goal_id, target_goal_id, transferred_amount));
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // #779: SAVINGS GOAL BENEFICIARY TRANSFER
+    // ────────────────────────────────────────────────────────────────────────
+
+    /// Transfers the beneficiary (ownership) of a savings goal to a new address.
+    ///
+    /// Only the current goal owner can initiate the transfer. The operation:
+    /// - Updates the goal's `user` field to the new beneficiary.
+    /// - Moves the goal from the old user's goal list to the new user's list.
+    /// - Updates name-to-id mappings.
+    /// - Emits an audit event for the transfer.
+    ///
+    /// # Arguments
+    /// * `caller` - Must be the current goal owner
+    /// * `goal_id` - The goal to transfer
+    /// * `new_beneficiary` - The address receiving ownership
+    ///
+    /// # Errors
+    /// * `GoalNotFound` - Goal does not exist
+    /// * `Unauthorized` - Caller is not the current owner
+    /// * `GoalNotActive` - Goal is no longer active
+    pub fn transfer_goal_beneficiary(
+        env: Env,
+        caller: Address,
+        goal_id: u64,
+        new_beneficiary: Address,
+    ) {
+        caller.require_auth();
+
+        let mut goal: SavingsGoal = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Goal(goal_id))
+            .unwrap_or_else(|| panic_with_error!(&env, SavingsGoalError::GoalNotFound));
+
+        // Strict ownership check: only the current goal owner can transfer
+        if goal.user != caller {
+            panic_with_error!(&env, SavingsGoalError::Unauthorized);
+        }
+
+        // Cannot transfer to self
+        if new_beneficiary == caller {
+            panic_with_error!(&env, SavingsGoalError::Unauthorized);
+        }
+
+        if !goal.is_active && !goal.is_complete {
+            panic_with_error!(&env, SavingsGoalError::GoalNotActive);
+        }
+
+        let previous_owner = goal.user.clone();
+        let goal_name = goal.goal_name.clone();
+
+        // Remove name-to-id mapping for previous owner
+        env.storage()
+            .persistent()
+            .remove(&DataKey::GoalByName(previous_owner.clone(), goal_name.clone()));
+
+        // Remove goal from previous owner's goal list
+        let old_user_goals: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&DataKey::UserGoals(previous_owner.clone()))
+            .unwrap_or(Vec::new(&env));
+        let mut new_old_list: Vec<u64> = Vec::new(&env);
+        for gid in old_user_goals.iter() {
+            if gid != goal_id {
+                new_old_list.push_back(gid);
+            }
+        }
+        env.storage()
+            .persistent()
+            .set(&DataKey::UserGoals(previous_owner.clone()), &new_old_list);
+
+        // Update goal ownership
+        goal.user = new_beneficiary.clone();
+        env.storage()
+            .persistent()
+            .set(&DataKey::Goal(goal_id), &goal);
+
+        // Add name-to-id mapping for new beneficiary
+        env.storage().persistent().set(
+            &DataKey::GoalByName(new_beneficiary.clone(), goal_name),
+            &goal_id,
+        );
+
+        // Add goal to new beneficiary's goal list
+        let mut new_user_goals: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&DataKey::UserGoals(new_beneficiary.clone()))
+            .unwrap_or(Vec::new(&env));
+        new_user_goals.push_back(goal_id);
+        env.storage()
+            .persistent()
+            .set(&DataKey::UserGoals(new_beneficiary.clone()), &new_user_goals);
+
+        // Store beneficiary record for audit trail
+        env.storage()
+            .persistent()
+            .set(&DataKey::GoalBeneficiary(goal_id), &new_beneficiary);
+
+        // Emit audit event
+        GoalEvents::beneficiary_transferred(
+            &env,
+            goal_id,
+            &previous_owner,
+            &new_beneficiary,
+        );
+    }
+
+    /// Returns the current beneficiary for a goal (the goal owner).
+    pub fn get_goal_beneficiary(env: Env, goal_id: u64) -> Option<Address> {
+        env.storage()
+            .persistent()
+            .get(&DataKey::GoalBeneficiary(goal_id))
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // #780: MULTI-GOAL AUTO ALLOCATION
+    // ────────────────────────────────────────────────────────────────────────
+
+    /// Automatically allocates a single deposit across multiple savings goals
+    /// according to specified allocation percentages.
+    ///
+    /// # Validation
+    /// - All allocation percentages must sum to exactly 100.
+    /// - Each goal must exist, be active, and belong to the caller.
+    /// - An idempotency token prevents duplicate allocation requests.
+    ///
+    /// # Arguments
+    /// * `caller` - The user making the deposit
+    /// * `request` - Contains total_amount, target allocations, and idempotency_token
+    ///
+    /// # Returns
+    /// * `AutoAllocationResult` - Results of the allocation including contribution IDs
+    pub fn allocate_to_goals(
+        env: Env,
+        caller: Address,
+        request: AutoAllocationRequest,
+    ) -> AutoAllocationResult {
+        caller.require_auth();
+
+        if request.user != caller {
+            panic_with_error!(&env, SavingsGoalError::Unauthorized);
+        }
+
+        if request.total_amount <= 0 {
+            panic_with_error!(&env, SavingsGoalError::InvalidAmount);
+        }
+
+        if request.idempotency_token.is_empty() {
+            panic_with_error!(&env, SavingsGoalError::DuplicateContributionRequest);
+        }
+
+        if request.allocations.is_empty() {
+            panic_with_error!(&env, SavingsGoalError::EmptyBatch);
+        }
+
+        // Check idempotency to prevent duplicate allocations
+        let alloc_key = DataKey::AutoAllocationIdempotency(
+            caller.clone(),
+            request.idempotency_token.clone(),
+        );
+        if env.storage().persistent().has(&alloc_key) {
+            panic_with_error!(&env, SavingsGoalError::DuplicateContributionRequest);
+        }
+
+        // Validate percentages sum to 100
+        let mut percentage_sum: u32 = 0;
+        for alloc in request.allocations.iter() {
+            if alloc.percentage == 0 || alloc.percentage > 100 {
+                panic_with_error!(&env, SavingsGoalError::InvalidAmount);
+            }
+            percentage_sum = percentage_sum
+                .checked_add(alloc.percentage)
+                .unwrap_or(0);
+        }
+
+        if percentage_sum != 100 {
+            panic_with_error!(&env, SavingsGoalError::InvalidAmount);
+        }
+
+        // Pre-validate all goals exist, are active, and belong to caller
+        for alloc in request.allocations.iter() {
+            let goal: Option<SavingsGoal> = env
+                .storage()
+                .persistent()
+                .get(&DataKey::Goal(alloc.goal_id));
+
+            match goal {
+                Some(g) => {
+                    if g.user != caller {
+                        panic_with_error!(&env, SavingsGoalError::Unauthorized);
+                    }
+                    if !g.is_active {
+                        panic_with_error!(&env, SavingsGoalError::GoalNotActive);
+                    }
+                }
+                None => panic_with_error!(&env, SavingsGoalError::GoalNotFound),
+            }
+        }
+
+        // Mark idempotency token as used before processing
+        env.storage().persistent().set(&alloc_key, &true);
+
+        let mut goals_allocated: u32 = 0;
+        let mut goals_failed: u32 = 0;
+        let mut total_distributed: i128 = 0;
+        let mut contribution_ids: Vec<u64> = Vec::new(&env);
+        let current_time = env.ledger().timestamp();
+
+        // Process each allocation
+        for alloc in request.allocations.iter() {
+            // Calculate the amount for this goal based on percentage
+            let amount = request
+                .total_amount
+                .checked_mul(alloc.percentage as i128)
+                .unwrap_or(0)
+                / 100;
+
+            if amount <= 0 {
+                goals_failed += 1;
+                continue;
+            }
+
+            let mut goal: SavingsGoal = env
+                .storage()
+                .persistent()
+                .get(&DataKey::Goal(alloc.goal_id))
+                .unwrap();
+
+            // Apply contribution (capped at target)
+            let new_amount = goal.current_amount.checked_add(amount).unwrap_or(i128::MAX);
+            let actual_contribution = if new_amount > goal.target_amount {
+                goal.target_amount.saturating_sub(goal.current_amount)
+            } else {
+                amount
+            };
+
+            goal.current_amount = if new_amount > goal.target_amount {
+                goal.target_amount
+            } else {
+                new_amount
+            };
+            goal.is_complete = goal.current_amount >= goal.target_amount;
+
+            env.storage()
+                .persistent()
+                .set(&DataKey::Goal(alloc.goal_id), &goal);
+
+            // Store contribution record
+            let contrib_id: u64 = env
+                .storage()
+                .persistent()
+                .get(&DataKey::LastContribId(alloc.goal_id))
+                .unwrap_or(0)
+                + 1;
+
+            let record = ContributionRecord {
+                amount: actual_contribution,
+                contributed_at: current_time,
+                idempotency_token: request.idempotency_token.clone(),
+                reversed: false,
+            };
+
+            env.storage()
+                .persistent()
+                .set(&DataKey::Contribution(alloc.goal_id, contrib_id), &record);
+            env.storage()
+                .persistent()
+                .set(&DataKey::LastContribId(alloc.goal_id), &contrib_id);
+
+            contribution_ids.push_back(contrib_id);
+
+            total_distributed = total_distributed
+                .checked_add(actual_contribution)
+                .unwrap_or(i128::MAX);
+            goals_allocated += 1;
+
+            // Emit milestone events for each goal
+            Self::check_and_emit_milestones(&env, alloc.goal_id);
+            GoalEvents::goal_contributed(
+                &env,
+                alloc.goal_id,
+                &caller,
+                actual_contribution,
+                goal.current_amount,
+            );
+        }
+
+        // Emit auto-allocation event
+        GoalEvents::auto_allocation_executed(
+            &env,
+            &caller,
+            request.total_amount,
+            goals_allocated,
+        );
+
+        AutoAllocationResult {
+            success: goals_failed == 0,
+            goals_allocated,
+            goals_failed,
+            total_distributed,
+            contribution_ids,
+        }
     }
 
     fn default_deadline_alert_thresholds(env: &Env) -> Vec<u64> {
