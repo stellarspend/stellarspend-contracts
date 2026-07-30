@@ -42,6 +42,17 @@ impl BatchPaymentContract {
         let batch_reference_id =
             generate_transaction_reference_id(&env, &from, &batch_ref_counter_key);
 
+        // Increment batch counter and record status
+        let mut batch_counter: u64 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::BatchCounter)
+            .unwrap_or(0);
+        batch_counter += 1;
+        env.storage()
+            .persistent()
+            .set(&DataKey::BatchCounter, &batch_counter);
+
         let mut total_amount: i128 = 0;
         let mut count: u32 = 0;
 
@@ -69,6 +80,11 @@ impl BatchPaymentContract {
                 .publish(topics, (token.clone(), payment.amount));
         }
 
+        // Record batch payment status as complete
+        env.storage()
+            .persistent()
+            .set(&DataKey::BatchStatus(batch_counter), &symbol_short!("complete"));
+
         // Emit batch completion event with reference ID
         // Topics: (batch, complete, batch_reference_id)
         // Data: (total_payments, total_amount)
@@ -92,5 +108,15 @@ impl BatchPaymentContract {
         );
 
         batch_reference_id
+    }
+
+    /// Returns the status of a batch payment identified by its batch ID.
+    ///
+    /// Returns `Some(Symbol("complete"))` for successfully executed batches,
+    /// or `None` if the batch ID does not exist.
+    pub fn get_batch_payment_status(env: Env, batch_id: u64) -> Option<Symbol> {
+        env.storage()
+            .persistent()
+            .get(&DataKey::BatchStatus(batch_id))
     }
 }
