@@ -1,6 +1,9 @@
-use soroban_sdk::Env;
+use soroban_sdk::{Address, Env};
 
+use crate::storage::DataKey;
 use crate::types::ContributionPeriod;
+
+pub const DEFAULT_MAX_LIMIT: i128 = i128::MAX;
 
 pub fn current_bucket(
     env: &Env,
@@ -13,4 +16,21 @@ pub fn current_bucket(
         ContributionPeriod::Weekly => timestamp / 604_800,
         ContributionPeriod::Monthly => timestamp / 2_592_000,
     }
+}
+
+pub fn get_savings_limit(env: &Env, owner: Address) -> i128 {
+    env.storage()
+        .instance()
+        .get(&DataKey::SavingsLimit(owner))
+        .unwrap_or(DEFAULT_MAX_LIMIT)
+}
+
+pub fn set_savings_limit(env: &Env, owner: Address, limit: i128) {
+    owner.require_auth();
+    if limit < 0 {
+        panic!("Limit cannot be negative");
+    }
+    env.storage()
+        .instance()
+        .set(&DataKey::SavingsLimit(owner), &limit);
 }
