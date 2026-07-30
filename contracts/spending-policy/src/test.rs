@@ -92,10 +92,7 @@ fn test_set_and_get_policy() {
     let wallet = Address::generate(&env);
     let merchant = Address::generate(&env);
 
-    let rules = single_rule(
-        &env,
-        blocklist_rule(&env, &[&merchant]),
-    );
+    let rules = single_rule(&env, blocklist_rule(&env, &[&merchant]));
 
     client.set_policy(&wallet, &rules);
 
@@ -141,11 +138,17 @@ fn test_set_policy_replaces_atomically_and_bumps_version() {
     let merchant_b = Address::generate(&env);
 
     // v1: block merchant_a.
-    client.set_policy(&wallet, &single_rule(&env, blocklist_rule(&env, &[&merchant_a])));
+    client.set_policy(
+        &wallet,
+        &single_rule(&env, blocklist_rule(&env, &[&merchant_a])),
+    );
     assert_eq!(client.get_policy(&wallet).unwrap().version, 1);
 
     // v2: block merchant_b instead.
-    client.set_policy(&wallet, &single_rule(&env, blocklist_rule(&env, &[&merchant_b])));
+    client.set_policy(
+        &wallet,
+        &single_rule(&env, blocklist_rule(&env, &[&merchant_b])),
+    );
     let policy = client.get_policy(&wallet).unwrap();
     assert_eq!(policy.version, 2);
     assert_eq!(policy.rules.len(), 1);
@@ -171,8 +174,15 @@ fn test_policy_replacement_is_atomic() {
     assert!(result.is_err(), "invalid policy must be rejected");
 
     let policy = client.get_policy(&wallet).unwrap();
-    assert_eq!(policy.version, 1, "version must be unchanged after failed replace");
-    assert_eq!(policy.rules.len(), 1, "rules must be unchanged after failed replace");
+    assert_eq!(
+        policy.version, 1,
+        "version must be unchanged after failed replace"
+    );
+    assert_eq!(
+        policy.rules.len(),
+        1,
+        "rules must be unchanged after failed replace"
+    );
 }
 
 #[test]
@@ -189,7 +199,10 @@ fn test_too_many_rules_rejected() {
     let result = catch_unwind(AssertUnwindSafe(|| {
         client.set_policy(&wallet, &rules);
     }));
-    assert!(result.is_err(), "policies exceeding MAX_RULES must be rejected");
+    assert!(
+        result.is_err(),
+        "policies exceeding MAX_RULES must be rejected"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -214,13 +227,22 @@ fn test_invalid_amount_rejected() {
 
     // Set a policy so we exercise the post-policy path.
     let merchant = Address::generate(&env);
-    client.set_policy(&wallet, &single_rule(&env, blocklist_rule(&env, &[&merchant])));
+    client.set_policy(
+        &wallet,
+        &single_rule(&env, blocklist_rule(&env, &[&merchant])),
+    );
 
     let result = client.evaluate_transaction(&wallet, &recipient, &0, &None::<Symbol>);
-    assert_eq!(result, EvaluationResult::Rejected(RejectionReason::InvalidAmount));
+    assert_eq!(
+        result,
+        EvaluationResult::Rejected(RejectionReason::InvalidAmount)
+    );
 
     let result = client.evaluate_transaction(&wallet, &recipient, &-50, &None::<Symbol>);
-    assert_eq!(result, EvaluationResult::Rejected(RejectionReason::InvalidAmount));
+    assert_eq!(
+        result,
+        EvaluationResult::Rejected(RejectionReason::InvalidAmount)
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -234,7 +256,10 @@ fn test_category_limit_allows_within_limit() {
     let recipient = Address::generate(&env);
     env.ledger().set_timestamp(1000);
 
-    client.set_policy(&wallet, &single_rule(&env, category_rule(symbol_short!("groc"), 1000, 3600)));
+    client.set_policy(
+        &wallet,
+        &single_rule(&env, category_rule(symbol_short!("groc"), 1000, 3600)),
+    );
 
     let cat = Some(symbol_short!("groc"));
     let result = client.evaluate_transaction(&wallet, &recipient, &600, &cat);
@@ -242,7 +267,10 @@ fn test_category_limit_allows_within_limit() {
 
     // Spend recorded for the current period.
     let period_id = 1000u64 / 3600;
-    assert_eq!(client.get_category_spending(&wallet, &symbol_short!("groc"), &period_id), 600);
+    assert_eq!(
+        client.get_category_spending(&wallet, &symbol_short!("groc"), &period_id),
+        600
+    );
 }
 
 #[test]
@@ -252,7 +280,10 @@ fn test_category_limit_rejects_over_limit() {
     let recipient = Address::generate(&env);
     env.ledger().set_timestamp(1000);
 
-    client.set_policy(&wallet, &single_rule(&env, category_rule(symbol_short!("groc"), 1000, 3600)));
+    client.set_policy(
+        &wallet,
+        &single_rule(&env, category_rule(symbol_short!("groc"), 1000, 3600)),
+    );
 
     let cat = Some(symbol_short!("groc"));
     // First 600 is fine.
@@ -273,7 +304,10 @@ fn test_category_limit_resets_after_period() {
     let wallet = Address::generate(&env);
     let recipient = Address::generate(&env);
 
-    client.set_policy(&wallet, &single_rule(&env, category_rule(symbol_short!("groc"), 1000, 3600)));
+    client.set_policy(
+        &wallet,
+        &single_rule(&env, category_rule(symbol_short!("groc"), 1000, 3600)),
+    );
 
     let cat = Some(symbol_short!("groc"));
 
@@ -295,8 +329,14 @@ fn test_category_limit_resets_after_period() {
         EvaluationResult::Approved
     );
 
-    assert_eq!(client.get_category_spending(&wallet, &symbol_short!("groc"), &0), 600);
-    assert_eq!(client.get_category_spending(&wallet, &symbol_short!("groc"), &1), 500);
+    assert_eq!(
+        client.get_category_spending(&wallet, &symbol_short!("groc"), &0),
+        600
+    );
+    assert_eq!(
+        client.get_category_spending(&wallet, &symbol_short!("groc"), &1),
+        500
+    );
 }
 
 #[test]
@@ -306,7 +346,10 @@ fn test_category_limit_does_not_apply_to_other_categories() {
     let recipient = Address::generate(&env);
     env.ledger().set_timestamp(1000);
 
-    client.set_policy(&wallet, &single_rule(&env, category_rule(symbol_short!("groc"), 1000, 3600)));
+    client.set_policy(
+        &wallet,
+        &single_rule(&env, category_rule(symbol_short!("groc"), 1000, 3600)),
+    );
 
     // A transaction in a different category is unaffected.
     let dining = Some(symbol_short!("dining"));
@@ -326,7 +369,10 @@ fn test_merchant_allowlist_allows_listed() {
     let wallet = Address::generate(&env);
     let merchant = Address::generate(&env);
 
-    client.set_policy(&wallet, &single_rule(&env, allowlist_rule(&env, &[&merchant])));
+    client.set_policy(
+        &wallet,
+        &single_rule(&env, allowlist_rule(&env, &[&merchant])),
+    );
 
     let result = client.evaluate_transaction(&wallet, &merchant, &100, &None::<Symbol>);
     assert_eq!(result, EvaluationResult::Approved);
@@ -339,10 +385,16 @@ fn test_merchant_allowlist_rejects_unlisted() {
     let listed = Address::generate(&env);
     let unknown = Address::generate(&env);
 
-    client.set_policy(&wallet, &single_rule(&env, allowlist_rule(&env, &[&listed])));
+    client.set_policy(
+        &wallet,
+        &single_rule(&env, allowlist_rule(&env, &[&listed])),
+    );
 
     let result = client.evaluate_transaction(&wallet, &unknown, &100, &None::<Symbol>);
-    assert_eq!(result, EvaluationResult::Rejected(RejectionReason::MerchantNotAllowed));
+    assert_eq!(
+        result,
+        EvaluationResult::Rejected(RejectionReason::MerchantNotAllowed)
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -355,10 +407,16 @@ fn test_merchant_blocklist_rejects_listed() {
     let wallet = Address::generate(&env);
     let blocked = Address::generate(&env);
 
-    client.set_policy(&wallet, &single_rule(&env, blocklist_rule(&env, &[&blocked])));
+    client.set_policy(
+        &wallet,
+        &single_rule(&env, blocklist_rule(&env, &[&blocked])),
+    );
 
     let result = client.evaluate_transaction(&wallet, &blocked, &100, &None::<Symbol>);
-    assert_eq!(result, EvaluationResult::Rejected(RejectionReason::MerchantBlocked));
+    assert_eq!(
+        result,
+        EvaluationResult::Rejected(RejectionReason::MerchantBlocked)
+    );
 }
 
 #[test]
@@ -368,7 +426,10 @@ fn test_merchant_blocklist_allows_unlisted() {
     let blocked = Address::generate(&env);
     let ok = Address::generate(&env);
 
-    client.set_policy(&wallet, &single_rule(&env, blocklist_rule(&env, &[&blocked])));
+    client.set_policy(
+        &wallet,
+        &single_rule(&env, blocklist_rule(&env, &[&blocked])),
+    );
 
     let result = client.evaluate_transaction(&wallet, &ok, &100, &None::<Symbol>);
     assert_eq!(result, EvaluationResult::Approved);
@@ -391,7 +452,10 @@ fn test_blocklist_takes_precedence_over_allowlist() {
     client.set_policy(&wallet, &rules);
 
     let result = client.evaluate_transaction(&wallet, &merchant, &100, &None::<Symbol>);
-    assert_eq!(result, EvaluationResult::Rejected(RejectionReason::MerchantBlocked));
+    assert_eq!(
+        result,
+        EvaluationResult::Rejected(RejectionReason::MerchantBlocked)
+    );
 }
 
 #[test]
@@ -429,7 +493,10 @@ fn test_time_window_allows_during_window() {
     let recipient = Address::generate(&env);
 
     // Allow 06:00 -> midnight (blocks midnight -> 06:00).
-    client.set_policy(&wallet, &single_rule(&env, time_window_rule(21_600, 86_400)));
+    client.set_policy(
+        &wallet,
+        &single_rule(&env, time_window_rule(21_600, 86_400)),
+    );
 
     // 12:00 noon -> within window.
     env.ledger().set_timestamp(43_200);
@@ -446,7 +513,10 @@ fn test_time_window_rejects_outside_window() {
     let recipient = Address::generate(&env);
 
     // Allow 06:00 -> midnight (blocks midnight -> 06:00).
-    client.set_policy(&wallet, &single_rule(&env, time_window_rule(21_600, 86_400)));
+    client.set_policy(
+        &wallet,
+        &single_rule(&env, time_window_rule(21_600, 86_400)),
+    );
 
     // 03:00 -> outside window.
     env.ledger().set_timestamp(10_800);
@@ -499,7 +569,10 @@ fn test_approval_threshold_creates_pending() {
     let bob = Address::generate(&env);
     let carol = Address::generate(&env);
 
-    client.set_policy(&wallet, &single_rule(&env, threshold_rule(&env, 1000, 2, &[&bob, &carol])));
+    client.set_policy(
+        &wallet,
+        &single_rule(&env, threshold_rule(&env, 1000, 2, &[&bob, &carol])),
+    );
 
     let result = client.evaluate_transaction(&wallet, &recipient, &1500, &None::<Symbol>);
     match result {
@@ -523,7 +596,10 @@ fn test_approval_threshold_below_threshold_approved() {
     let recipient = Address::generate(&env);
     let bob = Address::generate(&env);
 
-    client.set_policy(&wallet, &single_rule(&env, threshold_rule(&env, 1000, 1, &[&bob])));
+    client.set_policy(
+        &wallet,
+        &single_rule(&env, threshold_rule(&env, 1000, 1, &[&bob])),
+    );
 
     // Below threshold -> approved immediately.
     let result = client.evaluate_transaction(&wallet, &recipient, &500, &None::<Symbol>);
@@ -538,7 +614,10 @@ fn test_approval_threshold_auto_releases_after_n_approvals() {
     let bob = Address::generate(&env);
     let carol = Address::generate(&env);
 
-    client.set_policy(&wallet, &single_rule(&env, threshold_rule(&env, 1000, 2, &[&bob, &carol])));
+    client.set_policy(
+        &wallet,
+        &single_rule(&env, threshold_rule(&env, 1000, 2, &[&bob, &carol])),
+    );
 
     let pending_id = match client.evaluate_transaction(&wallet, &recipient, &1500, &None::<Symbol>)
     {
@@ -553,7 +632,10 @@ fn test_approval_threshold_auto_releases_after_n_approvals() {
     );
 
     // Second approval -> auto-released.
-    assert_eq!(client.submit_approval(&carol, &pending_id), ApprovalOutcome::Approved);
+    assert_eq!(
+        client.submit_approval(&carol, &pending_id),
+        ApprovalOutcome::Approved
+    );
 
     // Pending record removed.
     assert!(client.get_pending_transaction(&pending_id).is_none());
@@ -601,7 +683,10 @@ fn test_approval_threshold_non_approver_fails() {
     let bob = Address::generate(&env);
     let mallory = Address::generate(&env);
 
-    client.set_policy(&wallet, &single_rule(&env, threshold_rule(&env, 1000, 1, &[&bob])));
+    client.set_policy(
+        &wallet,
+        &single_rule(&env, threshold_rule(&env, 1000, 1, &[&bob])),
+    );
 
     let pending_id = match client.evaluate_transaction(&wallet, &recipient, &1500, &None::<Symbol>)
     {
@@ -627,7 +712,10 @@ fn test_approval_threshold_double_approval_fails() {
     let bob = Address::generate(&env);
     let carol = Address::generate(&env);
 
-    client.set_policy(&wallet, &single_rule(&env, threshold_rule(&env, 1000, 2, &[&bob, &carol])));
+    client.set_policy(
+        &wallet,
+        &single_rule(&env, threshold_rule(&env, 1000, 2, &[&bob, &carol])),
+    );
 
     let pending_id = match client.evaluate_transaction(&wallet, &recipient, &1500, &None::<Symbol>)
     {
@@ -679,11 +767,17 @@ fn test_combined_category_limit_and_approval_threshold() {
 
     // Category spend must NOT be recorded yet (pending until released).
     let period_id = ts / period;
-    assert_eq!(client.get_category_spending(&wallet, &symbol_short!("groc"), &period_id), 0);
+    assert_eq!(
+        client.get_category_spending(&wallet, &symbol_short!("groc"), &period_id),
+        0
+    );
 
     // Collect approvals -> auto-released, spend recorded.
     client.submit_approval(&bob, &pending_id);
-    assert_eq!(client.submit_approval(&carol, &pending_id), ApprovalOutcome::Approved);
+    assert_eq!(
+        client.submit_approval(&carol, &pending_id),
+        ApprovalOutcome::Approved
+    );
     assert_eq!(
         client.get_category_spending(&wallet, &symbol_short!("groc"), &period_id),
         1500
@@ -752,7 +846,10 @@ fn test_combined_all_rule_types() {
 
     // The pending tx from before can still be approved (policy unchanged).
     env.ledger().set_timestamp(43_200); // back to noon for period consistency
-    assert_eq!(client.submit_approval(&bob, &pending_id), ApprovalOutcome::Approved);
+    assert_eq!(
+        client.submit_approval(&bob, &pending_id),
+        ApprovalOutcome::Approved
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -768,7 +865,10 @@ fn test_policy_replacement_invalidates_pending_approvals() {
     let carol = Address::generate(&env);
 
     // v1: requires 2 approvals.
-    client.set_policy(&wallet, &single_rule(&env, threshold_rule(&env, 1000, 2, &[&bob, &carol])));
+    client.set_policy(
+        &wallet,
+        &single_rule(&env, threshold_rule(&env, 1000, 2, &[&bob, &carol])),
+    );
 
     let pending_id = match client.evaluate_transaction(&wallet, &recipient, &1500, &None::<Symbol>)
     {
@@ -796,7 +896,10 @@ fn test_policy_replacement_invalidates_pending_approvals() {
 
     // The pending record itself is still queryable but effectively dead.
     let pending = client.get_pending_transaction(&pending_id).unwrap();
-    assert_eq!(pending.policy_version, 1, "pending tx retains its original version");
+    assert_eq!(
+        pending.policy_version, 1,
+        "pending tx retains its original version"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -812,7 +915,10 @@ fn test_pending_index_tracks_wallet_transactions() {
     let bob = Address::generate(&env);
     let carol = Address::generate(&env);
 
-    client.set_policy(&wallet, &single_rule(&env, threshold_rule(&env, 1000, 2, &[&bob, &carol])));
+    client.set_policy(
+        &wallet,
+        &single_rule(&env, threshold_rule(&env, 1000, 2, &[&bob, &carol])),
+    );
 
     let id1 = match client.evaluate_transaction(&wallet, &recipient1, &1500, &None::<Symbol>) {
         EvaluationResult::PendingApproval(id) => id,
@@ -836,7 +942,10 @@ fn test_pending_removed_from_index_on_release() {
     let recipient = Address::generate(&env);
     let bob = Address::generate(&env);
 
-    client.set_policy(&wallet, &single_rule(&env, threshold_rule(&env, 1000, 1, &[&bob])));
+    client.set_policy(
+        &wallet,
+        &single_rule(&env, threshold_rule(&env, 1000, 1, &[&bob])),
+    );
 
     let pending_id = match client.evaluate_transaction(&wallet, &recipient, &1500, &None::<Symbol>)
     {
@@ -865,8 +974,14 @@ fn test_set_policy_rejects_invalid_time_window() {
     let result = catch_unwind(AssertUnwindSafe(|| {
         client.set_policy(&wallet, &rules);
     }));
-    assert!(result.is_err(), "invalid time window must be rejected at set_policy");
-    assert!(client.get_policy(&wallet).is_none(), "no policy should be stored on failure");
+    assert!(
+        result.is_err(),
+        "invalid time window must be rejected at set_policy"
+    );
+    assert!(
+        client.get_policy(&wallet).is_none(),
+        "no policy should be stored on failure"
+    );
 }
 
 #[test]

@@ -1,8 +1,4 @@
-use soroban_sdk::{
-    contracttype,
-    testutils::Address as _,
-    Address, Env, Symbol, Vec,
-};
+use soroban_sdk::{contracttype, testutils::Address as _, Address, Env, Symbol, Vec};
 
 #[derive(Clone, Debug)]
 #[contracttype]
@@ -61,7 +57,11 @@ fn aggregate_by_category_window(
     results
 }
 
-fn recategorize_event(events: &mut Vec<TransactionEvent>, tx_id: u64, new_category: Symbol) -> bool {
+fn recategorize_event(
+    events: &mut Vec<TransactionEvent>,
+    tx_id: u64,
+    new_category: Symbol,
+) -> bool {
     let mut updated = Vec::new(events.env());
     let mut found = false;
     for event in events.iter() {

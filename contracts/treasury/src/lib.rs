@@ -4,8 +4,8 @@ mod policy;
 
 use policy::{find_tier_requirement, validate_tier_config, SpendingTier, TierConfig};
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, panic_with_error, symbol_short,
-    Address, Env, Symbol, Vec,
+    contract, contracterror, contractimpl, contracttype, panic_with_error, symbol_short, Address,
+    Env, Symbol, Vec,
 };
 
 #[derive(Clone)]
@@ -76,15 +76,18 @@ pub struct TreasuryEvents;
 impl TreasuryEvents {
     pub fn penalty_received(env: &Env, amount: i128) {
         let topics = (symbol_short!("treasury"), symbol_short!("penalty"));
-        env.events().publish(topics, (amount, env.ledger().timestamp()));
+        env.events()
+            .publish(topics, (amount, env.ledger().timestamp()));
     }
     pub fn fee_received(env: &Env, amount: i128) {
         let topics = (symbol_short!("treasury"), symbol_short!("fee"));
-        env.events().publish(topics, (amount, env.ledger().timestamp()));
+        env.events()
+            .publish(topics, (amount, env.ledger().timestamp()));
     }
     pub fn reward_received(env: &Env, amount: i128) {
         let topics = (symbol_short!("treasury"), symbol_short!("reward"));
-        env.events().publish(topics, (amount, env.ledger().timestamp()));
+        env.events()
+            .publish(topics, (amount, env.ledger().timestamp()));
     }
     pub fn signer_added(env: &Env, signer: &Address) {
         let topics = (symbol_short!("treasury"), symbol_short!("sgn_add"));
@@ -103,7 +106,11 @@ impl TreasuryEvents {
         env.events().publish(topics, env.ledger().timestamp());
     }
     pub fn proposal_created(env: &Env, proposal: &Proposal) {
-        let topics = (symbol_short!("treasury"), symbol_short!("proposal"), proposal.id);
+        let topics = (
+            symbol_short!("treasury"),
+            symbol_short!("proposal"),
+            proposal.id,
+        );
         env.events().publish(
             topics,
             (
@@ -116,11 +123,19 @@ impl TreasuryEvents {
     }
     pub fn proposal_approved(env: &Env, pid: u64, approver: &Address, count: u32, required: u32) {
         let topics = (symbol_short!("treasury"), symbol_short!("approve"), pid);
-        env.events().publish(topics, (approver.clone(), count, required));
+        env.events()
+            .publish(topics, (approver.clone(), count, required));
     }
-    pub fn proposal_executed(env: &Env, pid: u64, executor: &Address, recipient: &Address, amount: i128) {
+    pub fn proposal_executed(
+        env: &Env,
+        pid: u64,
+        executor: &Address,
+        recipient: &Address,
+        amount: i128,
+    ) {
         let topics = (symbol_short!("treasury"), symbol_short!("executed"), pid);
-        env.events().publish(topics, (executor.clone(), recipient.clone(), amount));
+        env.events()
+            .publish(topics, (executor.clone(), recipient.clone(), amount));
     }
     pub fn proposal_cancelled(env: &Env, pid: u64, canceller: &Address) {
         let topics = (symbol_short!("treasury"), symbol_short!("cancel"), pid);
@@ -139,23 +154,41 @@ impl TreasuryContract {
         }
         admin.require_auth();
         env.storage().instance().set(&DataKey::Admin, &admin);
-        env.storage().instance().set(&DataKey::Signers, &Vec::<Address>::new(&env));
+        env.storage()
+            .instance()
+            .set(&DataKey::Signers, &Vec::<Address>::new(&env));
         env.storage().instance().set(&DataKey::Threshold, &0u32);
-        env.storage().instance().set(&DataKey::NextProposalId, &0u64);
-        env.storage().instance().set(&DataKey::TotalPenalties, &0i128);
+        env.storage()
+            .instance()
+            .set(&DataKey::NextProposalId, &0u64);
+        env.storage()
+            .instance()
+            .set(&DataKey::TotalPenalties, &0i128);
         env.storage().instance().set(&DataKey::TotalFees, &0i128);
         env.storage().instance().set(&DataKey::TotalRewards, &0i128);
-        env.storage().instance().set(&DataKey::SpendingTiers, &Vec::<SpendingTier>::new(&env));
-        env.storage().instance().set(&DataKey::TierFallbackThreshold, &1u32);
+        env.storage()
+            .instance()
+            .set(&DataKey::SpendingTiers, &Vec::<SpendingTier>::new(&env));
+        env.storage()
+            .instance()
+            .set(&DataKey::TierFallbackThreshold, &1u32);
     }
 
     pub fn credit_penalty(env: Env, amount: i128) {
         if amount <= 0 {
             panic_with_error!(&env, TreasuryError::InvalidAmount);
         }
-        let mut total: i128 = env.storage().instance().get(&DataKey::TotalPenalties).unwrap_or(0);
-        total = total.checked_add(amount).unwrap_or_else(|| panic_with_error!(&env, TreasuryError::Overflow));
-        env.storage().instance().set(&DataKey::TotalPenalties, &total);
+        let mut total: i128 = env
+            .storage()
+            .instance()
+            .get(&DataKey::TotalPenalties)
+            .unwrap_or(0);
+        total = total
+            .checked_add(amount)
+            .unwrap_or_else(|| panic_with_error!(&env, TreasuryError::Overflow));
+        env.storage()
+            .instance()
+            .set(&DataKey::TotalPenalties, &total);
         TreasuryEvents::penalty_received(&env, amount);
     }
 
@@ -163,8 +196,14 @@ impl TreasuryContract {
         if amount <= 0 {
             panic_with_error!(&env, TreasuryError::InvalidAmount);
         }
-        let mut total: i128 = env.storage().instance().get(&DataKey::TotalFees).unwrap_or(0);
-        total = total.checked_add(amount).unwrap_or_else(|| panic_with_error!(&env, TreasuryError::Overflow));
+        let mut total: i128 = env
+            .storage()
+            .instance()
+            .get(&DataKey::TotalFees)
+            .unwrap_or(0);
+        total = total
+            .checked_add(amount)
+            .unwrap_or_else(|| panic_with_error!(&env, TreasuryError::Overflow));
         env.storage().instance().set(&DataKey::TotalFees, &total);
         TreasuryEvents::fee_received(&env, amount);
     }
@@ -173,8 +212,14 @@ impl TreasuryContract {
         if amount <= 0 {
             panic_with_error!(&env, TreasuryError::InvalidAmount);
         }
-        let mut total: i128 = env.storage().instance().get(&DataKey::TotalRewards).unwrap_or(0);
-        total = total.checked_add(amount).unwrap_or_else(|| panic_with_error!(&env, TreasuryError::Overflow));
+        let mut total: i128 = env
+            .storage()
+            .instance()
+            .get(&DataKey::TotalRewards)
+            .unwrap_or(0);
+        total = total
+            .checked_add(amount)
+            .unwrap_or_else(|| panic_with_error!(&env, TreasuryError::Overflow));
         env.storage().instance().set(&DataKey::TotalRewards, &total);
         TreasuryEvents::reward_received(&env, amount);
     }
@@ -195,13 +240,19 @@ impl TreasuryContract {
         }
         let old = Self::get_threshold(env.clone());
         env.storage().instance().set(&DataKey::Signers, &signers);
-        env.storage().instance().set(&DataKey::Threshold, &threshold);
+        env.storage()
+            .instance()
+            .set(&DataKey::Threshold, &threshold);
         TreasuryEvents::threshold_changed(&env, old, threshold);
     }
 
     pub fn add_signer(env: Env, caller: Address, signer: Address) {
         Self::require_admin(&env, &caller);
-        let mut signers: Vec<Address> = env.storage().instance().get(&DataKey::Signers).unwrap_or_else(|| Vec::new(&env));
+        let mut signers: Vec<Address> = env
+            .storage()
+            .instance()
+            .get(&DataKey::Signers)
+            .unwrap_or_else(|| Vec::new(&env));
         for s in signers.iter() {
             if s == signer {
                 panic_with_error!(&env, TreasuryError::DuplicateSigner);
@@ -214,7 +265,11 @@ impl TreasuryContract {
 
     pub fn remove_signer(env: Env, caller: Address, signer: Address) {
         Self::require_admin(&env, &caller);
-        let signers: Vec<Address> = env.storage().instance().get(&DataKey::Signers).unwrap_or_else(|| Vec::new(&env));
+        let signers: Vec<Address> = env
+            .storage()
+            .instance()
+            .get(&DataKey::Signers)
+            .unwrap_or_else(|| Vec::new(&env));
         let mut found = false;
         let mut new_signers: Vec<Address> = Vec::new(&env);
         for s in signers.iter() {
@@ -227,39 +282,77 @@ impl TreasuryContract {
         if !found {
             panic_with_error!(&env, TreasuryError::SignerNotFound);
         }
-        let threshold: u32 = env.storage().instance().get(&DataKey::Threshold).unwrap_or(0);
+        let threshold: u32 = env
+            .storage()
+            .instance()
+            .get(&DataKey::Threshold)
+            .unwrap_or(0);
         let new_len = new_signers.len();
         if threshold > new_len {
             let adjusted = if new_len == 0 { 1 } else { new_len };
             env.storage().instance().set(&DataKey::Threshold, &adjusted);
         }
-        env.storage().instance().set(&DataKey::Signers, &new_signers);
+        env.storage()
+            .instance()
+            .set(&DataKey::Signers, &new_signers);
         TreasuryEvents::signer_removed(&env, &signer);
     }
 
     pub fn set_threshold(env: Env, caller: Address, threshold: u32) {
         Self::require_admin(&env, &caller);
-        let signers: Vec<Address> = env.storage().instance().get(&DataKey::Signers).unwrap_or_else(|| Vec::new(&env));
+        let signers: Vec<Address> = env
+            .storage()
+            .instance()
+            .get(&DataKey::Signers)
+            .unwrap_or_else(|| Vec::new(&env));
         if threshold == 0 || threshold > signers.len() {
             panic_with_error!(&env, TreasuryError::InvalidSignerConfig);
         }
-        let old: u32 = env.storage().instance().get(&DataKey::Threshold).unwrap_or(0);
-        env.storage().instance().set(&DataKey::Threshold, &threshold);
+        let old: u32 = env
+            .storage()
+            .instance()
+            .get(&DataKey::Threshold)
+            .unwrap_or(0);
+        env.storage()
+            .instance()
+            .set(&DataKey::Threshold, &threshold);
         TreasuryEvents::threshold_changed(&env, old, threshold);
     }
 
-    pub fn set_spending_tiers(env: Env, caller: Address, tiers: Vec<SpendingTier>, fallback_threshold: u32) {
+    pub fn set_spending_tiers(
+        env: Env,
+        caller: Address,
+        tiers: Vec<SpendingTier>,
+        fallback_threshold: u32,
+    ) {
         Self::require_admin(&env, &caller);
-        let signers: Vec<Address> = env.storage().instance().get(&DataKey::Signers).unwrap_or_else(|| Vec::new(&env));
+        let signers: Vec<Address> = env
+            .storage()
+            .instance()
+            .get(&DataKey::Signers)
+            .unwrap_or_else(|| Vec::new(&env));
         let total_signers = if signers.len() == 0 { 1 } else { signers.len() };
-        let config = TierConfig { tiers: tiers.clone(), fallback_threshold };
+        let config = TierConfig {
+            tiers: tiers.clone(),
+            fallback_threshold,
+        };
         validate_tier_config(&config, total_signers);
-        env.storage().instance().set(&DataKey::SpendingTiers, &tiers);
-        env.storage().instance().set(&DataKey::TierFallbackThreshold, &fallback_threshold);
+        env.storage()
+            .instance()
+            .set(&DataKey::SpendingTiers, &tiers);
+        env.storage()
+            .instance()
+            .set(&DataKey::TierFallbackThreshold, &fallback_threshold);
         TreasuryEvents::tiers_updated(&env);
     }
 
-    pub fn propose_disbursement(env: Env, caller: Address, recipient: Address, amount: i128, reason: Symbol) -> u64 {
+    pub fn propose_disbursement(
+        env: Env,
+        caller: Address,
+        recipient: Address,
+        amount: i128,
+        reason: Symbol,
+    ) -> u64 {
         caller.require_auth();
         if amount <= 0 {
             panic_with_error!(&env, TreasuryError::InvalidAmount);
@@ -283,11 +376,19 @@ impl TreasuryContract {
             created_at: now,
             approval_count: 0,
         };
-        env.storage().persistent().set(&DataKey::Proposal(pid), &proposal);
-        env.storage().persistent().set(&DataKey::ProposalStatus(pid), &ProposalStatus::Pending);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Proposal(pid), &proposal);
+        env.storage()
+            .persistent()
+            .set(&DataKey::ProposalStatus(pid), &ProposalStatus::Pending);
         let default_expiry: u64 = 7 * 24 * 60 * 60;
-        env.storage().persistent().set(&DataKey::ProposalExpiry(pid), &(now + default_expiry));
-        env.storage().persistent().set(&DataKey::ProposalApprovalCount(pid), &0u32);
+        env.storage()
+            .persistent()
+            .set(&DataKey::ProposalExpiry(pid), &(now + default_expiry));
+        env.storage()
+            .persistent()
+            .set(&DataKey::ProposalApprovalCount(pid), &0u32);
         TreasuryEvents::proposal_created(&env, &proposal);
         pid
     }
@@ -297,25 +398,56 @@ impl TreasuryContract {
         Self::require_signer(&env, &caller);
         Self::require_proposal_pending(&env, proposal_id);
         Self::check_proposal_expiry(&env, proposal_id);
-        if env.storage().persistent().has(&DataKey::ProposalApproval(proposal_id, caller.clone())) {
+        if env
+            .storage()
+            .persistent()
+            .has(&DataKey::ProposalApproval(proposal_id, caller.clone()))
+        {
             panic_with_error!(&env, TreasuryError::DuplicateApproval);
         }
-        env.storage().persistent().set(&DataKey::ProposalApproval(proposal_id, caller.clone()), &true);
-        let mut proposal: Proposal = env.storage().persistent().get(&DataKey::Proposal(proposal_id)).unwrap();
-        proposal.approval_count = proposal.approval_count.checked_add(1).unwrap_or_else(|| panic_with_error!(&env, TreasuryError::Overflow));
+        env.storage().persistent().set(
+            &DataKey::ProposalApproval(proposal_id, caller.clone()),
+            &true,
+        );
+        let mut proposal: Proposal = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Proposal(proposal_id))
+            .unwrap();
+        proposal.approval_count = proposal
+            .approval_count
+            .checked_add(1)
+            .unwrap_or_else(|| panic_with_error!(&env, TreasuryError::Overflow));
         let required = self::get_required_signers(&env, proposal.amount);
-        env.storage().persistent().set(&DataKey::ProposalApprovalCount(proposal_id), &proposal.approval_count);
-        env.storage().persistent().set(&DataKey::Proposal(proposal_id), &proposal);
-        TreasuryEvents::proposal_approved(&env, proposal_id, &caller, proposal.approval_count, required);
+        env.storage().persistent().set(
+            &DataKey::ProposalApprovalCount(proposal_id),
+            &proposal.approval_count,
+        );
+        env.storage()
+            .persistent()
+            .set(&DataKey::Proposal(proposal_id), &proposal);
+        TreasuryEvents::proposal_approved(
+            &env,
+            proposal_id,
+            &caller,
+            proposal.approval_count,
+            required,
+        );
         if proposal.approval_count >= required {
-            env.storage().persistent().set(&DataKey::ProposalStatus(proposal_id), &ProposalStatus::Approved);
+            env.storage().persistent().set(
+                &DataKey::ProposalStatus(proposal_id),
+                &ProposalStatus::Approved,
+            );
         }
     }
 
     pub fn execute_disbursement(env: Env, caller: Address, proposal_id: u64) {
         caller.require_auth();
         Self::require_initialized(&env);
-        let status: ProposalStatus = env.storage().persistent().get(&DataKey::ProposalStatus(proposal_id))
+        let status: ProposalStatus = env
+            .storage()
+            .persistent()
+            .get(&DataKey::ProposalStatus(proposal_id))
             .unwrap_or_else(|| panic_with_error!(&env, TreasuryError::ProposalNotFound));
         if status == ProposalStatus::Executed {
             panic_with_error!(&env, TreasuryError::AlreadyExecuted);
@@ -327,7 +459,10 @@ impl TreasuryContract {
             panic_with_error!(&env, TreasuryError::ProposalExpired);
         }
         Self::check_proposal_expiry(&env, proposal_id);
-        let proposal: Proposal = env.storage().persistent().get(&DataKey::Proposal(proposal_id))
+        let proposal: Proposal = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Proposal(proposal_id))
             .unwrap_or_else(|| panic_with_error!(&env, TreasuryError::ProposalNotFound));
         let required = self::get_required_signers(&env, proposal.amount);
         if proposal.approval_count < required {
@@ -337,13 +472,25 @@ impl TreasuryContract {
         if proposal.amount > reserve {
             panic_with_error!(&env, TreasuryError::InsufficientTreasuryBalance);
         }
-        env.storage().persistent().set(&DataKey::ProposalStatus(proposal_id), &ProposalStatus::Executed);
-        TreasuryEvents::proposal_executed(&env, proposal_id, &caller, &proposal.recipient, proposal.amount);
+        env.storage().persistent().set(
+            &DataKey::ProposalStatus(proposal_id),
+            &ProposalStatus::Executed,
+        );
+        TreasuryEvents::proposal_executed(
+            &env,
+            proposal_id,
+            &caller,
+            &proposal.recipient,
+            proposal.amount,
+        );
     }
 
     pub fn cancel_proposal(env: Env, caller: Address, proposal_id: u64) {
         Self::require_admin(&env, &caller);
-        let status: ProposalStatus = env.storage().persistent().get(&DataKey::ProposalStatus(proposal_id))
+        let status: ProposalStatus = env
+            .storage()
+            .persistent()
+            .get(&DataKey::ProposalStatus(proposal_id))
             .unwrap_or_else(|| panic_with_error!(&env, TreasuryError::ProposalNotFound));
         if status == ProposalStatus::Executed {
             panic_with_error!(&env, TreasuryError::AlreadyExecuted);
@@ -351,51 +498,90 @@ impl TreasuryContract {
         if status == ProposalStatus::Cancelled {
             panic_with_error!(&env, TreasuryError::ProposalNotPending);
         }
-        env.storage().persistent().set(&DataKey::ProposalStatus(proposal_id), &ProposalStatus::Cancelled);
+        env.storage().persistent().set(
+            &DataKey::ProposalStatus(proposal_id),
+            &ProposalStatus::Cancelled,
+        );
         TreasuryEvents::proposal_cancelled(&env, proposal_id, &caller);
     }
 
     pub fn get_proposal(env: Env, proposal_id: u64) -> Option<Proposal> {
-        env.storage().persistent().get(&DataKey::Proposal(proposal_id))
+        env.storage()
+            .persistent()
+            .get(&DataKey::Proposal(proposal_id))
     }
 
     pub fn get_proposal_status(env: Env, proposal_id: u64) -> Option<ProposalStatus> {
-        env.storage().persistent().get(&DataKey::ProposalStatus(proposal_id))
+        env.storage()
+            .persistent()
+            .get(&DataKey::ProposalStatus(proposal_id))
     }
 
     pub fn get_proposal_approval_count(env: Env, proposal_id: u64) -> u32 {
-        env.storage().persistent().get(&DataKey::ProposalApprovalCount(proposal_id)).unwrap_or(0)
+        env.storage()
+            .persistent()
+            .get(&DataKey::ProposalApprovalCount(proposal_id))
+            .unwrap_or(0)
     }
 
     pub fn has_approved(env: Env, proposal_id: u64, signer: Address) -> bool {
-        env.storage().persistent().has(&DataKey::ProposalApproval(proposal_id, signer))
+        env.storage()
+            .persistent()
+            .has(&DataKey::ProposalApproval(proposal_id, signer))
     }
 
     pub fn get_total_penalties(env: Env) -> i128 {
-        env.storage().instance().get(&DataKey::TotalPenalties).unwrap_or(0)
+        env.storage()
+            .instance()
+            .get(&DataKey::TotalPenalties)
+            .unwrap_or(0)
     }
 
     pub fn get_total_fees(env: Env) -> i128 {
-        env.storage().instance().get(&DataKey::TotalFees).unwrap_or(0)
+        env.storage()
+            .instance()
+            .get(&DataKey::TotalFees)
+            .unwrap_or(0)
     }
 
     pub fn get_total_rewards(env: Env) -> i128 {
-        env.storage().instance().get(&DataKey::TotalRewards).unwrap_or(0)
+        env.storage()
+            .instance()
+            .get(&DataKey::TotalRewards)
+            .unwrap_or(0)
     }
 
     pub fn get_total_reserve(env: Env) -> i128 {
-        let p: i128 = env.storage().instance().get(&DataKey::TotalPenalties).unwrap_or(0);
-        let f: i128 = env.storage().instance().get(&DataKey::TotalFees).unwrap_or(0);
-        let r: i128 = env.storage().instance().get(&DataKey::TotalRewards).unwrap_or(0);
+        let p: i128 = env
+            .storage()
+            .instance()
+            .get(&DataKey::TotalPenalties)
+            .unwrap_or(0);
+        let f: i128 = env
+            .storage()
+            .instance()
+            .get(&DataKey::TotalFees)
+            .unwrap_or(0);
+        let r: i128 = env
+            .storage()
+            .instance()
+            .get(&DataKey::TotalRewards)
+            .unwrap_or(0);
         p.checked_add(f).unwrap_or(0).checked_add(r).unwrap_or(0)
     }
 
     pub fn get_signers(env: Env) -> Vec<Address> {
-        env.storage().instance().get(&DataKey::Signers).unwrap_or_else(|| Vec::new(&env))
+        env.storage()
+            .instance()
+            .get(&DataKey::Signers)
+            .unwrap_or_else(|| Vec::new(&env))
     }
 
     pub fn get_threshold(env: Env) -> u32 {
-        env.storage().instance().get(&DataKey::Threshold).unwrap_or(0)
+        env.storage()
+            .instance()
+            .get(&DataKey::Threshold)
+            .unwrap_or(0)
     }
 
     pub fn get_required_signers_for_amount(env: Env, amount: i128) -> u32 {
@@ -403,7 +589,11 @@ impl TreasuryContract {
     }
 
     pub fn is_signer(env: Env, address: Address) -> bool {
-        let signers: Vec<Address> = env.storage().instance().get(&DataKey::Signers).unwrap_or_else(|| Vec::new(&env));
+        let signers: Vec<Address> = env
+            .storage()
+            .instance()
+            .get(&DataKey::Signers)
+            .unwrap_or_else(|| Vec::new(&env));
         for s in signers.iter() {
             if s == address {
                 return true;
@@ -413,20 +603,32 @@ impl TreasuryContract {
     }
 
     pub fn get_admin(env: Env) -> Address {
-        env.storage().instance().get(&DataKey::Admin).unwrap_or_else(|| panic_with_error!(&env, TreasuryError::NotInitialized))
+        env.storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .unwrap_or_else(|| panic_with_error!(&env, TreasuryError::NotInitialized))
     }
 
     pub fn get_spending_tiers(env: Env) -> Vec<SpendingTier> {
-        env.storage().instance().get(&DataKey::SpendingTiers).unwrap_or_else(|| Vec::new(&env))
+        env.storage()
+            .instance()
+            .get(&DataKey::SpendingTiers)
+            .unwrap_or_else(|| Vec::new(&env))
     }
 
     pub fn get_fallback_threshold(env: Env) -> u32 {
-        env.storage().instance().get(&DataKey::TierFallbackThreshold).unwrap_or(1)
+        env.storage()
+            .instance()
+            .get(&DataKey::TierFallbackThreshold)
+            .unwrap_or(1)
     }
 
     fn require_admin(env: &Env, caller: &Address) {
         caller.require_auth();
-        let admin: Address = env.storage().instance().get(&DataKey::Admin)
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
             .unwrap_or_else(|| panic_with_error!(env, TreasuryError::NotInitialized));
         if *caller != admin {
             panic_with_error!(env, TreasuryError::Unauthorized);
@@ -440,7 +642,11 @@ impl TreasuryContract {
     }
 
     fn require_signer(env: &Env, address: &Address) {
-        let signers: Vec<Address> = env.storage().instance().get(&DataKey::Signers).unwrap_or_else(|| Vec::new(env));
+        let signers: Vec<Address> = env
+            .storage()
+            .instance()
+            .get(&DataKey::Signers)
+            .unwrap_or_else(|| Vec::new(env));
         for s in signers.iter() {
             if s == address.clone() {
                 return;
@@ -450,7 +656,9 @@ impl TreasuryContract {
     }
 
     fn require_proposal_pending(env: &Env, proposal_id: u64) {
-        let status: ProposalStatus = env.storage().persistent()
+        let status: ProposalStatus = env
+            .storage()
+            .persistent()
             .get(&DataKey::ProposalStatus(proposal_id))
             .unwrap_or_else(|| panic_with_error!(env, TreasuryError::ProposalNotFound));
         if status != ProposalStatus::Pending {
@@ -459,37 +667,81 @@ impl TreasuryContract {
     }
 
     fn check_proposal_expiry(env: &Env, proposal_id: u64) {
-        let expiry: u64 = env.storage().persistent()
+        let expiry: u64 = env
+            .storage()
+            .persistent()
             .get(&DataKey::ProposalExpiry(proposal_id))
             .unwrap_or(u64::MAX);
         if env.ledger().timestamp() > expiry {
-            env.storage().persistent().set(&DataKey::ProposalStatus(proposal_id), &ProposalStatus::Expired);
+            env.storage().persistent().set(
+                &DataKey::ProposalStatus(proposal_id),
+                &ProposalStatus::Expired,
+            );
             panic_with_error!(env, TreasuryError::ProposalExpired);
         }
     }
 
     fn next_proposal_id(env: &Env) -> u64 {
-        let current: u64 = env.storage().instance().get(&DataKey::NextProposalId).unwrap_or(0);
-        let next = current.checked_add(1).unwrap_or_else(|| panic_with_error!(env, TreasuryError::Overflow));
-        env.storage().instance().set(&DataKey::NextProposalId, &next);
+        let current: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::NextProposalId)
+            .unwrap_or(0);
+        let next = current
+            .checked_add(1)
+            .unwrap_or_else(|| panic_with_error!(env, TreasuryError::Overflow));
+        env.storage()
+            .instance()
+            .set(&DataKey::NextProposalId, &next);
         next
     }
 }
 
 fn get_required_signers(env: &Env, amount: i128) -> u32 {
-    let tiers: Vec<SpendingTier> = env.storage().instance().get(&DataKey::SpendingTiers).unwrap_or_else(|| Vec::new(env));
-    let fallback: u32 = env.storage().instance().get(&DataKey::TierFallbackThreshold).unwrap_or(1);
+    let tiers: Vec<SpendingTier> = env
+        .storage()
+        .instance()
+        .get(&DataKey::SpendingTiers)
+        .unwrap_or_else(|| Vec::new(env));
+    let fallback: u32 = env
+        .storage()
+        .instance()
+        .get(&DataKey::TierFallbackThreshold)
+        .unwrap_or(1);
     let total_signers: u32 = {
-        let signers: Vec<Address> = env.storage().instance().get(&DataKey::Signers).unwrap_or_else(|| Vec::new(env));
+        let signers: Vec<Address> = env
+            .storage()
+            .instance()
+            .get(&DataKey::Signers)
+            .unwrap_or_else(|| Vec::new(env));
         signers.len()
     };
-    let threshold: u32 = env.storage().instance().get(&DataKey::Threshold).unwrap_or(1);
+    let threshold: u32 = env
+        .storage()
+        .instance()
+        .get(&DataKey::Threshold)
+        .unwrap_or(1);
     let required = if tiers.len() > 0 {
-        let config = TierConfig { tiers, fallback_threshold: fallback };
+        let config = TierConfig {
+            tiers,
+            fallback_threshold: fallback,
+        };
         let tier_req = find_tier_requirement(&config, amount);
-        if tier_req > 0 { tier_req } else { if threshold > 0 { threshold } else { 1 } }
+        if tier_req > 0 {
+            tier_req
+        } else {
+            if threshold > 0 {
+                threshold
+            } else {
+                1
+            }
+        }
     } else {
-        if threshold > 0 { threshold } else { 1 }
+        if threshold > 0 {
+            threshold
+        } else {
+            1
+        }
     };
     if total_signers > 0 && required > total_signers {
         total_signers

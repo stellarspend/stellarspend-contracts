@@ -6,7 +6,7 @@
 
 use soroban_sdk::{Address, Env, Symbol, Vec};
 
-use crate::types::{DataKey, Policy, PendingTransaction};
+use crate::types::{DataKey, PendingTransaction, Policy};
 
 // --- Policy -----------------------------------------------------------------
 
@@ -88,7 +88,11 @@ pub fn get_category_spending(
 ) -> i128 {
     env.storage()
         .persistent()
-        .get(&DataKey::CategorySpending(wallet.clone(), category.clone(), period_id))
+        .get(&DataKey::CategorySpending(
+            wallet.clone(),
+            category.clone(),
+            period_id,
+        ))
         .unwrap_or(0)
 }
 

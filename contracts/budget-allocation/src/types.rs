@@ -70,6 +70,9 @@ pub enum DataKey {
     TotalAllocated,               // Track global stats if needed
     BudgetSnapshot(u64, Address), // Snapshot of budget state at timestamp
     SnapshotTimestamps,           // List of all snapshot timestamps
+    BudgetRenewalConfig(Address), // Per-user budget renewal configuration
+    BudgetVersion(Address, u64),  // Budget version snapshots (user, version_number)
+    BudgetVersionCounter(Address), // Number of versions created for a user
 }
 
 /// Result of a batch budget allocation operation
@@ -79,4 +82,38 @@ pub struct BatchBudgetResult {
     pub successful: u32,
     pub failed: u32,
     pub total_amount: i128,
+}
+
+/// Budget renewal configuration for automatic budget cycling.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BudgetRenewalConfig {
+    /// The address whose budget is configured for renewal
+    pub user: Address,
+    /// Renewal frequency in seconds (e.g., 2_592_000 for 30 days)
+    pub frequency_seconds: u64,
+    /// Whether automatic renewal is enabled
+    pub enabled: bool,
+    /// The amount to renew the budget to each cycle
+    pub renewal_amount: i128,
+    /// Timestamp of the last renewal execution
+    pub last_renewed_at: u64,
+    /// Number of renewals executed so far
+    pub renewal_count: u64,
+}
+
+/// A snapshot of a budget's state preserved for historical tracking.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BudgetVersion {
+    /// The version number (monotonically increasing)
+    pub version: u64,
+    /// The user whose budget is versioned
+    pub user: Address,
+    /// The budget amount at this version
+    pub amount: i128,
+    /// Snapshot timestamp
+    pub created_at: u64,
+    /// The renewal that triggered this version (0 if manual)
+    pub renewal_id: u64,
 }

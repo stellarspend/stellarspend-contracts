@@ -1,10 +1,10 @@
 #![no_std]
 mod oracle;
 
-use soroban_sdk::{contract, contracttype, Address, Env, String, panic_with_error};
-use shared::oracle::{Price, OracleError, format_price};
 use oracle::OracleManager;
+use shared::oracle::{format_price, OracleError, Price};
 use shared::reflector_oracle::ReflectorOracle;
+use soroban_sdk::{contract, contracttype, panic_with_error, Address, Env, String};
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -55,16 +55,14 @@ impl MultiCurrencyWallet {
             max_deviation_bps,
         };
 
-        env.storage().set(&String::from_str(&env, "wallet"), &wallet);
+        env.storage()
+            .set(&String::from_str(&env, "wallet"), &wallet);
     }
 
     /// Add a balance to the wallet
-    pub fn add_balance(
-        env: Env,
-        asset: String,
-        amount: i128,
-    ) {
-        let mut wallet: CurrencyWallet = env.storage()
+    pub fn add_balance(env: Env, asset: String, amount: i128) {
+        let mut wallet: CurrencyWallet = env
+            .storage()
             .get(&String::from_str(&env, "wallet"))
             .unwrap_or_else(|| panic!("Wallet not initialized"));
 
@@ -83,16 +81,15 @@ impl MultiCurrencyWallet {
             wallet.balances.push((asset, amount));
         }
 
-        env.storage().set(&String::from_str(&env, "wallet"), &wallet);
+        env.storage()
+            .set(&String::from_str(&env, "wallet"), &wallet);
     }
 
     /// Convert currency using oracle rate
-    pub fn convert_currency(
-        env: Env,
-        request: ConversionRequest,
-    ) -> ConversionResult {
+    pub fn convert_currency(env: Env, request: ConversionRequest) -> ConversionResult {
         // 1. Get the wallet
-        let wallet: CurrencyWallet = env.storage()
+        let wallet: CurrencyWallet = env
+            .storage()
             .get(&String::from_str(&env, "wallet"))
             .unwrap_or_else(|| panic!("Wallet not initialized"));
 
@@ -105,13 +102,11 @@ impl MultiCurrencyWallet {
         );
 
         // 3. Get validated price from oracle
-        let price = oracle_manager.get_validated_price(
-            &env,
-            request.from_asset.clone(),
-            request.to_asset.clone(),
-        ).unwrap_or_else(|e| {
-            panic_with_error!(env, e);
-        });
+        let price = oracle_manager
+            .get_validated_price(&env, request.from_asset.clone(), request.to_asset.clone())
+            .unwrap_or_else(|e| {
+                panic_with_error!(env, e);
+            });
 
         // 4. Calculate conversion
         let to_amount = (request.amount * price.value) / 10_000_000;
@@ -122,7 +117,13 @@ impl MultiCurrencyWallet {
         }
 
         // 6. Update balances
-        Self::update_balances(&env, request.from_asset, request.to_asset, request.amount, to_amount);
+        Self::update_balances(
+            &env,
+            request.from_asset,
+            request.to_asset,
+            request.amount,
+            to_amount,
+        );
 
         // 7. Return result
         ConversionResult {
@@ -141,7 +142,8 @@ impl MultiCurrencyWallet {
         from_amount: i128,
         to_amount: i128,
     ) {
-        let mut wallet: CurrencyWallet = env.storage()
+        let mut wallet: CurrencyWallet = env
+            .storage()
             .get(&String::from_str(&env, "wallet"))
             .unwrap();
 
@@ -169,15 +171,14 @@ impl MultiCurrencyWallet {
             wallet.balances.push((to_asset, to_amount));
         }
 
-        env.storage().set(&String::from_str(&env, "wallet"), &wallet);
+        env.storage()
+            .set(&String::from_str(&env, "wallet"), &wallet);
     }
 
     /// Get wallet balance
-    pub fn get_balance(
-        env: Env,
-        asset: String,
-    ) -> i128 {
-        let wallet: CurrencyWallet = env.storage()
+    pub fn get_balance(env: Env, asset: String) -> i128 {
+        let wallet: CurrencyWallet = env
+            .storage()
             .get(&String::from_str(&env, "wallet"))
             .unwrap_or_else(|| panic!("Wallet not initialized"));
 
@@ -191,12 +192,9 @@ impl MultiCurrencyWallet {
     }
 
     /// Check oracle freshness
-    pub fn is_oracle_fresh(
-        env: Env,
-        asset_a: String,
-        asset_b: String,
-    ) -> bool {
-        let wallet: CurrencyWallet = env.storage()
+    pub fn is_oracle_fresh(env: Env, asset_a: String, asset_b: String) -> bool {
+        let wallet: CurrencyWallet = env
+            .storage()
             .get(&String::from_str(&env, "wallet"))
             .unwrap_or_else(|| panic!("Wallet not initialized"));
 

@@ -17,6 +17,7 @@ members = [
     "contracts/batch-history",
     "contracts/batch-notifications",
     "contracts/escrow",
+    "contracts/escrow-v2",
     "contracts/budget-allocation",
     "contracts/recurring-payment",
     "contracts/batch-token-mint",
