@@ -1,11 +1,96 @@
-use soroban_sdk::{contract, contractimpl};
+use soroban_sdk::{contract, contractimpl, Address, Env, String};
+
+use crate::admin::{self, AdminError, Role};
+use crate::course::{self, Course, CourseError, UpdateCourseInput};
 
 #[contract]
 pub struct LMSContract;
 
 #[contractimpl]
 impl LMSContract {
-    pub fn initialize() -> bool {
-        true
+    /// One-time contract initialization: sets `admin` as the contract Admin.
+    pub fn initialize(env: Env, admin: Address) -> Result<(), AdminError> {
+        admin::initialize_admin(env, admin)
+    }
+
+    pub fn get_admin(env: Env) -> Result<Address, AdminError> {
+        admin::get_admin(&env)
+    }
+
+    pub fn get_role(env: Env, user: Address) -> Role {
+        admin::get_role(&env, &user)
+    }
+
+    pub fn set_role(
+        env: Env,
+        caller: Address,
+        target: Address,
+        role: Role,
+    ) -> Result<(), AdminError> {
+        admin::set_role(env, caller, target, role)
+    }
+
+    pub fn create_course(
+        env: Env,
+        instructor: Address,
+        title: String,
+        description: String,
+        category: String,
+        difficulty: u32,
+        thumbnail: String,
+    ) -> Result<u64, CourseError> {
+        course::create_course(
+            env,
+            instructor,
+            title,
+            description,
+            category,
+            difficulty,
+            thumbnail,
+        )
+    }
+
+    pub fn get_course(env: Env, course_id: u64) -> Result<Course, CourseError> {
+        course::get_course(env, course_id)
+    }
+
+    pub fn update_course(
+        env: Env,
+        caller: Address,
+        course_id: u64,
+        input: UpdateCourseInput,
+    ) -> Result<Course, CourseError> {
+        course::update_course(env, caller, course_id, input)
+    }
+
+    pub fn publish_course(env: Env, caller: Address, course_id: u64) -> Result<(), CourseError> {
+        course::publish_course(env, caller, course_id)
+    }
+
+    pub fn archive_course(env: Env, caller: Address, course_id: u64) -> Result<(), CourseError> {
+        course::archive_course(env, caller, course_id)
+    }
+
+    pub fn enroll_student(env: Env, student: Address, course_id: u64) -> Result<(), CourseError> {
+        course::enroll_student(env, student, course_id)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use soroban_sdk::testutils::Address as _;
+
+    #[test]
+    fn test_initialize() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register(LMSContract, ());
+        let client = LMSContractClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        client.initialize(&admin);
+
+        assert_eq!(client.get_admin(), admin);
     }
 }
