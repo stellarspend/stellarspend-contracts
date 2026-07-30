@@ -691,3 +691,20 @@ fn security_claim_reward_requires_auth() {
     let _ = env_no_auth;
     client.claim_reward(&user, &STREAK_TIER_WEEK);
 }
+
+#[test]
+fn happy_get_streak_count() {
+    let ctx = TestCtx::new();
+    let user = Address::generate(&ctx.env);
+    let unused_user = Address::generate(&ctx.env);
+
+    assert_eq!(ctx.client.get_streak_count(&unused_user), 0);
+
+    ctx.set_day(1);
+    ctx.client.record_deposit(&user);
+    assert_eq!(ctx.client.get_streak_count(&user), 1);
+
+    ctx.set_day(2);
+    ctx.client.record_deposit(&user);
+    assert_eq!(ctx.client.get_streak_count(&user), 2);
+}
