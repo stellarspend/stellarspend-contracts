@@ -20,7 +20,7 @@ pub fn current_bucket(
 
 pub fn get_savings_limit(env: &Env, owner: Address) -> i128 {
     env.storage()
-        .instance()
+        .persistent()
         .get(&DataKey::SavingsLimit(owner))
         .unwrap_or(DEFAULT_MAX_LIMIT)
 }
@@ -31,6 +31,6 @@ pub fn set_savings_limit(env: &Env, owner: Address, limit: i128) {
         panic!("Limit cannot be negative");
     }
     env.storage()
-        .instance()
+        .persistent()
         .set(&DataKey::SavingsLimit(owner), &limit);
 }
