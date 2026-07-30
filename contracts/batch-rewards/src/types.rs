@@ -34,6 +34,7 @@ pub enum DataKey {
     TotalRewardsProcessed,
     TotalVolumeDistributed,
     IdempotencyToken(Bytes),
+    BatchRewardTotal(u64),
 }
 
 pub struct RewardEvents;

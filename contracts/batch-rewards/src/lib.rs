@@ -98,6 +98,14 @@ impl BatchRewardsContract {
             .unwrap_or(0)
     }
 
+    /// Gets the total reward amount distributed in a specific batch.
+    pub fn get_batch_rewards_total(env: Env, batch_id: u64) -> i128 {
+        env.storage()
+            .instance()
+            .get(&DataKey::BatchRewardTotal(batch_id))
+            .unwrap_or(0)
+    }
+
     /// Sets a new admin address.
     pub fn set_admin(env: Env, caller: Address, new_admin: Address) {
         caller.require_auth();
@@ -249,6 +257,9 @@ impl BatchRewardsContract {
         env.storage()
             .instance()
             .set(&DataKey::TotalBatches, &batch_id);
+        env.storage()
+            .instance()
+            .set(&DataKey::BatchRewardTotal(batch_id), &total_distributed);
 
         // Mark the idempotency token as used for this completed batch.
         env.storage().persistent().set(&token_key, &true);

@@ -501,3 +501,29 @@ fn test_multiple_simultaneous_batch_distributions() {
         assert_eq!(token_client.balance(&recipient), amount * 3);
     }
 }
+
+#[test]
+fn test_get_batch_rewards_total_returns_correct_total() {
+    let (env, admin, token, token_client, client) = setup_test_env();
+
+    let recipient1 = Address::generate(&env);
+    let recipient2 = Address::generate(&env);
+    let amount1: i128 = 5_000_000;
+    let amount2: i128 = 3_000_000;
+
+    token_client.mint(&admin, &(amount1 + amount2 + 10_000_000));
+
+    let mut rewards: Vec<RewardRequest> = Vec::new(&env);
+    rewards.push_back(create_reward_request(&env, recipient1.clone(), amount1));
+    rewards.push_back(create_reward_request(&env, recipient2.clone(), amount2));
+
+    client.distribute_rewards(&admin, &token, &idempotency_token(&env, 50), &rewards);
+
+    assert_eq!(client.get_batch_rewards_total(&1), amount1 + amount2);
+}
+
+#[test]
+fn test_get_batch_rewards_total_returns_zero_for_unknown_batch() {
+    let (env, _admin, _token, _token_client, client) = setup_test_env();
+    assert_eq!(client.get_batch_rewards_total(&999), 0);
+}
