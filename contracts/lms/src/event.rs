@@ -55,6 +55,16 @@ impl LMSEvents {
         env.events().publish(topics, student);
     }
 
+    /// Emitted when a student withdraws from a course before completing it
+    pub fn emit_student_withdrawn(
+        env: &Env,
+        course_id: u64,
+        student: Address,
+    ) {
+        let topics = (symbol_short!("student"), symbol_short!("withdrawn"), course_id);
+        env.events().publish(topics, student);
+    }
+
     /// Emitted when a student completes a lesson
     pub fn emit_lesson_completed(
         env: &Env,
@@ -139,6 +149,8 @@ mod tests {
 
             LMSEvents::emit_student_enrolled(&env, course_id, student.clone());
 
+            LMSEvents::emit_student_withdrawn(&env, course_id, student.clone());
+
             LMSEvents::emit_lesson_completed(&env, course_id, lesson_id, student.clone());
 
             LMSEvents::emit_quiz_completed(&env, course_id, quiz_id, student.clone(), 95);
@@ -150,7 +162,7 @@ mod tests {
             env.events().all().len()
         });
 
-        assert_eq!(event_count, 9);
+        assert_eq!(event_count, 10);
     }
 }
 

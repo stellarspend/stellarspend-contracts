@@ -16,6 +16,8 @@ pub enum LmsError {
 
     InvalidProgress = 8,
     InvalidQuiz = 9,
+
+    NotEnrolled = 10,
 }
 
 #[cfg(test)]
@@ -33,5 +35,6 @@ mod tests {
         assert_eq!(LmsError::Unauthorized as u32, 7);
         assert_eq!(LmsError::InvalidProgress as u32, 8);
         assert_eq!(LmsError::InvalidQuiz as u32, 9);
+        assert_eq!(LmsError::NotEnrolled as u32, 10);
     }
 }

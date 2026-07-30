@@ -22,6 +22,11 @@ pub enum StorageKey {
     Certificate(String),
     /// Storage key tracking student progress for a given course (Student Address, Course ID)
     Progress(Address, u64),
+    /// Storage key tracking a student's withdrawal timestamp for a given course
+    /// (Student Address, Course ID). Presence of this key means the student
+    /// actively withdrew; the underlying `Progress` record is left untouched
+    /// so the progress percentage at time of withdrawal remains queryable.
+    Withdrawn(Address, u64),
 }
 
 #[cfg(test)]
@@ -47,6 +52,7 @@ mod tests {
             StorageKey::Student(student_addr.clone()),
             StorageKey::Certificate(cert_id.clone()),
             StorageKey::Progress(student_addr.clone(), 101),
+            StorageKey::Withdrawn(student_addr.clone(), 101),
         ];
 
         env.as_contract(&contract_id, || {

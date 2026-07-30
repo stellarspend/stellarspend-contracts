@@ -2,6 +2,8 @@ use soroban_sdk::{contract, contractimpl, Address, Env, String};
 
 use crate::admin::{self, AdminError, Role};
 use crate::course::{self, Course, CourseError, UpdateCourseInput};
+use crate::enrollment::{self, EnrollmentStatus};
+use crate::errors::LmsError;
 
 #[contract]
 pub struct LMSContract;
@@ -73,6 +75,18 @@ impl LMSContract {
 
     pub fn enroll_student(env: Env, student: Address, course_id: u64) -> Result<(), CourseError> {
         course::enroll_student(env, student, course_id)
+    }
+
+    pub fn withdraw_student(env: Env, student: Address, course_id: u64) -> Result<(), LmsError> {
+        enrollment::withdraw_student(env, student, course_id)
+    }
+
+    pub fn get_enrollment_status(
+        env: Env,
+        student: Address,
+        course_id: u64,
+    ) -> EnrollmentStatus {
+        enrollment::get_enrollment_status(env, student, course_id)
     }
 }
 
