@@ -25,6 +25,11 @@ impl LMSEvents {
         env.events().publish(topics, (lesson_id, title));
     }
 
+    pub fn emit_lesson_removed(env: &Env, course_id: u64, lesson_id: u64) {
+        let topics = (symbol_short!("lesson"), symbol_short!("removed"), course_id);
+        env.events().publish(topics, lesson_id);
+    }
+
     /// Emitted when a student enrolls in a course
     pub fn emit_student_enrolled(
         env: &Env,

@@ -47,14 +47,3 @@ pub struct Quiz {
     pub reward_points: u32,
     pub is_active: bool,
 }
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Quiz {
-    pub quiz_id: u64,
-    pub lesson_id: u64,
-    pub passing_score: u32,
-    pub maximum_score: u32,
-    pub reward_points: u32,
-    pub is_active: bool,
-}
