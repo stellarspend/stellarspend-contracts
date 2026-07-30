@@ -353,6 +353,58 @@ fn test_get_merchants_by_tag() {
     assert_eq!(streaming_merchants.len(), 1);
 }
 
+// ── Get merchant tag ──────────────────────────────────────────────────────────
+
+#[test]
+fn test_get_merchant_tag_returns_correct_tag() {
+    let (env, admin, client) = setup();
+    let merchant_address = Address::generate(&env);
+    let id = symbol_short!("AMAZON");
+    let name = String::from_str(&env, "Amazon");
+    let tags = make_tags(&env, &["retail", "ecommerce"]);
+
+    client.register_merchant(&admin, &id, &name, &tags, &Some(merchant_address.clone()));
+
+    let tag = client
+        .get_merchant_tag(&merchant_address)
+        .expect("should return a tag for a tagged merchant");
+    assert_eq!(tag, soroban_sdk::Symbol::new(&env, "retail"));
+}
+
+#[test]
+fn test_get_merchant_tag_returns_none_for_untagged_address() {
+    let (env, admin, client) = setup();
+    let merchant_address = Address::generate(&env);
+    let unknown_address = Address::generate(&env);
+    let id = symbol_short!("AMAZON");
+    let name = String::from_str(&env, "Amazon");
+
+    client.register_merchant(
+        &admin,
+        &id,
+        &name,
+        &make_tags(&env, &["retail"]),
+        &Some(merchant_address),
+    );
+
+    let tag = client.get_merchant_tag(&unknown_address);
+    assert!(tag.is_none());
+}
+
+#[test]
+fn test_get_merchant_tag_returns_none_for_merchant_without_address() {
+    let (env, admin, client) = setup();
+    let id = symbol_short!("AMAZON");
+    let name = String::from_str(&env, "Amazon");
+
+    // Register merchant without an address
+    client.register_merchant(&admin, &id, &name, &make_tags(&env, &["retail"]), &None);
+
+    let some_address = Address::generate(&env);
+    let tag = client.get_merchant_tag(&some_address);
+    assert!(tag.is_none());
+}
+
 #[test]
 fn test_total_tagged_counter() {
     let (env, admin, client) = setup();
