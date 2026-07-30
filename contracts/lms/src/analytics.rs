@@ -19,6 +19,11 @@ pub enum AnalyticsKey {
     InstructorQuizPassed(Address),
     InstructorQuizAttempts(Address),
     InstructorActive(Address),
+
+     CourseCompletions(u64),
+    CourseProgressTotal(u64),
+    CourseQuizPassed(u64),
+    CourseQuizAttempts(u64),
 }
 
 /// Dashboard summary returned to the frontend.
@@ -41,6 +46,16 @@ pub struct InstructorDashboardMetrics {
     pub completion_rate: u32,
     pub quiz_success_rate: u32,
     pub active_learners: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CourseAnalytics {
+    pub course_id: u64,
+    pub enrollment_count: u32,
+    pub completion_count: u32,
+    pub average_progress: u32,
+    pub quiz_pass_rate: u32,
 }
 
 /// Read a u32 value from storage.
@@ -116,6 +131,50 @@ pub fn get_instructor_dashboard(
         quiz_success_rate: percentage(quizzes_passed, quizzes_attempted),
         active_learners,
     }
+
+    pub fn get_course_analytics(
+    env: &Env,
+    course_id: u64,
+) -> CourseAnalytics {
+    let enrollment_count = read_u32(
+        env,
+        AnalyticsKey::CourseEnrollments(course_id),
+    );
+
+    let completion_count = read_u32(
+        env,
+        AnalyticsKey::CourseCompletions(course_id),
+    );
+
+    let total_progress = read_u32(
+        env,
+        AnalyticsKey::CourseProgressTotal(course_id),
+    );
+
+    let quiz_passed = read_u32(
+        env,
+        AnalyticsKey::CourseQuizPassed(course_id),
+    );
+
+    let quiz_attempts = read_u32(
+        env,
+        AnalyticsKey::CourseQuizAttempts(course_id),
+    );
+
+    CourseAnalytics {
+        course_id,
+        enrollment_count,
+        completion_count,
+        average_progress: average(
+            total_progress,
+            enrollment_count,
+        ),
+        quiz_pass_rate: percentage(
+            quiz_passed,
+            quiz_attempts,
+        ),
+    }
+}
 }
 
 #[cfg(test)]
