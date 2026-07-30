@@ -7,6 +7,7 @@
 #![no_std]
 
 pub mod events;
+pub mod queries;
 pub mod rewards;
 pub mod storage;
 pub mod types;
@@ -14,9 +15,14 @@ pub mod validation;
 
 use soroban_sdk::{contract, contractimpl, panic_with_error, Address, Env, Vec};
 
+use crate::queries::{
+    query_lifetime_earnings, query_reward_balance, query_statistics, query_transaction_count,
+};
 use crate::rewards::{credit_reward, debit_reward, register_reward_account};
 use crate::storage::{get_reward_account, get_reward_index};
-pub use crate::types::{DataKey, RewardAccount, RewardStatus, RewardTransaction, RewardType};
+pub use crate::types::{
+    DataKey, RewardAccount, RewardStatistics, RewardStatus, RewardTransaction, RewardType,
+};
 
 /// Error codes for the rewards contract.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -183,6 +189,26 @@ impl RewardsContract {
     /// `get_reward_transaction(id)` to retrieve full transaction details.
     pub fn get_transactions_for(env: Env, participant: Address) -> Vec<u64> {
         get_reward_index(&env, &participant)
+    }
+
+    /// Returns the current claimable reward balance for `participant`.
+    pub fn get_reward_balance(env: Env, participant: Address) -> i128 {
+        query_reward_balance(&env, &participant)
+    }
+
+    /// Returns the total rewards ever earned by `participant`.
+    pub fn get_lifetime_earnings(env: Env, participant: Address) -> i128 {
+        query_lifetime_earnings(&env, &participant)
+    }
+
+    /// Returns the total number of reward transactions for `participant`.
+    pub fn get_transaction_count(env: Env, participant: Address) -> u32 {
+        query_transaction_count(&env, &participant)
+    }
+
+    /// Returns aggregated statistics for `participant`.
+    pub fn get_statistics(env: Env, participant: Address) -> RewardStatistics {
+        query_statistics(&env, &participant)
     }
 
     // ── Internal helpers ──────────────────────────────────────────────────
