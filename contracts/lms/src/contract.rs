@@ -4,6 +4,7 @@ use crate::admin::{self, AdminError, Role};
 use crate::course::{self, Course, CourseError, UpdateCourseInput};
 use crate::enrollment::{self, EnrollmentStatus};
 use crate::errors::LmsError;
+use crate::progress;
 
 #[contract]
 pub struct LMSContract;
@@ -87,6 +88,38 @@ impl LMSContract {
         course_id: u64,
     ) -> EnrollmentStatus {
         enrollment::get_enrollment_status(env, student, course_id)
+    }
+
+    /// Registers a new lesson under `course_id`. Only the course's owning
+    /// instructor may register lessons for it.
+    pub fn register_lesson(
+        env: Env,
+        caller: Address,
+        course_id: u64,
+        lesson_id: u64,
+        title: String,
+    ) -> Result<(), LmsError> {
+        progress::register_lesson(env, caller, course_id, lesson_id, title)
+    }
+
+    /// Marks `lesson_id` as completed by `student`. Rejects non-enrolled
+    /// students, unknown/mismatched lessons, and duplicate completions.
+    pub fn complete_lesson(
+        env: Env,
+        student: Address,
+        course_id: u64,
+        lesson_id: u64,
+    ) -> Result<(), LmsError> {
+        progress::complete_lesson(env, student, course_id, lesson_id)
+    }
+
+    /// Returns `student`'s completion percentage (0-100) for `course_id`.
+    pub fn get_course_progress(
+        env: Env,
+        student: Address,
+        course_id: u64,
+    ) -> Result<u32, LmsError> {
+        progress::get_course_progress(env, student, course_id)
     }
 }
 

@@ -7,6 +7,7 @@ pub mod enrollment;
 pub mod errors;
 pub mod event;
 pub mod models;
+pub mod progress;
 pub mod storage;
 
 pub use contract::*;

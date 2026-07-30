@@ -27,6 +27,19 @@ pub enum StorageKey {
     /// actively withdrew; the underlying `Progress` record is left untouched
     /// so the progress percentage at time of withdrawal remains queryable.
     Withdrawn(Address, u64),
+    /// Storage key tracking whether/when a student completed a specific lesson,
+    /// storing a `u64` ledger timestamp. Presence of the key means completed;
+    /// absence means not completed. Keyed by (Student Address, Lesson ID).
+    LessonCompletion(Address, u64),
+    /// Storage key tracking the total number of lessons registered for a
+    /// course (a `u32` counter), used as the denominator for course progress
+    /// percentage calculations. Keyed by Course ID.
+    CourseLessonCount(u64),
+    /// Storage key tracking how many lessons a student has completed within a
+    /// given course (a `u32` counter, incremented by `complete_lesson`), used
+    /// as the numerator for course progress percentage calculations. Keyed by
+    /// (Student Address, Course ID).
+    CompletedLessonCount(Address, u64),
 }
 
 #[cfg(test)]
@@ -53,6 +66,9 @@ mod tests {
             StorageKey::Certificate(cert_id.clone()),
             StorageKey::Progress(student_addr.clone(), 101),
             StorageKey::Withdrawn(student_addr.clone(), 101),
+            StorageKey::LessonCompletion(student_addr.clone(), 202),
+            StorageKey::CourseLessonCount(101),
+            StorageKey::CompletedLessonCount(student_addr.clone(), 101),
         ];
 
         env.as_contract(&contract_id, || {
