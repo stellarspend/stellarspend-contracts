@@ -10,6 +10,7 @@ pub use crate::types::{
     BatchBurnResult, BatchTransferResult, BurnRequest, BurnResult, DataKey, TransferEvents,
     TransferRequest, TransferResult, MAX_BATCH_SIZE,
 };
+<<<<<<< HEAD
 //bbbb
 <<<<<<< HEAD
 use crate::validation::{
@@ -17,6 +18,8 @@ use crate::validation::{
 };
 use shared::validation::validate_batch_size;
 =======
+=======
+>>>>>>> f928585 (feat(contracts): add fraud detection, escrow disputes, spending digest & batch transfer count views (closes #915, #918, #985, #990))
 use crate::validation::{validate_address, validate_amount, validate_unique_recipient};
 >>>>>>> 067107d (fix(contracts): fix CI compilation errors across batch-transfer, spending-limits, multi-currency-wallet, and batch-rewards)
 
@@ -102,6 +105,11 @@ impl BatchTransferContract {
             .unwrap_or(0)
             + 1;
 
+        // Store recipient count for batch ID
+        env.storage()
+            .instance()
+            .set(&DataKey::BatchRecipientCount(batch_id), &request_count);
+
         // Emit batch started event
         TransferEvents::batch_started(&env, batch_id, request_count);
 
@@ -149,7 +157,6 @@ impl BatchTransferContract {
         // Second pass: Process each request
         for (request, is_valid, error_code) in validated_requests.iter() {
             if !is_valid {
-                // Validation failed - record and continue
                 results.push_back(TransferResult::Failure(
                     request.recipient.clone(),
                     request.amount,
@@ -166,9 +173,7 @@ impl BatchTransferContract {
                 continue;
             }
 
-            // Check balance for this transfer
             if available_balance < request.amount {
-                // Insufficient balance
                 results.push_back(TransferResult::Failure(
                     request.recipient.clone(),
                     request.amount,
@@ -185,14 +190,8 @@ impl BatchTransferContract {
                 continue;
             }
 
-            // Execute transfer
-            // Note: After thorough validation, transfers should succeed.
-            // If a transfer fails due to contract-level issues (authorization, etc.),
-            // it will panic and revert the entire batch. This is acceptable as
-            // we've validated all inputs and balances.
             token_client.transfer(&caller, &request.recipient, &request.amount);
 
-            // Transfer succeeded
             available_balance -= request.amount;
             results.push_back(TransferResult::Success(
                 request.recipient.clone(),
@@ -206,7 +205,6 @@ impl BatchTransferContract {
             TransferEvents::transfer_success(&env, batch_id, &request.recipient, request.amount);
         }
 
-        // Update storage (batched at the end for efficiency)
         let total_batches: u64 = env
             .storage()
             .instance()
@@ -237,7 +235,6 @@ impl BatchTransferContract {
                 .unwrap_or(i128::MAX),
         );
 
-        // Emit batch completed event
         TransferEvents::batch_completed(
             &env,
             batch_id,
@@ -358,6 +355,14 @@ impl BatchTransferContract {
             total_burned,
             results,
         }
+    }
+
+    /// Returns the number of recipients in a batch transfer given a batch_id. Returns 0 for unknown batch_id.
+    pub fn get_batch_transfer_recipient_count(env: Env, batch_id: u64) -> u32 {
+        env.storage()
+            .instance()
+            .get(&DataKey::BatchRecipientCount(batch_id))
+            .unwrap_or(0u32)
     }
 
     /// Returns the admin address.
