@@ -119,6 +119,10 @@ path = "tests/timelock_tests.rs"
 name = "security_e2e_tests"
 path = "tests/security_e2e_tests.rs"
 
+[[test]]
+name = "token_tests"
+path = "tests/token_tests.rs"
+
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
