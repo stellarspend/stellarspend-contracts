@@ -87,4 +87,3 @@ impl ActivityFeedContract {
             .unwrap_or(0)
     }
 }
-

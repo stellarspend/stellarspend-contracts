@@ -25,10 +25,10 @@
 mod types;
 mod validation;
 
+use penalty::PenaltyContractClient;
 use soroban_sdk::{
     contract, contractimpl, panic_with_error, symbol_short, Address, Bytes, Env, Symbol, Vec,
 };
-use penalty::PenaltyContractClient;
 
 pub use crate::types::{
     BatchGoalMetrics, BatchGoalResult, BatchMilestoneMetrics, BatchMilestoneResult,

@@ -1,5 +1,5 @@
-use soroban_sdk::{Env, String, panic_with_error};
-use shared::oracle::{PriceOracle, Price, OracleError};
+use shared::oracle::{OracleError, Price, PriceOracle};
+use soroban_sdk::{panic_with_error, Env, String};
 
 /// Oracle manager for the multi-currency wallet
 pub struct OracleManager {
@@ -22,7 +22,7 @@ impl OracleManager {
     }
 
     /// Get a validated price from the oracle
-    /// 
+    ///
     /// This function:
     /// 1. Gets the current price from the oracle
     /// 2. Checks for staleness
@@ -35,7 +35,7 @@ impl OracleManager {
     ) -> Result<Price, OracleError> {
         // 1. Get the current price
         let price = self.oracle.get_price(env, asset_a.clone(), asset_b.clone());
-        
+
         // 2. Check for staleness
         let current_time = env.ledger().timestamp();
         if current_time.saturating_sub(price.timestamp) > self.staleness_threshold {
@@ -44,7 +44,7 @@ impl OracleManager {
 
         // 3. Get the TWAP for manipulation resistance
         let twap = self.oracle.get_twap(env, asset_a, asset_b, 300); // 5-minute window
-        
+
         // 4. Check deviation
         let deviation = self.calculate_deviation(price.value, twap.value);
         if deviation > self.max_deviation_bps {
@@ -77,6 +77,7 @@ impl OracleManager {
 
     /// Check if the oracle data is fresh
     pub fn is_fresh(&self, env: &Env, asset_a: String, asset_b: String) -> bool {
-        self.oracle.is_fresh(env, asset_a, asset_b, self.staleness_threshold)
+        self.oracle
+            .is_fresh(env, asset_a, asset_b, self.staleness_threshold)
     }
 }

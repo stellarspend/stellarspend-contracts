@@ -1231,3 +1231,11 @@ fn test_get_analytics_summary_returns_zero() {
     assert_eq!(summary.0, 0);
     assert_eq!(summary.1, 0);
 }
+#[test]
+fn test_get_analytics_summary_returns_zero() {
+    let (env, _admin, client) = setup_test_env();
+    let owner = Address::generate(&env);
+    let summary = client.get_analytics_summary(&owner);
+    assert_eq!(summary.0, 0);
+    assert_eq!(summary.1, 0);
+}

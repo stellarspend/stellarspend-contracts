@@ -1211,3 +1211,22 @@ impl TransactionAnalyticsContract {
 
 #[cfg(test)]
 mod test;
+impl TransactionAnalyticsContract {
+    /// Returns a simple analytics summary for a user.
+    pub fn get_analytics_summary(env: Env, _owner: Address) -> (u32, i128) {
+        let total_txs: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::TotalTxProcessed)
+            .unwrap_or(0);
+        let total_refunded: i128 = env
+            .storage()
+            .instance()
+            .get(&DataKey::TotalRefundAmount)
+            .unwrap_or(0);
+
+        (total_txs as u32, total_refunded)
+    }
+
+    // other methods unchanged
+}

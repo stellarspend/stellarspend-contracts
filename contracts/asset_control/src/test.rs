@@ -104,7 +104,11 @@ fn test_unauthorized_caller_cannot_add_to_blacklist() {
     env.set_auths(&[]);
     let result = client.try_add_to_blacklist(&asset);
 
-    assert!(result.is_err(), "expected an auth failure, got {:?}", result);
+    assert!(
+        result.is_err(),
+        "expected an auth failure, got {:?}",
+        result
+    );
     assert!(!client.is_blacklisted(&asset));
 }
 
@@ -119,6 +123,10 @@ fn test_unauthorized_caller_cannot_remove_from_blacklist() {
     env.set_auths(&[]);
     let result = client.try_remove_from_blacklist(&asset);
 
-    assert!(result.is_err(), "expected an auth failure, got {:?}", result);
+    assert!(
+        result.is_err(),
+        "expected an auth failure, got {:?}",
+        result
+    );
     assert!(client.is_blacklisted(&asset));
 }

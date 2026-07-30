@@ -356,7 +356,11 @@ impl SpendingPolicyContract {
                         {
                             // Release fails: clean up the pending record and fail.
                             storage::remove_pending_tx(&env, pending_id);
-                            storage::remove_pending_id_from_wallet(&env, &pending.wallet, pending_id);
+                            storage::remove_pending_id_from_wallet(
+                                &env,
+                                &pending.wallet,
+                                pending_id,
+                            );
                             panic_with_error!(&env, SpendingPolicyError::CategoryLimitExceeded);
                         }
                     }

@@ -811,3 +811,36 @@ fn test_get_wallet_assets_returns_all_assets() {
     let assets = client.get_wallet_assets();
     assert_eq!(assets.len(), 2);
 }
+#[test]
+fn test_get_wallet_assets_returns_empty_for_no_balances() {
+    let (env, _admin, client) = setup_test_contract();
+    let assets = client.get_wallet_assets();
+    assert_eq!(assets.len(), 0);
+}
+
+#[test]
+fn test_get_wallet_assets_returns_all_assets() {
+    let (env, admin, client) = setup_test_contract();
+    let user = Address::generate(&env);
+
+    let mut requests: Vec<BalanceUpdateRequest> = Vec::new(&env);
+    requests.push_back(create_valid_request(
+        &env,
+        &user,
+        symbol_short!("USDC"),
+        1000_000_000,
+        symbol_short!("set"),
+    ));
+    requests.push_back(create_valid_request(
+        &env,
+        &user,
+        symbol_short!("XLM"),
+        5000_000_000,
+        symbol_short!("set"),
+    ));
+
+    client.batch_update_balances(&admin, &requests);
+
+    let assets = client.get_wallet_assets();
+    assert_eq!(assets.len(), 2);
+}

@@ -1,6 +1,8 @@
 #![no_std]
 
-use soroban_sdk::{contract, contracterror, contractimpl, contracttype, panic_with_error, Address, Env};
+use soroban_sdk::{
+    contract, contracterror, contractimpl, contracttype, panic_with_error, Address, Env,
+};
 
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -32,9 +34,7 @@ impl PenaltyContract {
         if env.storage().instance().has(&PenaltyDataKey::Admin) {
             panic_with_error!(&env, PenaltyError::AlreadyInitialized);
         }
-        env.storage()
-            .instance()
-            .set(&PenaltyDataKey::Admin, &admin);
+        env.storage().instance().set(&PenaltyDataKey::Admin, &admin);
         env.storage()
             .instance()
             .set(&PenaltyDataKey::PenaltyPercent, &penalty_percent);
@@ -115,10 +115,7 @@ mod test {
         (env, contract_id, client)
     }
 
-    fn init_default(
-        env: &Env,
-        client: &PenaltyContractClient<'static>,
-    ) -> (Address, Address) {
+    fn init_default(env: &Env, client: &PenaltyContractClient<'static>) -> (Address, Address) {
         let admin = Address::generate(env);
         let treasury = Address::generate(env);
         client.initialize(&admin, &10, &treasury);
