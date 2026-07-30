@@ -11,3 +11,6 @@ pub mod progress;
 pub mod storage;
 
 pub use contract::*;
+
+pub mod errors;
+pub mod quiz;
