@@ -2,7 +2,7 @@
 
 use soroban_sdk::{
     contract, contractimpl, contracterror, contracttype, panic_with_error, symbol_short,
-    Address, Env,
+    Address, Env, String,
 };
 
 const DEFAULT_FRAUD_THRESHOLD: i128 = 10_000;
@@ -16,6 +16,8 @@ pub enum FraudDataKey {
     Config,
     /// Per-user daily total keyed by `(user_address, day_number)`.
     UserDaily(Address, u64),
+    /// Fraud flag reason keyed by user address.
+    FraudReason(Address),
 }
 
 #[contracterror]
@@ -130,10 +132,12 @@ impl FraudContract {
             .unwrap_or_else(FraudConfig::default_config);
 
         let mut flagged = false;
+        let mut reason = String::from_str(&env, "");
 
         // Rule 1: Single-transaction size check.
         if amount >= config.threshold {
             flagged = true;
+            reason = String::from_str(&env, "threshold_exceeded");
         }
 
         // Rule 2: Rolling daily total check.
@@ -158,10 +162,18 @@ impl FraudContract {
 
         if new_total > config.max_daily {
             flagged = true;
+            if reason.is_empty() {
+                reason = String::from_str(&env, "daily_limit_exceeded");
+            }
         }
 
-        // Emit a structured fraud alert event when flagged.
+        // Store fraud reason if flagged
         if flagged {
+            env.storage()
+                .persistent()
+                .set(&FraudDataKey::FraudReason(user.clone()), &reason);
+
+            // Emit a structured fraud alert event when flagged.
             env.events().publish(
                 (symbol_short!("fraud"), symbol_short!("alert"), user.clone()),
                 (amount, new_total, env.ledger().timestamp()),
@@ -169,5 +181,46 @@ impl FraudContract {
         }
 
         flagged
+    }
+
+    /// Returns the fraud flag reason for the given address.
+    ///
+    /// Returns `Some(reason)` if the address is flagged, `None` if unflagged.
+    pub fn get_fraud_flag_reason(env: Env, user: Address) -> Option<String> {
+        env.storage()
+            .persistent()
+            .get(&FraudDataKey::FraudReason(user))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{FraudContract, FraudContractClient};
+    use soroban_sdk::{testutils::Address as _, Address, Env};
+
+    fn setup<'a>() -> (Env, Address, FraudContractClient<'a>) {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register(FraudContract, ());
+        let client = FraudContractClient::new(&env, &contract_id);
+        let admin = Address::generate(&env);
+        client.initialize(&admin);
+        (env, admin, client)
+    }
+
+    #[test]
+    fn get_fraud_flag_reason_returns_none_for_unflagged() {
+        let (_env, _admin, client) = setup();
+        let user = Address::generate(&env);
+        assert!(client.get_fraud_flag_reason(&user).is_none());
+    }
+
+    #[test]
+    fn get_fraud_flag_reason_returns_reason_when_flagged() {
+        let (_env, _admin, client) = setup();
+        let user = Address::generate(&env);
+        client.check_transaction(&user, &20_000);
+        let reason = client.get_fraud_flag_reason(&user);
+        assert!(reason.is_some());
     }
 }
