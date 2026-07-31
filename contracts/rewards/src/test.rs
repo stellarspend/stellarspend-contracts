@@ -642,6 +642,41 @@ fn test_debit_reward_before_init_panics() {
     client.debit_reward(&user, &1_000, &RewardType::Streak);
 }
 
+// ── Get rewards balance tests ──────────────────────────────────────────────────
+
+#[test]
+fn test_get_rewards_balance_returns_balance_after_credit() {
+    let (_env, admin, user, client) = setup_with_user();
+    client.credit_reward(&user, &1_000_000, &RewardType::SpendingLimit);
+    let balance = client.get_rewards_balance(&user);
+    assert_eq!(balance, 1_000_000);
+}
+
+#[test]
+fn test_get_rewards_balance_returns_zero_for_unregistered() {
+    let (env, admin, client) = setup();
+    client.initialize(&admin);
+    let stranger = Address::generate(&env);
+    let balance = client.get_rewards_balance(&stranger);
+    assert_eq!(balance, 0);
+}
+
+#[test]
+fn test_get_rewards_balance_returns_zero_for_fresh_account() {
+    let (_env, admin, user, client) = setup_with_user();
+    let balance = client.get_rewards_balance(&user);
+    assert_eq!(balance, 0);
+}
+
+#[test]
+fn test_get_rewards_balance_reflects_debits() {
+    let (_env, admin, user, client) = setup_with_user();
+    client.credit_reward(&user, &1_000_000, &RewardType::Streak);
+    client.debit_reward(&user, &400_000, &RewardType::Streak);
+    let balance = client.get_rewards_balance(&user);
+    assert_eq!(balance, 600_000);
+}
+
 // ── Data model tests (#877) ───────────────────────────────────────────────────
 
 #[test]
