@@ -1,3 +1,4 @@
+use shared::batch_result::BatchItemResult;
 use soroban_sdk::{contracttype, symbol_short, Address, Env, Vec};
 
 pub const MAX_BATCH_SIZE: u32 = 100;
@@ -27,6 +28,7 @@ pub struct BatchConversionResult {
     pub failed: u32,
     pub total_converted: i128,
     pub results: Vec<ConversionResult>,
+    pub shared_results: Vec<BatchItemResult>,
 }
 
 #[derive(Clone)]
@@ -36,6 +38,7 @@ pub enum DataKey {
     TotalBatches,
     TotalConversionsProcessed,
     TotalVolumeConverted,
+    BatchOutput(u64),
 }
 
 pub struct ConversionEvents;

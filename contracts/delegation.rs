@@ -163,6 +163,22 @@ impl DelegationContract {
         let key = DelegationDataKey::Allowance(owner, delegate);
         env.storage().persistent().get(&key)
     }
+
+    /// Returns the remaining allowance `delegate` can spend on behalf of `owner`.
+    ///
+    /// Returns `0` if no delegation exists between the pair.
+    pub fn get_delegation_allowance(
+        env: Env,
+        owner: Address,
+        delegate: Address,
+    ) -> i128 {
+        let key = DelegationDataKey::Allowance(owner, delegate);
+        env.storage()
+            .persistent()
+            .get::<_, Delegation>(&key)
+            .map(|d| d.limit - d.spent)
+            .unwrap_or(0)
+    }
 }
 
 #[cfg(test)]
@@ -232,6 +248,102 @@ mod tests {
             );
 
         assert!(delegation.is_none());
+    }
+
+    #[test]
+    fn get_delegation_allowance_returns_full_limit_after_grant() {
+        let env = Env::default();
+        let owner = Address::generate(&env);
+        let delegate = Address::generate(&env);
+        env.mock_all_auths();
+
+        DelegationContract::set_delegation(
+            env.clone(),
+            owner.clone(),
+            delegate.clone(),
+            1_000,
+        );
+
+        let allowance = DelegationContract::get_delegation_allowance(
+            env,
+            owner,
+            delegate,
+        );
+        assert_eq!(allowance, 1_000);
+    }
+
+    #[test]
+    fn get_delegation_allowance_reflects_consumed_amount() {
+        let env = Env::default();
+        let owner = Address::generate(&env);
+        let delegate = Address::generate(&env);
+        env.mock_all_auths();
+
+        DelegationContract::set_delegation(
+            env.clone(),
+            owner.clone(),
+            delegate.clone(),
+            1_000,
+        );
+
+        DelegationContract::consume_allowance(
+            env.clone(),
+            owner.clone(),
+            delegate.clone(),
+            300,
+        )
+        .unwrap();
+
+        let allowance = DelegationContract::get_delegation_allowance(
+            env,
+            owner,
+            delegate,
+        );
+        assert_eq!(allowance, 700);
+    }
+
+    #[test]
+    fn get_delegation_allowance_returns_zero_when_no_delegation() {
+        let env = Env::default();
+        let owner = Address::generate(&env);
+        let delegate = Address::generate(&env);
+
+        let allowance = DelegationContract::get_delegation_allowance(
+            env,
+            owner,
+            delegate,
+        );
+        assert_eq!(allowance, 0);
+    }
+
+    #[test]
+    fn get_delegation_allowance_returns_zero_when_fully_consumed() {
+        let env = Env::default();
+        let owner = Address::generate(&env);
+        let delegate = Address::generate(&env);
+        env.mock_all_auths();
+
+        DelegationContract::set_delegation(
+            env.clone(),
+            owner.clone(),
+            delegate.clone(),
+            500,
+        );
+
+        DelegationContract::consume_allowance(
+            env.clone(),
+            owner.clone(),
+            delegate.clone(),
+            500,
+        )
+        .unwrap();
+
+        let allowance = DelegationContract::get_delegation_allowance(
+            env,
+            owner,
+            delegate,
+        );
+        assert_eq!(allowance, 0);
     }
 
     #[test]

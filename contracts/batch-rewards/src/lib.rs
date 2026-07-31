@@ -158,6 +158,7 @@ impl BatchRewardsContract {
 
         // Initialize result vectors
         let mut results: Vec<RewardResult> = Vec::new(&env);
+        let mut shared_results: Vec<shared::batch_result::BatchItemResult> = Vec::new(&env);
         let mut successful_count: u32 = 0;
         let mut failed_count: u32 = 0;
         let mut total_distributed: i128 = 0;
@@ -224,6 +225,12 @@ impl BatchRewardsContract {
                         reward.recipient.clone(),
                         reward.amount,
                     ));
+                    shared_results.push_back(shared::batch_result::BatchItemResult {
+                        success: true,
+                        target: reward.recipient.clone(),
+                        amount: reward.amount,
+                        error_code: 0,
+                    });
                     RewardEvents::reward_success(&env, batch_id, &reward.recipient, reward.amount);
                 }
                 Err(_) => {
@@ -234,6 +241,12 @@ impl BatchRewardsContract {
                         reward.amount,
                         error_code,
                     ));
+                    shared_results.push_back(shared::batch_result::BatchItemResult {
+                        success: false,
+                        target: reward.recipient.clone(),
+                        amount: reward.amount,
+                        error_code,
+                    });
                     RewardEvents::reward_failure(
                         &env,
                         batch_id,
@@ -288,6 +301,7 @@ impl BatchRewardsContract {
             failed: failed_count,
             total_distributed,
             results,
+            shared_results,
         }
     }
 

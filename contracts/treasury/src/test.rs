@@ -12,8 +12,7 @@ fn setup() -> (Env, Address, TreasuryContractClient<'static>) {
     (env, admin, client)
 }
 
-fn setup_with_signers(
-) -> (Env, Address, TreasuryContractClient<'static>, Vec<Address>) {
+fn setup_with_signers() -> (Env, Address, TreasuryContractClient<'static>, Vec<Address>) {
     let (env, admin, client) = setup();
     let signer1 = Address::generate(&env);
     let signer2 = Address::generate(&env);
@@ -115,10 +114,18 @@ fn set_threshold_updates_requirement() {
 fn propose_disbursement_creates_pending_proposal() {
     let (env, admin, client, signers) = setup_with_signers();
     client.credit_fee(&10000i128);
-    let pid = client.propose_disbursement(&signers.get(0).unwrap(), &signers.get(1).unwrap(), &500i128, &symbol_short!("test"));
+    let pid = client.propose_disbursement(
+        &signers.get(0).unwrap(),
+        &signers.get(1).unwrap(),
+        &500i128,
+        &symbol_short!("test"),
+    );
     let proposal = client.get_proposal(&pid).unwrap();
     assert_eq!(proposal.amount, 500);
-    assert_eq!(client.get_proposal_status(&pid).unwrap(), ProposalStatus::Pending);
+    assert_eq!(
+        client.get_proposal_status(&pid).unwrap(),
+        ProposalStatus::Pending
+    );
 }
 
 #[test]
@@ -134,7 +141,12 @@ fn single_sig_disbursement_below_lowest_tier_succeeds() {
     let mut tiers: Vec<SpendingTier> = Vec::new(&env);
     tiers.push_back(tier);
     client.set_spending_tiers(&admin, &tiers, &3);
-    let pid = client.propose_disbursement(&signers.get(0).unwrap(), &signers.get(1).unwrap(), &500i128, &symbol_short!("test"));
+    let pid = client.propose_disbursement(
+        &signers.get(0).unwrap(),
+        &signers.get(1).unwrap(),
+        &500i128,
+        &symbol_short!("test"),
+    );
     client.approve_disbursement(&signers.get(0).unwrap(), &pid);
     let status = client.get_proposal_status(&pid).unwrap();
     assert_eq!(status, ProposalStatus::Approved);
@@ -160,7 +172,12 @@ fn tier2_disbursement_needs_two_signatures() {
     tiers.push_back(low);
     tiers.push_back(high);
     client.set_spending_tiers(&admin, &tiers, &3);
-    let pid = client.propose_disbursement(&signers.get(0).unwrap(), &signers.get(1).unwrap(), &5000i128, &symbol_short!("test"));
+    let pid = client.propose_disbursement(
+        &signers.get(0).unwrap(),
+        &signers.get(1).unwrap(),
+        &5000i128,
+        &symbol_short!("test"),
+    );
     client.approve_disbursement(&signers.get(0).unwrap(), &pid);
     let count = client.get_proposal_approval_count(&pid);
     assert_eq!(count, 1);
@@ -186,7 +203,12 @@ fn disbursement_fails_with_insufficient_approvals() {
     let mut tiers: Vec<SpendingTier> = Vec::new(&env);
     tiers.push_back(tier);
     client.set_spending_tiers(&admin, &tiers, &3);
-    let pid = client.propose_disbursement(&signers.get(0).unwrap(), &signers.get(1).unwrap(), &500i128, &symbol_short!("test"));
+    let pid = client.propose_disbursement(
+        &signers.get(0).unwrap(),
+        &signers.get(1).unwrap(),
+        &500i128,
+        &symbol_short!("test"),
+    );
     client.approve_disbursement(&signers.get(0).unwrap(), &pid);
     let s = client.get_proposal_status(&pid).unwrap();
     assert_eq!(s, ProposalStatus::Pending);
@@ -205,7 +227,12 @@ fn execute_disbursement_after_approval() {
     let mut tiers: Vec<SpendingTier> = Vec::new(&env);
     tiers.push_back(tier);
     client.set_spending_tiers(&admin, &tiers, &3);
-    let pid = client.propose_disbursement(&signers.get(0).unwrap(), &signers.get(1).unwrap(), &500i128, &symbol_short!("test"));
+    let pid = client.propose_disbursement(
+        &signers.get(0).unwrap(),
+        &signers.get(1).unwrap(),
+        &500i128,
+        &symbol_short!("test"),
+    );
     client.approve_disbursement(&signers.get(0).unwrap(), &pid);
     client.execute_disbursement(&signers.get(0).unwrap(), &pid);
     let s = client.get_proposal_status(&pid).unwrap();
@@ -225,7 +252,12 @@ fn execute_disbursement_rejected_when_insufficient_approvals() {
     let mut tiers: Vec<SpendingTier> = Vec::new(&env);
     tiers.push_back(tier);
     client.set_spending_tiers(&admin, &tiers, &3);
-    let pid = client.propose_disbursement(&signers.get(0).unwrap(), &signers.get(1).unwrap(), &500i128, &symbol_short!("test"));
+    let pid = client.propose_disbursement(
+        &signers.get(0).unwrap(),
+        &signers.get(1).unwrap(),
+        &500i128,
+        &symbol_short!("test"),
+    );
     client.approve_disbursement(&signers.get(0).unwrap(), &pid);
     let s = client.get_proposal_status(&pid).unwrap();
     assert_eq!(s, ProposalStatus::Pending);
@@ -244,7 +276,12 @@ fn duplicate_approval_rejected() {
     let mut tiers: Vec<SpendingTier> = Vec::new(&env);
     tiers.push_back(tier);
     client.set_spending_tiers(&admin, &tiers, &3);
-    let pid = client.propose_disbursement(&signers.get(0).unwrap(), &signers.get(1).unwrap(), &500i128, &symbol_short!("test"));
+    let pid = client.propose_disbursement(
+        &signers.get(0).unwrap(),
+        &signers.get(1).unwrap(),
+        &500i128,
+        &symbol_short!("test"),
+    );
     client.approve_disbursement(&signers.get(0).unwrap(), &pid);
 }
 
@@ -254,7 +291,12 @@ fn non_signer_cannot_propose() {
     let (env, _admin, client, signers) = setup_with_signers();
     client.credit_fee(&10000i128);
     let non_signer = Address::generate(&env);
-    client.propose_disbursement(&non_signer, &signers.get(1).unwrap(), &500i128, &symbol_short!("test"));
+    client.propose_disbursement(
+        &non_signer,
+        &signers.get(1).unwrap(),
+        &500i128,
+        &symbol_short!("test"),
+    );
 }
 
 #[test]
@@ -263,7 +305,12 @@ fn non_signer_cannot_approve() {
     let (env, _admin, client, signers) = setup_with_signers();
     client.credit_fee(&10000i128);
     let non_signer = Address::generate(&env);
-    let pid = client.propose_disbursement(&signers.get(0).unwrap(), &signers.get(1).unwrap(), &500i128, &symbol_short!("test"));
+    let pid = client.propose_disbursement(
+        &signers.get(0).unwrap(),
+        &signers.get(1).unwrap(),
+        &500i128,
+        &symbol_short!("test"),
+    );
     client.approve_disbursement(&non_signer, &pid);
 }
 
@@ -271,7 +318,12 @@ fn non_signer_cannot_approve() {
 fn cancel_proposal() {
     let (env, admin, client, signers) = setup_with_signers();
     client.credit_fee(&10000i128);
-    let pid = client.propose_disbursement(&signers.get(0).unwrap(), &signers.get(1).unwrap(), &500i128, &symbol_short!("test"));
+    let pid = client.propose_disbursement(
+        &signers.get(0).unwrap(),
+        &signers.get(1).unwrap(),
+        &500i128,
+        &symbol_short!("test"),
+    );
     client.cancel_proposal(&admin, &pid);
     let s = client.get_proposal_status(&pid).unwrap();
     assert_eq!(s, ProposalStatus::Cancelled);
@@ -283,7 +335,12 @@ fn cancel_proposal() {
 fn cannot_execute_cancelled_proposal() {
     let (env, admin, client, signers) = setup_with_signers();
     client.credit_fee(&10000i128);
-    let pid = client.propose_disbursement(&signers.get(0).unwrap(), &signers.get(1).unwrap(), &500i128, &symbol_short!("test"));
+    let pid = client.propose_disbursement(
+        &signers.get(0).unwrap(),
+        &signers.get(1).unwrap(),
+        &500i128,
+        &symbol_short!("test"),
+    );
     client.cancel_proposal(&admin, &pid);
     client.execute_disbursement(&signers.get(0).unwrap(), &pid);
 }
@@ -292,7 +349,12 @@ fn cannot_execute_cancelled_proposal() {
 #[should_panic(expected = "HostError")]
 fn proposal_rejected_when_insufficient_balance() {
     let (env, _admin, client, signers) = setup_with_signers();
-    client.propose_disbursement(&signers.get(0).unwrap(), &signers.get(1).unwrap(), &99999i128, &symbol_short!("test"));
+    client.propose_disbursement(
+        &signers.get(0).unwrap(),
+        &signers.get(1).unwrap(),
+        &99999i128,
+        &symbol_short!("test"),
+    );
 }
 
 #[test]
@@ -308,7 +370,12 @@ fn has_approved_returns_correctly() {
     let mut tiers: Vec<SpendingTier> = Vec::new(&env);
     tiers.push_back(tier);
     client.set_spending_tiers(&admin, &tiers, &3);
-    let pid = client.propose_disbursement(&signers.get(0).unwrap(), &signers.get(1).unwrap(), &500i128, &symbol_short!("test"));
+    let pid = client.propose_disbursement(
+        &signers.get(0).unwrap(),
+        &signers.get(1).unwrap(),
+        &500i128,
+        &symbol_short!("test"),
+    );
     assert!(!client.has_approved(&pid, &signers.get(0).unwrap()));
     client.approve_disbursement(&signers.get(0).unwrap(), &pid);
     assert!(client.has_approved(&pid, &signers.get(0).unwrap()));
@@ -361,13 +428,23 @@ fn acceptance_criteria_tiered_disbursement() {
     client.set_spending_tiers(&admin, &tiers, &3);
 
     // Attempt a 50-unit disbursement with 1 signature (succeeds)
-    let pid1 = client.propose_disbursement(&signers.get(0).unwrap(), &signers.get(1).unwrap(), &50i128, &symbol_short!("small"));
+    let pid1 = client.propose_disbursement(
+        &signers.get(0).unwrap(),
+        &signers.get(1).unwrap(),
+        &50i128,
+        &symbol_short!("small"),
+    );
     client.approve_disbursement(&signers.get(0).unwrap(), &pid1);
     let status1 = client.get_proposal_status(&pid1).unwrap();
     assert_eq!(status1, ProposalStatus::Approved);
 
     // Attempt a 500-unit disbursement with 1 signature (fails - still pending)
-    let pid2 = client.propose_disbursement(&signers.get(0).unwrap(), &signers.get(1).unwrap(), &500i128, &symbol_short!("medium"));
+    let pid2 = client.propose_disbursement(
+        &signers.get(0).unwrap(),
+        &signers.get(1).unwrap(),
+        &500i128,
+        &symbol_short!("medium"),
+    );
     client.approve_disbursement(&signers.get(0).unwrap(), &pid2);
     let status2 = client.get_proposal_status(&pid2).unwrap();
     assert_eq!(status2, ProposalStatus::Pending);

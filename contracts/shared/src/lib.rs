@@ -7,6 +7,7 @@ use soroban_sdk::{contracttype, Address, Env, String};
 pub mod assets;
 pub mod auth;
 pub mod authorization;
+pub mod batch_result;
 pub mod date_utils;
 pub mod errors;
 pub mod sanitizer;
@@ -14,6 +15,7 @@ pub mod reentrancy;
 pub mod utils;
 pub mod validation;
 
+pub use batch_result::{BatchAtomicityPolicy, BatchExecutionResult, BatchItemResult};
 pub use errors::SharedError;
 
 pub const SHARED_VERSION: &str = "0.1.0";

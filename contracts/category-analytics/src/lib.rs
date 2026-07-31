@@ -11,7 +11,7 @@ pub mod types;
 
 use crate::events::emit_spending_updated;
 use crate::types::{
-    aggregate_by_category_window, CategorySpend, CategorySpending, CategorySpendWindow, DataKey,
+    aggregate_by_category_window, CategorySpend, CategorySpendWindow, CategorySpending, DataKey,
     MonthlyAnalytics, TimeFilter, TransactionEvent,
 };
 
@@ -56,11 +56,7 @@ impl CategoryAnalytics {
         }
     }
 
-    pub fn process_events(
-        env: Env,
-        caller: Address,
-        events: Vec<TransactionEvent>,
-    ) {
+    pub fn process_events(env: Env, caller: Address, events: Vec<TransactionEvent>) {
         caller.require_auth();
         let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
         if caller != admin {

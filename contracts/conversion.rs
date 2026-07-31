@@ -1,6 +1,9 @@
 //! Asset conversion contract for Stellar assets.
 
-use soroban_sdk::{contract, contractimpl, contracterror, panic_with_error, Address, Env};
+use soroban_sdk::{
+    contract, contracterror, contractimpl, panic_with_error, Address, Env, Map, Symbol,
+    symbol_short,
+};
 
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -91,9 +94,18 @@ impl ConversionContract {
             return Err(ConversionError::ZeroResult);
         }
 
+        let mut counts: Map<Address, u32> = env
+            .storage()
+            .instance()
+            .get(&CONVERSION_HISTORY_COUNT_KEY)
+            .unwrap_or_else(|| Map::new(&env));
+        let current_count = counts.get(user.clone()).unwrap_or(0);
+        counts.set(user.clone(), current_count + 1);
+        env.storage().instance().set(&CONVERSION_HISTORY_COUNT_KEY, &counts);
+
         env.events().publish(
             (
-                soroban_sdk::symbol_short!("convert"),
+                symbol_short!("convert"),
                 user.clone(),
             ),
             (
@@ -106,5 +118,55 @@ impl ConversionContract {
         );
 
         Ok(converted)
+    }
+
+    pub fn get_conversion_history_count(env: Env, owner: Address) -> u32 {
+        let counts: Map<Address, u32> = env
+            .storage()
+            .instance()
+            .get(&CONVERSION_HISTORY_COUNT_KEY)
+            .unwrap_or_else(|| Map::new(&env));
+        counts.get(owner).unwrap_or(0)
+    }
+}
+
+const CONVERSION_HISTORY_COUNT_KEY: Symbol = symbol_short!("conv_hist");
+
+#[cfg(test)]
+mod test {
+    use super::{ConversionContract, ConversionContractClient};
+    use soroban_sdk::{testutils::Address as _, Address, Env};
+
+    fn setup_contract() -> (Env, ConversionContractClient<'static>) {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register(ConversionContract, ());
+        let client = ConversionContractClient::new(&env, &contract_id);
+        (env, client)
+    }
+
+    #[test]
+    fn get_conversion_history_count_tracks_successful_conversions() {
+        let (env, client) = setup_contract();
+        let owner = Address::generate(&env);
+        let other_owner = Address::generate(&env);
+        let from_token = Address::generate(&env);
+        let to_token = Address::generate(&env);
+
+        assert_eq!(client.get_conversion_history_count(&owner), 0);
+        assert_eq!(client.get_conversion_history_count(&other_owner), 0);
+
+        let first_conversion = client
+            .convert_assets(&owner, &from_token, &to_token, &10)
+            .unwrap();
+        assert_eq!(first_conversion, 20);
+        assert_eq!(client.get_conversion_history_count(&owner), 1);
+        assert_eq!(client.get_conversion_history_count(&other_owner), 0);
+
+        let second_conversion = client
+            .convert_assets(&owner, &from_token, &to_token, &5)
+            .unwrap();
+        assert_eq!(second_conversion, 10);
+        assert_eq!(client.get_conversion_history_count(&owner), 2);
     }
 }
