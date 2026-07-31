@@ -19,9 +19,11 @@ use crate::queries::{
     query_lifetime_earnings, query_reward_balance, query_statistics, query_transaction_count,
 };
 use crate::rewards::{credit_reward, debit_reward, register_reward_account};
-use crate::storage::{get_reward_account, get_reward_index};
+use crate::storage::{
+    get_account_stats as read_account_stats, get_reward_account, get_reward_index,
+};
 pub use crate::types::{
-    DataKey, RewardAccount, RewardStatistics, RewardStatus, RewardTransaction, RewardType,
+    DataKey, RewardAccount, RewardAccountStats, RewardStatus, RewardTransaction, RewardType,
 };
 
 /// Error codes for the rewards contract.
@@ -114,6 +116,15 @@ impl RewardsContract {
     /// Returns the `RewardAccount` metadata for `participant`, if registered.
     pub fn get_account(env: Env, participant: Address) -> Option<RewardAccount> {
         get_reward_account(&env, &participant)
+    }
+
+    /// Returns aggregate statistics for `participant`'s reward account.
+    ///
+    /// Tracks total rewards earned, total rewards redeemed, total transactions,
+    /// and the ledger sequence of the most recent reward credit. Returns zeroed
+    /// defaults when the account has no stats yet (including unregistered accounts).
+    pub fn get_account_stats(env: Env, participant: Address) -> RewardAccountStats {
+        read_account_stats(&env, &participant)
     }
 
     /// Credits `amount` reward points to `participant`'s account.

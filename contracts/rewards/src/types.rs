@@ -19,6 +19,7 @@ pub const PERSISTENT_TTL_BUMP: u32 = 6_307_200;
 /// | `LifetimeEarned(Address)` | Persistent | Total rewards ever earned (stroops) |
 /// | `LifetimeClaimed(Address)` | Persistent | Total rewards ever claimed (stroops) |
 /// | `RewardAccount(Address)` | Persistent | Full reward account metadata struct |
+/// | `AccountStats(Address)` | Persistent | Aggregate reward account statistics |
 /// | `RewardTransaction(u64)` | Persistent | Individual reward transaction record by ID |
 /// | `RewardIndex(Address)` | Persistent | Ordered list of tx IDs for a participant |
 #[contracttype]
@@ -36,6 +37,8 @@ pub enum DataKey {
     LifetimeClaimed(Address),
     /// Full reward account metadata (persistent storage).
     RewardAccount(Address),
+    /// Aggregate statistics for a reward account (persistent storage).
+    AccountStats(Address),
     /// Individual reward transaction record, keyed by transaction ID (persistent storage).
     RewardTransaction(u64),
     /// Monotonically incrementing counter for reward transaction IDs (instance storage).
@@ -104,6 +107,23 @@ pub struct RewardAccount {
     pub created_at: u64,
     /// Ledger sequence of the most recent balance update.
     pub last_updated: u64,
+}
+
+/// Aggregate statistics for a reward account.
+///
+/// Persisted under `DataKey::AccountStats(address)`. Updated automatically on
+/// every credit and debit so reporting queries stay consistent with balances.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RewardAccountStats {
+    /// Total rewards earned over the account lifetime (stroops).
+    pub total_earned: i128,
+    /// Total rewards redeemed / claimed over the account lifetime (stroops).
+    pub total_redeemed: i128,
+    /// Total number of reward transactions (credits + debits).
+    pub total_transactions: u64,
+    /// Ledger sequence of the most recent reward credit (`0` if never credited).
+    pub last_reward_timestamp: u64,
 }
 
 /// A record of a single reward issuance or claim event.

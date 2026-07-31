@@ -8,3 +8,11 @@ pub struct SavingsGoal {
     pub saved_amount: i128,
     pub completed: bool,
 }
+
+#[derive(Clone)]
+#[contracttype]
+pub enum ContributionPeriod {
+    Daily,
+    Weekly,
+    Monthly,
+}
