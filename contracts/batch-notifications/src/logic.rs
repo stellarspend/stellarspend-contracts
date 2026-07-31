@@ -1,7 +1,11 @@
 use crate::types::{BatchResult, NotificationPayload};
 use soroban_sdk::{symbol_short, Env, Vec};
 
-pub fn execute_dispatch(env: Env, payloads: Vec<NotificationPayload>) -> BatchResult {
+pub fn execute_dispatch(
+    env: Env,
+    batch_id: u64,
+    payloads: Vec<NotificationPayload>,
+) -> BatchResult {
     let mut success_count = 0;
     let mut failures = Vec::new(&env);
 
@@ -21,8 +25,23 @@ pub fn execute_dispatch(env: Env, payloads: Vec<NotificationPayload>) -> BatchRe
         }
     }
 
+    // Persist the count of notifications in this batch
+    let count: u32 = payloads.len() as u32;
+    let key = (symbol_short!("batch_cnt"), batch_id);
+    env.storage().persistent().set(&key, &count);
+
     BatchResult {
         successful_count: success_count,
         failed_addresses: failures,
     }
+}
+
+/// Reads the notification count for a given batch from storage.
+/// Returns 0 if no entry exists for the batch_id.
+pub fn read_batch_count(env: &Env, batch_id: u64) -> u32 {
+    let key = (symbol_short!("batch_cnt"), batch_id);
+    env.storage()
+        .persistent()
+        .get::<_, u32>(&key)
+        .unwrap_or(0)
 }
