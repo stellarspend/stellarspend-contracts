@@ -214,6 +214,35 @@ impl BudgetAllocationContract {
         env.storage().persistent().get(&DataKey::Budget(user))
     }
 
+    /// Returns a list of category-amount pairs showing how a budget is allocated.
+    ///
+    /// # Arguments
+    /// * `owner` - The address whose budget breakdown to retrieve
+    ///
+    /// # Returns
+    /// A vector of (category_name, amount) pairs, or an empty vector if the
+    /// address has no category allocations.
+    pub fn get_budget_allocation_breakdown(
+        env: Env,
+        owner: Address,
+    ) -> Vec<(Symbol, i128)> {
+        let mut result = Vec::new(&env);
+
+        let user_categories: Option<UserBudgetCategories> = env
+            .storage()
+            .persistent()
+            .get(&DataKey::BudgetCategories(owner));
+
+        if let Some(categories) = user_categories {
+            for key in categories.categories.keys() {
+                let amount = categories.categories.get(key.clone()).unwrap();
+                result.push_back((key, amount));
+            }
+        }
+
+        result
+    }
+
     /// Retrieves a summary of the allocation state for a specific user.
     pub fn get_budget_allocation_summary(
         env: Env,
