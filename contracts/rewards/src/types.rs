@@ -148,3 +148,18 @@ pub struct RewardTransaction {
     /// Ledger sequence at which the status was last updated (`0` if never updated).
     pub updated_at: u64,
 }
+
+/// Statistics for a reward account.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RewardStatistics {
+    /// Current claimable balance in stroops.
+    pub balance: i128,
+    /// Total rewards earned over the lifetime of the account in stroops.
+    pub lifetime_earned: i128,
+    /// Total rewards claimed over the lifetime of the account in stroops.
+    pub lifetime_claimed: i128,
+    /// Total number of reward transactions for this account.
+    pub tx_count: u32,
+}
+
