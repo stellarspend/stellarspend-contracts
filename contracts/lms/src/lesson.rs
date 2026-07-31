@@ -1,59 +1,61 @@
 #![no_std]
 use soroban_sdk::{contracttype, Address, Env, Symbol, Vec};
 
+use crate::{
+    admin,
+    errors::LmsError,
+    event::LMSEvents,
+    models::{Lesson, Module},
+};
+
 #[contracttype]
-#[derive(Clone, Debug, PartialEq)]
-pub struct Lesson {
-    pub id: u64,
-    pub course_id: u64,
-    pub title: Symbol,
-    pub position: u32,
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum LessonDataKey {
+    Lesson(u64),
+    Module(u64),
+    CourseModules(u64),
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LessonRecord {
+    pub lesson: Lesson,
+    pub removed: bool,
+    pub removed_at: u64,
 }
 
 pub struct LessonManager;
 
 impl LessonManager {
-    /// Reorders lessons within a course ensuring positions are unique and sequential.
-    pub fn reorder_lessons(
-        env: &Env,
-        instructor: Address,
-        course_id: u64,
-        lesson_ids: Vec<u64>,
-        new_positions: Vec<u32>,
-    ) {
-        instructor.require_auth();
+    /// Removes a lesson from a course. Only instructors or admins may remove lessons.
+    pub fn remove_lesson(env: Env, caller: Address, lesson_id: u64) -> Result<(), LmsError> {
+        caller.require_auth();
+        admin::require_instructor_or_admin(&env, &caller).map_err(|_| LmsError::Unauthorized)?;
 
-        assert_eq!(
-            lesson_ids.len(),
-            new_positions.len(),
-            "Lesson IDs and positions length mismatch"
-        );
-        assert!(!lesson_ids.is_empty(), "Lesson list cannot be empty");
+        let mut record: LessonRecord = env
+            .storage()
+            .persistent()
+            .get(&LessonDataKey::Lesson(lesson_id))
+            .ok_or(LmsError::LessonNotFound)?;
 
-        // Prevent duplicate positions in inputs
-        for i in 0..new_positions.len() {
-            for j in (i + 1)..new_positions.len() {
-                assert_ne!(
-                    new_positions.get(i).unwrap(),
-                    new_positions.get(j).unwrap(),
-                    "Duplicate position detected"
-                );
-            }
+        if record.removed {
+            return Ok(());
         }
 
-        // Update each lesson with its new position
-        for i in 0..lesson_ids.len() {
-            let id = lesson_ids.get(i).unwrap();
-            let new_pos = new_positions.get(i).unwrap();
+        let course_id = record.lesson.course_id;
 
-            let mut lesson: Lesson = env
+        let module_ids: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&LessonDataKey::CourseModules(course_id))
+            .ok_or(LmsError::CourseNotFound)?;
+
+        for i in 0..module_ids.len() {
+            let module_id = module_ids.get(i).ok_or(LmsError::ModuleNotFound)?;
+            let mut module: Module = env
                 .storage()
                 .persistent()
-                .get(&(course_id, id))
-                .expect("Lesson not found in course");
+                .get(&LessonDataKey::Module(module_id))
+                .ok_or(LmsError::ModuleNotFound)?;
 
-            lesson.position = new_pos;
-            env.storage().persistent().set(&(course_id, id), &lesson);
-        }
-    }
-}
+            let mut new_ids

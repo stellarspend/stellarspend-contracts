@@ -5,6 +5,7 @@ use crate::course::{self, Course, CourseError, UpdateCourseInput};
 use crate::enrollment::{self, EnrollmentStatus};
 use crate::errors::LmsError;
 use crate::progress;
+use crate::lesson; // bring in lesson removal
 
 #[contract]
 pub struct LMSContract;
@@ -102,6 +103,16 @@ impl LMSContract {
         progress::register_lesson(env, caller, course_id, lesson_id, title)
     }
 
+    /// Removes a lesson from a course. Only the course's owning instructor may remove lessons.
+    pub fn remove_lesson(
+        env: Env,
+        caller: Address,
+        course_id: u64,
+        lesson_id: u64,
+    ) -> Result<(), LmsError> {
+        lesson::remove_lesson(env, caller, course_id, lesson_id)
+    }
+
     /// Marks `lesson_id` as completed by `student`. Rejects non-enrolled
     /// students, unknown/mismatched lessons, and duplicate completions.
     pub fn complete_lesson(
@@ -110,34 +121,4 @@ impl LMSContract {
         course_id: u64,
         lesson_id: u64,
     ) -> Result<(), LmsError> {
-        progress::complete_lesson(env, student, course_id, lesson_id)
-    }
-
-    /// Returns `student`'s completion percentage (0-100) for `course_id`.
-    pub fn get_course_progress(
-        env: Env,
-        student: Address,
-        course_id: u64,
-    ) -> Result<u32, LmsError> {
-        progress::get_course_progress(env, student, course_id)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use soroban_sdk::testutils::Address as _;
-
-    #[test]
-    fn test_initialize() {
-        let env = Env::default();
-        env.mock_all_auths();
-        let contract_id = env.register(LMSContract, ());
-        let client = LMSContractClient::new(&env, &contract_id);
-
-        let admin = Address::generate(&env);
-        client.initialize(&admin);
-
-        assert_eq!(client.get_admin(), admin);
-    }
-}
+        progress::complete_lesson

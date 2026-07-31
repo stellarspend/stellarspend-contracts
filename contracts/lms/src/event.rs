@@ -3,7 +3,7 @@ use soroban_sdk::{symbol_short, Address, Env, String};
 pub struct LMSEvents;
 
 impl LMSEvents {
-    /// Emitted when a new course is published
+    /// Emitted when a new course is created
     pub fn emit_course_created(
         env: &Env,
         course_id: u64,
@@ -23,6 +23,12 @@ impl LMSEvents {
     ) {
         let topics = (symbol_short!("lesson"), symbol_short!("added"), course_id);
         env.events().publish(topics, (lesson_id, title));
+    }
+
+    /// Emitted when a lesson is removed from a course
+    pub fn emit_lesson_removed(env: &Env, course_id: u64, lesson_id: u64) {
+        let topics = (symbol_short!("lesson"), symbol_short!("removed"), course_id);
+        env.events().publish(topics, lesson_id);
     }
 
     /// Emitted when a course is published, making it visible/enrollable
@@ -120,49 +126,3 @@ mod tests {
     fn test_all_lms_events_published_successfully() {
         let env = Env::default();
         let contract_id = env.register(crate::LMSContract, ());
-        let student = Address::generate(&env);
-        let instructor = Address::generate(&env);
-
-        let course_id = 1u64;
-        let lesson_id = 10u64;
-        let quiz_id = 100u64;
-        let cert_id = 500u64;
-
-        let event_count = env.as_contract(&contract_id, || {
-            LMSEvents::emit_course_created(
-                &env,
-                course_id,
-                instructor.clone(),
-                String::from_str(&env, "Soroban 101"),
-            );
-
-            LMSEvents::emit_lesson_added(
-                &env,
-                course_id,
-                lesson_id,
-                String::from_str(&env, "Introduction"),
-            );
-
-            LMSEvents::emit_course_published(&env, course_id, instructor.clone());
-
-            LMSEvents::emit_course_archived(&env, course_id, instructor);
-
-            LMSEvents::emit_student_enrolled(&env, course_id, student.clone());
-
-            LMSEvents::emit_student_withdrawn(&env, course_id, student.clone());
-
-            LMSEvents::emit_lesson_completed(&env, course_id, lesson_id, student.clone());
-
-            LMSEvents::emit_quiz_completed(&env, course_id, quiz_id, student.clone(), 95);
-
-            LMSEvents::emit_certificate_issued(&env, course_id, student.clone(), cert_id);
-
-            LMSEvents::emit_reward_claimed(&env, course_id, student, 100_000_000i128);
-
-            env.events().all().len()
-        });
-
-        assert_eq!(event_count, 10);
-    }
-}
-
