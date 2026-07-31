@@ -66,12 +66,12 @@ pub struct BudgetAllocationSummary {
 pub enum DataKey {
     Admin,
     Budget(Address),
-    BudgetCategories(Address),    // User's budget categories
-    TotalAllocated,               // Track global stats if needed
-    BudgetSnapshot(u64, Address), // Snapshot of budget state at timestamp
-    SnapshotTimestamps,           // List of all snapshot timestamps
-    BudgetRenewalConfig(Address), // Per-user budget renewal configuration
-    BudgetVersion(Address, u64),  // Budget version snapshots (user, version_number)
+    BudgetCategories(Address),     // User's budget categories
+    TotalAllocated,                // Track global stats if needed
+    BudgetSnapshot(u64, Address),  // Snapshot of budget state at timestamp
+    SnapshotTimestamps,            // List of all snapshot timestamps
+    BudgetRenewalConfig(Address),  // Per-user budget renewal configuration
+    BudgetVersion(Address, u64),   // Budget version snapshots (user, version_number)
     BudgetVersionCounter(Address), // Number of versions created for a user
 }
 
