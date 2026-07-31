@@ -224,39 +224,3 @@ impl MultiCurrencyWallet {
         oracle_manager.is_fresh(&env, asset_a, asset_b)
     }
 }
-impl MultiCurrencyWallet {
-    /// Get wallet assets (list of asset symbols)
-    pub fn get_wallet_assets(env: Env) -> Vec<String> {
-        let wallet: CurrencyWallet = env
-            .storage()
-            .get(&String::from_str(&env, "wallet"))
-            .unwrap_or_else(|| panic!("Wallet not initialized"));
-
-        let mut assets = Vec::new(&env);
-        for (asset, _) in wallet.balances.iter() {
-            assets.push_back(asset.clone());
-        }
-        assets
-    }
-
-    /// Get wallet balance
-    pub fn get_balance(env: Env, asset: String) -> i128 {
-        let wallet: CurrencyWallet = env
-            .storage()
-            .get(&String::from_str(&env, "wallet"))
-            .unwrap_or_else(|| panic!("Wallet not initialized"));
-
-        // ... existing balance lookup code continues ...
-    }
-
-    pub fn is_oracle_fresh(env: Env, asset_a: String, asset_b: String) -> bool {
-        let wallet: CurrencyWallet = env
-            .storage()
-            .get(&String::from_str(&env, "wallet"))
-            .unwrap_or_else(|| panic!("Wallet not initialized"));
-
-        // ... existing logic continues ...
-    }
-
-    // other methods unchanged
-}
