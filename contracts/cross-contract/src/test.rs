@@ -514,3 +514,91 @@ fn test_events_emitted() {
     let events = env.events().all();
     assert!(events.len() > 0);
 }
+
+// --- Issue #989: get_last_caller view ---
+
+#[test]
+fn test_get_last_caller_returns_none_before_any_calls() {
+    let (env, admin, _, _) = create_test_env();
+    let contract_id = env.register_contract(None, CrossContractInteraction);
+    let client = CrossContractInteractionClient::new(&env, &contract_id);
+
+    client.initialize(&admin);
+
+    // No execute_call or execute_batch has been made yet
+    assert_eq!(client.get_last_caller(), None);
+}
+
+#[test]
+fn test_get_last_caller_returns_caller_after_execute_call() {
+    let (env, admin, _, _) = create_test_env();
+    let contract_id = env.register_contract(None, CrossContractInteraction);
+    let client = CrossContractInteractionClient::new(&env, &contract_id);
+
+    let external_id = env.register_contract(None, MockExternalContract);
+
+    client.initialize(&admin);
+
+    let call = CrossContractCall {
+        contract_address: external_id.clone(),
+        function_name: Symbol::new(&env, "no_params"),
+        args: Vec::new(&env),
+        continue_on_failure: false,
+    };
+
+    client.execute_call(&admin, &call, &false);
+
+    assert_eq!(client.get_last_caller(), Some(admin));
+}
+
+#[test]
+fn test_get_last_caller_returns_caller_after_execute_batch() {
+    let (env, admin, _, _) = create_test_env();
+    let contract_id = env.register_contract(None, CrossContractInteraction);
+    let client = CrossContractInteractionClient::new(&env, &contract_id);
+
+    let external_id = env.register_contract(None, MockExternalContract);
+
+    client.initialize(&admin);
+
+    let mut calls: Vec<CrossContractCall> = Vec::new(&env);
+    calls.push_back(CrossContractCall {
+        contract_address: external_id.clone(),
+        function_name: Symbol::new(&env, "no_params"),
+        args: Vec::new(&env),
+        continue_on_failure: false,
+    });
+
+    client.execute_batch(&admin, &calls, &false);
+
+    assert_eq!(client.get_last_caller(), Some(admin));
+}
+
+#[test]
+fn test_get_last_caller_updates_on_successive_calls() {
+    let (env, admin, user, _) = create_test_env();
+    let contract_id = env.register_contract(None, CrossContractInteraction);
+    let client = CrossContractInteractionClient::new(&env, &contract_id);
+
+    let external_id = env.register_contract(None, MockExternalContract);
+
+    client.initialize(&admin);
+
+    let call = CrossContractCall {
+        contract_address: external_id.clone(),
+        function_name: Symbol::new(&env, "no_params"),
+        args: Vec::new(&env),
+        continue_on_failure: false,
+    };
+
+    // First call made by admin
+    client.execute_call(&admin, &call, &false);
+    assert_eq!(client.get_last_caller(), Some(admin.clone()));
+
+    // Promote user to admin so they can make a call
+    client.set_admin(&admin, &user);
+
+    // Second call made by user (now admin)
+    client.execute_call(&user, &call, &false);
+    assert_eq!(client.get_last_caller(), Some(user));
+}
