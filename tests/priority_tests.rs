@@ -1,7 +1,7 @@
 use soroban_sdk::{
     symbol_short,
-    testutils::{Address as _, Events as _},
-    Address, Env, Symbol,
+    testutils::{Address as _, Events as _, Ledger},
+    Address, Env,
 };
 
 #[path = "../contracts/priority.rs"]
@@ -43,6 +43,21 @@ fn test_priority_order() {
 }
 
 #[test]
+fn test_get_priority_score() {
+    let (env, _admin, client) = setup();
+    let caller = Address::generate(&env);
+
+    let id1 = client.enqueue(&caller, &symbol_short!("med1"), &1u32);
+    let id2 = client.enqueue(&caller, &symbol_short!("high1"), &2u32);
+
+    assert_eq!(client.get_priority_score(&id1), 1);
+    assert_eq!(client.get_priority_score(&id2), 2);
+    
+    // Unknown ID should return 0
+    assert_eq!(client.get_priority_score(&999), 0);
+}
+
+#[test]
 fn test_starvation_prevention() {
     let (env, _admin, client) = setup();
 
@@ -55,8 +70,8 @@ fn test_starvation_prevention() {
     env.ledger().set_timestamp(env.ledger().timestamp() + 120);
 
     // Enqueue several high-priority items that are fresh
-    client.enqueue(&caller, &symbol_short!("high_fresh1"), &2u32);
-    client.enqueue(&caller, &symbol_short!("high_fresh2"), &2u32);
+    client.enqueue(&caller, &symbol_short!("high_fr1"), &2u32);
+    client.enqueue(&caller, &symbol_short!("high_fr2"), &2u32);
 
     // Now dequeue: starvation prevention should return the old low-priority item first
     let popped: PendingItem = client.dequeue().expect("expected item");

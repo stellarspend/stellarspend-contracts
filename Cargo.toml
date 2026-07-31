@@ -116,6 +116,10 @@ name = "analytics_indexing_tests"
 path = "tests/analytics_indexing_tests.rs"
 
 [[test]]
+name = "priority_tests"
+path = "tests/priority_tests.rs"
+
+[[test]]
 name = "timelock_tests"
 path = "tests/timelock_tests.rs"
 
