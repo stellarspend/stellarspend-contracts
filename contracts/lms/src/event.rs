@@ -1,9 +1,9 @@
-use soroban_sdk::{symbol_short, Address, Env, String, Symbol};
+use soroban_sdk::{symbol_short, Address, Env, String};
 
 pub struct LMSEvents;
 
 impl LMSEvents {
-    /// Emitted when a new course is published
+    /// Emitted when a new course is created
     pub fn emit_course_created(
         env: &Env,
         course_id: u64,
@@ -25,9 +25,30 @@ impl LMSEvents {
         env.events().publish(topics, (lesson_id, title));
     }
 
+    /// Emitted when a lesson is removed from a course
     pub fn emit_lesson_removed(env: &Env, course_id: u64, lesson_id: u64) {
         let topics = (symbol_short!("lesson"), symbol_short!("removed"), course_id);
         env.events().publish(topics, lesson_id);
+    }
+
+    /// Emitted when a course is published, making it visible/enrollable
+    pub fn emit_course_published(
+        env: &Env,
+        course_id: u64,
+        caller: Address,
+    ) {
+        let topics = (symbol_short!("course"), symbol_short!("publish"), course_id);
+        env.events().publish(topics, caller);
+    }
+
+    /// Emitted when a course is archived
+    pub fn emit_course_archived(
+        env: &Env,
+        course_id: u64,
+        caller: Address,
+    ) {
+        let topics = (symbol_short!("course"), symbol_short!("archived"), course_id);
+        env.events().publish(topics, caller);
     }
 
     /// Emitted when a student enrolls in a course
@@ -37,6 +58,16 @@ impl LMSEvents {
         student: Address,
     ) {
         let topics = (symbol_short!("student"), symbol_short!("enrolled"), course_id);
+        env.events().publish(topics, student);
+    }
+
+    /// Emitted when a student withdraws from a course before completing it
+    pub fn emit_student_withdrawn(
+        env: &Env,
+        course_id: u64,
+        student: Address,
+    ) {
+        let topics = (symbol_short!("student"), symbol_short!("withdrawn"), course_id);
         env.events().publish(topics, student);
     }
 
@@ -86,3 +117,12 @@ impl LMSEvents {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use soroban_sdk::testutils::{Address as _, Events};
+
+    #[test]
+    fn test_all_lms_events_published_successfully() {
+        let env = Env::default();
+        let contract_id = env.register(crate::LMSContract, ());

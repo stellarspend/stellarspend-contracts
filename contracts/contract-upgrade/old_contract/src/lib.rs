@@ -4,7 +4,7 @@
 // across this repo for these informational upgrade events.
 #![allow(deprecated)]
 
-//! Upgradeable contract with multisig-authorized, timelocked upgrades.
+//! Upgradeable contract with governance-gated, multisig-authorized, timelocked upgrades.
 //!
 //! Upgrades follow a propose -> approve -> execute lifecycle:
 //!   1. A configured signer calls [`schedule_upgrade`], which records a pending
@@ -12,18 +12,40 @@
 //!      execution time to `now + timelock_delay`.
 //!   2. Other signers call [`approve_upgrade`] until the approval count reaches
 //!      the configured threshold (admin multisig verification).
-//!   3. Once the threshold is met *and* the timelock has elapsed, any signer can
-//!      call [`execute_upgrade`] to swap the contract Wasm.
+//!   3. Before execution, the governance contract is checked for an approved
+//!      upgrade proposal. If no governance address is configured, the upgrade
+//!      proceeds with only multisig + timelock (backwards compatible).
+//!   4. Once the threshold is met *and* the timelock has elapsed *and* the
+//!      governance proposal (if configured) is approved, any signer can call
+//!      [`execute_upgrade`] to swap the contract Wasm.
 //!
-//! This protects upgrade permissions in two ways required by the acceptance
-//! criteria: unauthorized callers are rejected (only configured signers may act,
-//! and a threshold of approvals is enforced) and a timelock delay is enforced
-//! before any upgrade can take effect.
+//! This protects upgrade permissions in three ways: unauthorized callers are
+//! rejected, a threshold of approvals is enforced, a timelock delay is enforced,
+//! and optionally a governance vote must pass before the upgrade can take effect.
 
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, panic_with_error, symbol_short, Address,
     BytesN, Env, Vec,
 };
+
+// Governance contract client for cross-contract invocation.
+// Uses a raw soroban-sdk contractclient trait instead of a Rust dependency
+// on the governance crate to avoid SDK version conflicts (upgrade contract
+// uses 23.0.1 while the workspace defaults to 22.0.0).
+mod governance_interface {
+    use soroban_sdk::{contractclient, Address, BytesN, Env};
+
+    #[contractclient(name = "GovernanceClient")]
+    pub trait GovernanceInterface {
+        /// Check whether an upgrade proposal has been approved (passed quorum
+        /// + threshold, within deadline, not yet executed).
+        fn is_upgrade_proposal_approved(env: Env, proposal_id: u32) -> bool;
+
+        /// Consume (execute) an approved upgrade proposal. Returns the Wasm
+        /// hash and new version that were authorized. Reverts if not approved.
+        fn consume_upgrade_proposal(env: Env, caller: Address, proposal_id: u32) -> (BytesN<32>, u32);
+    }
+}
 
 /// Default timelock delay applied at construction: 48 hours (in seconds).
 const DEFAULT_TIMELOCK_DELAY: u64 = 48 * 60 * 60;
@@ -41,6 +63,13 @@ enum DataKey {
     TimelockDelay,
     /// The single in-flight upgrade proposal, if any.
     Pending,
+    /// Governance contract address. When set, upgrades additionally require
+    /// a passed governance proposal (gating via `governance::is_upgrade_proposal_approved`).
+    /// When absent, only multisig + timelock are enforced (backwards compatible).
+    Governance,
+    /// The governance proposal ID that authorized the current pending upgrade.
+    /// Set during `schedule_upgrade` when a governance proposal ID is provided.
+    GovernanceProposalId,
 }
 
 /// A pending, not-yet-executed upgrade proposal.
@@ -163,6 +192,34 @@ impl UpgradeableContract {
         e.storage().instance().get(&DataKey::Pending)
     }
 
+    // ---------------------------------------------------------------------
+    // Governance configuration
+    // ---------------------------------------------------------------------
+
+    /// Set the governance contract address. When set, every upgrade execution
+    /// will additionally require a passed governance upgrade proposal.
+    /// Only the admin may call this.
+    pub fn set_governance(e: Env, gov_address: Address) {
+        Self::require_admin(&e);
+        e.storage()
+            .instance()
+            .set(&DataKey::Governance, &gov_address);
+        e.events()
+            .publish((symbol_short!("gov_set"),), gov_address);
+    }
+
+    /// Returns the configured governance contract address, or `None` if
+    /// governance gating is not enabled.
+    pub fn get_governance(e: Env) -> Option<Address> {
+        e.storage().instance().get(&DataKey::Governance)
+    }
+
+    /// Returns the governance proposal ID associated with the pending upgrade,
+    /// or `None` if the pending upgrade was scheduled without governance.
+    pub fn get_governance_proposal_id(e: Env) -> Option<u32> {
+        e.storage().instance().get(&DataKey::GovernanceProposalId)
+    }
+
     /// Number of approvals recorded on the pending upgrade (0 if none pending).
     pub fn upgrade_approval_count(e: Env) -> u32 {
         match Self::get_pending_upgrade(e) {
@@ -179,6 +236,58 @@ impl UpgradeableContract {
             Some(p) => p.approvals.len() >= threshold && e.ledger().timestamp() >= p.execute_at,
             None => false,
         }
+    }
+
+    /// Schedule an upgrade with an associated governance proposal ID.
+    /// Behaves identically to [`schedule_upgrade`] but additionally stores
+    /// the governance proposal ID so that `execute_upgrade` can verify it
+    /// against the governance contract.
+    pub fn schedule_upgrade_with_governance(
+        e: Env,
+        signer: Address,
+        new_wasm_hash: BytesN<32>,
+        new_version: u32,
+        governance_proposal_id: u32,
+    ) {
+        signer.require_auth();
+        Self::require_signer(&e, &signer);
+
+        if e.storage().instance().has(&DataKey::Pending) {
+            panic_with_error!(&e, UpgradeError::PendingUpgradeExists);
+        }
+
+        let current_version = Self::version(e.clone());
+        if new_version <= current_version {
+            panic_with_error!(&e, UpgradeError::InvalidVersion);
+        }
+        if !e.storage().instance().has(&DataKey::Admin) {
+            panic_with_error!(&e, UpgradeError::AdminMissing);
+        }
+
+        let now = e.ledger().timestamp();
+        let delay = Self::get_timelock_delay(e.clone());
+        let execute_at = now.saturating_add(delay);
+
+        let mut approvals = Vec::new(&e);
+        approvals.push_back(signer.clone());
+
+        let pending = PendingUpgrade {
+            wasm_hash: new_wasm_hash.clone(),
+            new_version,
+            proposer: signer.clone(),
+            scheduled_at: now,
+            execute_at,
+            approvals,
+        };
+        e.storage().instance().set(&DataKey::Pending, &pending);
+        e.storage()
+            .instance()
+            .set(&DataKey::GovernanceProposalId, &governance_proposal_id);
+
+        e.events().publish(
+            (symbol_short!("upg_sched"), signer),
+            (new_wasm_hash, new_version, execute_at, governance_proposal_id),
+        );
     }
 
     // ---------------------------------------------------------------------
@@ -274,7 +383,11 @@ impl UpgradeableContract {
     }
 
     /// Execute the pending upgrade. Requires that a configured signer authorizes
-    /// the call, the approval threshold is met, and the timelock has elapsed.
+    /// the call, the approval threshold is met, the timelock has elapsed, and
+    /// (if governance is configured) a passed governance upgrade proposal exists.
+    ///
+    /// When governance is enabled, the governance proposal is consumed
+    /// (marked executed) as part of this call to provide replay protection.
     pub fn execute_upgrade(e: Env, executor: Address) {
         executor.require_auth();
         Self::require_signer(&e, &executor);
@@ -296,6 +409,35 @@ impl UpgradeableContract {
             panic_with_error!(&e, UpgradeError::TimelockNotElapsed);
         }
 
+        // Governance gating: if a governance contract is configured, verify
+        // that an approved upgrade proposal exists.
+        if let Some(gov_addr) = Self::get_governance(e.clone()) {
+            let prop_id: u32 = e
+                .storage()
+                .instance()
+                .get(&DataKey::GovernanceProposalId)
+                .unwrap_or_else(|| panic_with_error!(&e, UpgradeError::NoPendingUpgrade));
+
+            let gov_client = governance_interface::GovernanceClient::new(&e, &gov_addr);
+
+            // Read-only pre-check: is the proposal approved WITHOUT consuming it.
+            // This allows us to fail early before we modify state.
+            if !gov_client.is_upgrade_proposal_approved(&prop_id) {
+                panic_with_error!(&e, UpgradeError::ThresholdNotMet);
+            }
+
+            // Consume the governance proposal — this marks it executed
+            // (replay protection). If the proposal is missing, expired, or
+            // insufficiently approved this call will panic.
+            let (_authorized_hash, authorized_version) =
+                gov_client.consume_upgrade_proposal(&executor, &prop_id);
+
+            // Verify the governance proposal authorized this exact version.
+            if authorized_version != pending.new_version {
+                panic_with_error!(&e, UpgradeError::InvalidVersion);
+            }
+        }
+
         // Re-validate version and critical state at execution time.
         let current_version = Self::version(e.clone());
         if pending.new_version <= current_version {
@@ -313,6 +455,7 @@ impl UpgradeableContract {
             .update_current_contract_wasm(pending.wasm_hash.clone());
 
         e.storage().instance().remove(&DataKey::Pending);
+        e.storage().instance().remove(&DataKey::GovernanceProposalId);
 
         e.events().publish(
             (

@@ -37,20 +37,23 @@ jobs:
       - name: Check formatting
         run: cargo fmt -- --check
 
+      - name: Generate Cargo.lock and pin ed25519-dalek
+        run: |
+          cargo generate-lockfile
+          cargo update -p ed25519-dalek@3.0.0 --precise 2.2.0 \
+            || echo "ed25519-dalek 3.x not in lockfile; already compatible"
+
       - name: Run Clippy
-        run: cargo clippy -- -D warnings
+        run: cargo clippy --features testutils -- -D warnings
 
       - name: Run tests
-        run: cargo test
+        run: cargo test --features testutils
 
       - name: Build WASM release
         run: cargo build --target wasm32-unknown-unknown --release
 
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked
-
-      - name: Generate Cargo.lock
-        run: cargo generate-lockfile
 
       - name: Run cargo audit (dependency vulnerability scan)
         run: cargo audit

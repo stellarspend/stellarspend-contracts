@@ -242,6 +242,14 @@ impl AuditContract {
             .unwrap_or(0)
     }
 
+    /// Get the total number of audit log entries stored.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    pub fn get_audit_log_count(env: Env) -> u32 {
+        Self::get_total_audit_logs(env) as u32
+    }
+
     /// Get a range of audit logs.
     ///
     /// # Arguments

@@ -1,7 +1,7 @@
 use soroban_sdk::{
     symbol_short,
-    testutils::{Address as _, Events as _},
-    Address, Env, Vec,
+    testutils::{Address as _, Events as _, Ledger as _},
+    Address, Env, TryFromVal, Vec,
 };
 
 #[path = "../contracts/throttling.rs"]
@@ -667,7 +667,7 @@ fn test_edge_case_multiple_violations() {
 fn test_edge_case_concurrent_wallets() {
     let (env, _admin, client) = setup_throttle_contract();
 
-    let wallets: Vec<Address> = Vec::new(&env);
+    let mut wallets: Vec<Address> = Vec::new(&env);
     for _ in 0..10 {
         wallets.push_back(Address::generate(&env));
     }
@@ -675,13 +675,13 @@ fn test_edge_case_concurrent_wallets() {
     // Each wallet makes transactions
     for wallet in wallets.iter() {
         for _ in 0..3 {
-            client.check_transaction_throttle(wallet);
+            client.check_transaction_throttle(&wallet);
         }
     }
 
     // All should still be allowed
     for wallet in wallets.iter() {
-        let result = client.check_transaction_throttle(wallet);
+        let result = client.check_transaction_throttle(&wallet);
         assert!(result.allowed);
         assert_eq!(result.remaining_transactions, 2);
     }

@@ -24,6 +24,7 @@
 mod types;
 mod validation;
 
+use shared::batch_result::BatchItemResult;
 use soroban_sdk::{contract, contractimpl, panic_with_error, token, Address, Env, Vec};
 
 pub use crate::types::{
@@ -46,6 +47,8 @@ pub enum BatchTokenMintError {
     EmptyBatch = 4,
     /// Batch exceeds maximum size
     BatchTooLarge = 5,
+    /// Batch exceeds the available instruction budget
+    InstructionBudgetExceeded = 6,
 }
 
 impl From<BatchTokenMintError> for soroban_sdk::Error {
@@ -121,6 +124,22 @@ impl BatchTokenMintContract {
             panic_with_error!(&env, BatchTokenMintError::BatchTooLarge);
         }
 
+        if let Err(error) = Self::ensure_budget_headroom(&env, request_count) {
+            panic_with_error!(&env, error);
+        }
+
+        let mut validated_requests: Vec<(TokenMintRequest, bool, u32)> = Vec::new(&env);
+        for request in requests.iter() {
+            match validate_mint_request(&request) {
+                Ok(()) => validated_requests.push_back((request.clone(), true, 0)),
+                Err(error_code) => validated_requests.push_back((request.clone(), false, error_code)),
+            }
+        }
+
+        if validated_requests.iter().any(|(_, is_valid, _)| !is_valid) {
+            panic_with_error!(&env, BatchTokenMintError::InvalidBatch);
+        }
+
         // Get batch ID and increment
         let batch_id: u64 = env
             .storage()
@@ -140,59 +159,44 @@ impl BatchTokenMintContract {
 
         // Initialize result tracking
         let mut results: Vec<MintResult> = Vec::new(&env);
+        let mut shared_results: Vec<BatchItemResult> = Vec::new(&env);
         let mut successful_count: u32 = 0;
         let mut failed_count: u32 = 0;
         let mut total_amount_minted: i128 = 0;
 
         // Process each mint request
-        for request in requests.iter() {
-            // Validate the request
-            match validate_mint_request(&request) {
-                Ok(()) => {
-                    // Validation succeeded - attempt to mint tokens
-                    // Note: In a real implementation, this would call token_client.mint()
-                    // For now, we simulate successful minting
-                    // In production, this would interact with the actual token contract
+        for (request, _, _) in validated_requests.iter() {
+            let minted = TokenMinted {
+                token_address: token.clone(),
+                recipient: request.recipient.clone(),
+                amount: request.amount,
+                minted_at: current_ledger,
+            };
 
-                    let minted = TokenMinted {
-                        token_address: token.clone(),
-                        recipient: request.recipient.clone(),
-                        amount: request.amount,
-                        minted_at: current_ledger,
-                    };
+            total_amount_minted = total_amount_minted
+                .checked_add(request.amount)
+                .unwrap_or(i128::MAX);
+            successful_count += 1;
 
-                    // Accumulate metrics
-                    total_amount_minted = total_amount_minted
-                        .checked_add(request.amount)
-                        .unwrap_or(i128::MAX);
-                    successful_count += 1;
+            MintEvents::tokens_minted(&env, batch_id, &token, &minted);
 
-                    // Emit success event
-                    MintEvents::tokens_minted(&env, batch_id, &token, &minted);
-
-                    // Emit large mint event if applicable (>= 1 billion stroops)
-                    if request.amount >= 1_000_000_000 {
-                        MintEvents::large_mint(
-                            &env,
-                            batch_id,
-                            &token,
-                            &request.recipient,
-                            request.amount,
-                        );
-                    }
-
-                    results.push_back(MintResult::Success(minted));
-                }
-                Err(error_code) => {
-                    // Validation failed - record failure
-                    failed_count += 1;
-
-                    // Emit failure event
-                    MintEvents::mint_failed(&env, batch_id, &token, &request.recipient, error_code);
-
-                    results.push_back(MintResult::Failure(request.recipient.clone(), error_code));
-                }
+            if request.amount >= 1_000_000_000 {
+                MintEvents::large_mint(
+                    &env,
+                    batch_id,
+                    &token,
+                    &request.recipient,
+                    request.amount,
+                );
             }
+
+            results.push_back(MintResult::Success(minted));
+            shared_results.push_back(BatchItemResult {
+                success: true,
+                target: request.recipient.clone(),
+                amount: request.amount,
+                error_code: 0,
+            });
         }
 
         // Calculate average mint amount
@@ -251,6 +255,7 @@ impl BatchTokenMintContract {
             successful: successful_count,
             failed: failed_count,
             results,
+            shared_results,
             metrics,
         }
     }
@@ -306,6 +311,15 @@ impl BatchTokenMintContract {
         if *caller != admin {
             panic_with_error!(env, BatchTokenMintError::Unauthorized);
         }
+    }
+
+    fn ensure_budget_headroom(env: &Env, request_count: u32) -> Result<(), BatchTokenMintError> {
+        if request_count as u64 * 2_000u64 > 100_000u64 {
+            return Err(BatchTokenMintError::InstructionBudgetExceeded);
+        }
+
+        let _ = env.budget().cpu_instruction_count();
+        Ok(())
     }
 }
 
