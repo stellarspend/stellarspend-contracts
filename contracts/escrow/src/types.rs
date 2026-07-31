@@ -15,6 +15,10 @@ pub enum EscrowStatus {
     Released,
     /// Funds returned to depositor (reversed)
     Reversed,
+    /// Escrow in dispute state, awaiting arbitration
+    Disputed,
+    /// Dispute resolved by arbiter with split settlement
+    Resolved,
 }
 
 /// An escrow record.
@@ -141,6 +145,27 @@ impl EscrowEvents {
                 arbiter.clone(),
                 amount,
             ),
+        );
+    }
+
+    /// Emitted when an escrow is disputed.
+    pub fn escrow_disputed(env: &Env, escrow_id: u64, caller: &Address) {
+        let topics = (symbol_short!("escrow"), symbol_short!("disputed"));
+        env.events().publish(topics, (escrow_id, caller.clone()));
+    }
+
+    /// Emitted when an escrow dispute is resolved.
+    pub fn escrow_resolved(
+        env: &Env,
+        escrow_id: u64,
+        arbiter: &Address,
+        depositor_amount: i128,
+        recipient_amount: i128,
+    ) {
+        let topics = (symbol_short!("escrow"), symbol_short!("resolved"));
+        env.events().publish(
+            topics,
+            (escrow_id, arbiter.clone(), depositor_amount, recipient_amount),
         );
     }
 

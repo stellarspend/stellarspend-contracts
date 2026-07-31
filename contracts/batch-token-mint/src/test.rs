@@ -1,6 +1,7 @@
 //! Comprehensive unit and integration tests for batch token minting.
 
 #![cfg(test)]
+extern crate std;
 
 use crate::{BatchTokenMintContract, BatchTokenMintContractClient};
 use soroban_sdk::{testutils::Address as _, Address, Env, Vec};

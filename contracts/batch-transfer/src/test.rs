@@ -600,3 +600,28 @@ fn test_batch_burn_unauthorized() {
     let unauthorized = Address::generate(&env);
     client.batch_burn(&unauthorized, &token, &burns);
 }
+
+#[test]
+fn test_get_batch_transfer_recipient_count() {
+    let (env, admin, token, token_client, client) = setup_test_env();
+
+    // Unknown batch ID returns 0
+    assert_eq!(client.get_batch_transfer_recipient_count(&999), 0);
+
+    let recipient1 = Address::generate(&env);
+    let recipient2 = Address::generate(&env);
+    let amount = 10_000_000i128;
+
+    token_client.mint(&admin, &(amount * 2));
+
+    let mut transfers: Vec<TransferRequest> = Vec::new(&env);
+    transfers.push_back(create_transfer_request(&env, recipient1, amount));
+    transfers.push_back(create_transfer_request(&env, recipient2, amount));
+
+    let result = client.batch_transfer(&admin, &token, &transfers);
+    assert_eq!(result.successful, 2);
+
+    let recipient_count = client.get_batch_transfer_recipient_count(&1);
+    assert_eq!(recipient_count, 2);
+}
+

@@ -52,6 +52,7 @@ pub enum DataKey {
     TotalBatches,
     TotalTransfersProcessed,
     TotalVolumeTransferred,
+    BatchRecipientCount(u64),
 }
 pub struct TransferEvents;
 impl TransferEvents {

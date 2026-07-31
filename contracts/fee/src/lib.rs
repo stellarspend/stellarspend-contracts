@@ -25,7 +25,7 @@ use crate::escrow::{
 use crate::events::{ConfigEvents, FeeEvents, TierEvents};
 use crate::fee_validation::validate_fee_percentage_bounds;
 use crate::reconciliation::reconcile;
-pub use crate::reconciliation::ReconciliationResult;
+pub use crate::reconciliation::{ReconciliationResult, ReconciliationReport, reconcile_treasury};
 use crate::storage::{
     has_admin, is_valid_tier, read_admin, read_current_cycle, read_escrow_balance, read_fee_bps,
     read_last_active, read_locked, read_max_fee, read_min_fee, read_pending_fees, read_token,
@@ -35,6 +35,7 @@ use crate::storage::{
     write_user_tier, FeeConfig, FeeStats, DEFAULT_FEE_BPS, DEFAULT_MAX_FEE, DEFAULT_MIN_FEE,
 };
 pub use crate::storage::{BatchFeeResult, DataKey, MAX_BATCH_SIZE, MAX_FEE_BPS};
+use crate::auth::require_admin;
 use crate::utils::compute_fee;
 use crate::validation::{
     validate_amount_positive_or_panic, validate_fee_bps_or_panic, validate_max_fee_or_panic,
@@ -223,6 +224,23 @@ impl FeeContract {
 
         write_locked(&env, false);
         FeeEvents::unlocked(&env);
+    }
+
+    pub fn reconcile_treasury(env: Env, _admin: Address) -> ReconciliationReport {
+        require_admin(&env, &_admin);
+        let report = reconcile_treasury(&env);
+        FeeEvents::reconciliation_completed(&env, report.is_match, report.difference);
+        report
+    }
+
+    pub fn get_reconciliation_status(env: Env) -> ReconciliationResult {
+        Self::require_initialized(&env);
+        reconcile(&env)
+    }
+
+    pub fn reconcile_fees(env: Env, _admin: Address) -> ReconciliationResult {
+        require_admin(&env, &_admin);
+        reconcile(&env)
     }
 
     pub fn set_fee_bps(env: Env, _admin: Address, fee_bps: u32) {
