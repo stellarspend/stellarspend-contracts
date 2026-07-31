@@ -31,11 +31,10 @@ use soroban_sdk::{
 };
 
 pub use crate::types::{
-    BatchGoalMetrics, BatchGoalResult, BatchMilestoneMetrics, BatchMilestoneResult,
-    ContributionRecord, DataKey, ErrorCode, GoalCertificate, GoalEvents, GoalResult, GoalSnapshot,
-    MilestoneAchievement, MilestoneAchievementRequest, MilestoneResult, SavingsGoal,
-    SavingsGoalProgress, SavingsGoalRequest, AllocationGoal, AutoAllocationRequest,
-    AutoAllocationResult, MAX_BATCH_SIZE, REVERSAL_PERIOD_SECS,
+    AllocationGoal, AutoAllocationRequest, AutoAllocationResult, BatchGoalMetrics, BatchGoalResult,
+    BatchMilestoneMetrics, BatchMilestoneResult, ContributionRecord, DataKey, ErrorCode,
+    GoalCertificate, GoalEvents, GoalResult, GoalSnapshot, MilestoneAchievement,
+    MilestoneAchievementRequest, MilestoneResult, SavingsGoal, SavingsGoalProgress,
 };
 use crate::validation::{validate_goal_name_unique, validate_goal_request};
 
@@ -911,6 +910,23 @@ impl SavingsGoalsContract {
                 .persistent()
                 .set(&DataKey::Goal(goal_id), &goal);
         }
+
+        // Issue a completion certificate if complete and one hasn't been issued yet
+        if is_complete {
+            let cert_key = DataKey::Certificate(goal_id);
+            if !env.storage().persistent().has(&cert_key) {
+                let timestamp = env.ledger().sequence() as u64;
+                let cert = GoalCertificate {
+                    goal_id,
+                    user: goal.user.clone(),
+                    target_amount: goal.target_amount,
+                    completed_at: timestamp,
+                };
+                env.storage().persistent().set(&cert_key, &cert);
+                GoalEvents::certificate_issued(env, goal_id, timestamp);
+            }
+        }
+
         for &milestone in milestones.iter() {
             if progress >= milestone && !triggered.contains(&milestone) {
                 // Emit event
@@ -958,6 +974,63 @@ impl SavingsGoalsContract {
                 env.storage().persistent().set(&cert_key, &certificate);
             }
         }
+    }
+
+    /// Merges a source goal into a target goal.
+    /// The source goal will be archived (is_active = false) and its current amount will be moved to the target goal.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `caller` - The address calling this function (must be owner of both goals)
+    /// * `source_goal_id` - The ID of the goal to merge from
+    /// * `target_goal_id` - The ID of the goal to merge to
+    pub fn merge_goals(env: Env, caller: Address, source_goal_id: u64, target_goal_id: u64) {
+        caller.require_auth();
+
+        if source_goal_id == target_goal_id {
+            panic_with_error!(&env, ErrorCode::CANNOT_MERGE);
+        }
+
+        let mut source_goal: SavingsGoal = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Goal(source_goal_id))
+            .unwrap_or_else(|| panic_with_error!(&env, ErrorCode::GOAL_NOT_FOUND));
+
+        let mut target_goal: SavingsGoal = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Goal(target_goal_id))
+            .unwrap_or_else(|| panic_with_error!(&env, ErrorCode::GOAL_NOT_FOUND));
+
+        if source_goal.user != caller || target_goal.user != caller {
+            panic_with_error!(&env, ErrorCode::UNAUTHORIZED_USER);
+        }
+
+        if !source_goal.is_active || !target_goal.is_active {
+            panic_with_error!(&env, ErrorCode::GOAL_NOT_ACTIVE);
+        }
+
+        let amount_to_merge = source_goal.current_amount;
+        target_goal.current_amount = target_goal
+            .current_amount
+            .checked_add(amount_to_merge)
+            .unwrap_or(i128::MAX);
+
+        source_goal.current_amount = 0;
+        source_goal.is_active = false;
+
+        env.storage()
+            .persistent()
+            .set(&DataKey::Goal(source_goal_id), &source_goal);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Goal(target_goal_id), &target_goal);
+
+        GoalEvents::goals_merged(&env, source_goal_id, target_goal_id, amount_to_merge);
+
+        // Check milestones for the target goal after adding funds
+        Self::check_and_emit_milestones(&env, target_goal_id);
     }
     // ...existing code...
 
@@ -1134,6 +1207,23 @@ impl SavingsGoalsContract {
             .persistent()
             .get(&DataKey::UserGoals(user))
             .unwrap_or(Vec::new(&env))
+    }
+
+    /// Returns the number of savings goals an address has created.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `owner` - The address whose goal count is queried
+    ///
+    /// # Returns
+    /// * `u32` - The number of goals created by `owner`, or 0 if none exist
+    pub fn get_goal_count(env: Env, owner: Address) -> u32 {
+        let goals: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&DataKey::UserGoals(owner))
+            .unwrap_or(Vec::new(&env));
+        goals.len()
     }
 
     /// Returns a previously recorded contribution for a goal.
@@ -1456,9 +1546,7 @@ impl SavingsGoalsContract {
             .instance()
             .get(&DataKey::TotalMilestonesAchieved)
             .unwrap_or(0)
-    }
-
-    /// Returns the ledger sequence at which a goal was automatically closed,
+    }    /// Returns the ledger sequence at which a goal was automatically closed,
     /// or `None` if the goal has not yet been closed.
     pub fn get_goal_closed_at(env: Env, goal_id: u64) -> Option<u64> {
         env.storage()
@@ -1581,9 +1669,10 @@ impl SavingsGoalsContract {
         let goal_name = goal.goal_name.clone();
 
         // Remove name-to-id mapping for previous owner
-        env.storage()
-            .persistent()
-            .remove(&DataKey::GoalByName(previous_owner.clone(), goal_name.clone()));
+        env.storage().persistent().remove(&DataKey::GoalByName(
+            previous_owner.clone(),
+            goal_name.clone(),
+        ));
 
         // Remove goal from previous owner's goal list
         let old_user_goals: Vec<u64> = env
@@ -1620,9 +1709,10 @@ impl SavingsGoalsContract {
             .get(&DataKey::UserGoals(new_beneficiary.clone()))
             .unwrap_or(Vec::new(&env));
         new_user_goals.push_back(goal_id);
-        env.storage()
-            .persistent()
-            .set(&DataKey::UserGoals(new_beneficiary.clone()), &new_user_goals);
+        env.storage().persistent().set(
+            &DataKey::UserGoals(new_beneficiary.clone()),
+            &new_user_goals,
+        );
 
         // Store beneficiary record for audit trail
         env.storage()
@@ -1630,12 +1720,7 @@ impl SavingsGoalsContract {
             .set(&DataKey::GoalBeneficiary(goal_id), &new_beneficiary);
 
         // Emit audit event
-        GoalEvents::beneficiary_transferred(
-            &env,
-            goal_id,
-            &previous_owner,
-            &new_beneficiary,
-        );
+        GoalEvents::beneficiary_transferred(&env, goal_id, &previous_owner, &new_beneficiary);
     }
 
     /// Returns the current beneficiary for a goal (the goal owner).
@@ -1687,10 +1772,8 @@ impl SavingsGoalsContract {
         }
 
         // Check idempotency to prevent duplicate allocations
-        let alloc_key = DataKey::AutoAllocationIdempotency(
-            caller.clone(),
-            request.idempotency_token.clone(),
-        );
+        let alloc_key =
+            DataKey::AutoAllocationIdempotency(caller.clone(), request.idempotency_token.clone());
         if env.storage().persistent().has(&alloc_key) {
             panic_with_error!(&env, SavingsGoalError::DuplicateContributionRequest);
         }
@@ -1701,9 +1784,7 @@ impl SavingsGoalsContract {
             if alloc.percentage == 0 || alloc.percentage > 100 {
                 panic_with_error!(&env, SavingsGoalError::InvalidAmount);
             }
-            percentage_sum = percentage_sum
-                .checked_add(alloc.percentage)
-                .unwrap_or(0);
+            percentage_sum = percentage_sum.checked_add(alloc.percentage).unwrap_or(0);
         }
 
         if percentage_sum != 100 {
@@ -1819,12 +1900,7 @@ impl SavingsGoalsContract {
         }
 
         // Emit auto-allocation event
-        GoalEvents::auto_allocation_executed(
-            &env,
-            &caller,
-            request.total_amount,
-            goals_allocated,
-        );
+        GoalEvents::auto_allocation_executed(&env, &caller, request.total_amount, goals_allocated);
 
         AutoAllocationResult {
             success: goals_failed == 0,
@@ -1851,6 +1927,11 @@ impl SavingsGoalsContract {
             }
         }
         normalized
+=======
+    /// Retrieves a completion certificate by goal ID.
+    pub fn get_certificate(env: Env, goal_id: u64) -> Option<GoalCertificate> {
+        env.storage().persistent().get(&DataKey::Certificate(goal_id))
+>>>>>>> 067107d (fix(contracts): fix CI compilation errors across batch-transfer, spending-limits, multi-currency-wallet, and batch-rewards)
     }
 
     // Internal helper to verify admin

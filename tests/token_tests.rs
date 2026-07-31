@@ -791,3 +791,26 @@ fn test_event_emission_comprehensive() {
         .iter()
         .any(|ev| { event_topics_contain_symbol(&env, &ev.1, symbol_short!("burn")) }));
 }
+
+#[test]
+fn test_get_token_balance() {
+    let (_env, admin, _token_contract, client) = setup_token_contract();
+
+    let user = Address::generate(&_env);
+    let amount = 1000i128;
+
+    // Test balance for address with no tokens
+    assert_eq!(client.get_token_balance(&user), 0);
+
+    // Mint tokens to user
+    client.mint(&admin, &user, &amount);
+
+    // Test balance for address with tokens
+    assert_eq!(client.get_token_balance(&user), amount);
+
+    // Burn some tokens
+    client.burn(&user, &500i128);
+
+    // Test balance after burn
+    assert_eq!(client.get_token_balance(&user), 500);
+}

@@ -1018,3 +1018,4 @@ fn test_error_conversion_wired() {
     let sdk_err: soroban_sdk::Error = err.into();
     assert_eq!(sdk_err, soroban_sdk::Error::from_contract_error(1));
 }
+use soroban_sdk::Env;

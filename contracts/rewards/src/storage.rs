@@ -6,7 +6,7 @@
 
 use soroban_sdk::{vec, Address, Env, Vec};
 
-use crate::types::{DataKey, RewardAccount, RewardTransaction, PERSISTENT_TTL_BUMP};
+use crate::types::{DataKey, RewardAccount, RewardAccountStats, RewardTransaction, PERSISTENT_TTL_BUMP};
 
 // ── Reward Balance ─────────────────────────────────────────────────────────────
 
@@ -126,6 +126,40 @@ pub fn has_reward_account(env: &Env, account: &Address) -> bool {
     env.storage()
         .persistent()
         .has(&DataKey::RewardAccount(account.clone()))
+}
+
+// ── Reward Account Statistics ──────────────────────────────────────────────────
+
+/// Returns aggregate statistics for `account`.
+///
+/// Returns zeroed defaults if no stats entry exists yet.
+pub fn get_account_stats(env: &Env, account: &Address) -> RewardAccountStats {
+    let key = DataKey::AccountStats(account.clone());
+    let stats = env
+        .storage()
+        .persistent()
+        .get::<DataKey, RewardAccountStats>(&key)
+        .unwrap_or(RewardAccountStats {
+            total_earned: 0,
+            total_redeemed: 0,
+            total_transactions: 0,
+            last_reward_timestamp: 0,
+        });
+    if stats.total_transactions != 0 || stats.total_earned != 0 || stats.total_redeemed != 0 {
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, PERSISTENT_TTL_BUMP, PERSISTENT_TTL_BUMP);
+    }
+    stats
+}
+
+/// Persists aggregate statistics for `account`.
+pub fn set_account_stats(env: &Env, account: &Address, stats: &RewardAccountStats) {
+    let key = DataKey::AccountStats(account.clone());
+    env.storage().persistent().set(&key, stats);
+    env.storage()
+        .persistent()
+        .extend_ttl(&key, PERSISTENT_TTL_BUMP, PERSISTENT_TTL_BUMP);
 }
 
 // ── Reward Transaction Counter ─────────────────────────────────────────────────

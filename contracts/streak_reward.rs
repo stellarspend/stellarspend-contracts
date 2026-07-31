@@ -466,6 +466,16 @@ impl StreakRewardsContract {
 
     // ── Read-only queries ─────────────────────────────────────────────────────
 
+    /// Return the current streak count for `owner`, or 0 if no record exists.
+    pub fn get_streak_count(env: Env, owner: Address) -> u32 {
+        let key = DataKey::UserStreak(owner);
+        env.storage()
+            .persistent()
+            .get::<_, UserStreakRecord>(&key)
+            .map(|record| record.streak_days)
+            .unwrap_or(0)
+    }
+
     /// Return the current streak record for `user`, or a zeroed default.
     pub fn get_streak(env: Env, user: Address) -> UserStreakRecord {
         Self::load_or_default_streak(&env, &user)
@@ -542,5 +552,26 @@ mod streak_tests {
         env.ledger().set_timestamp(86_400 * 3);
         let streak = client.record_deposit(&user);
         assert_eq!(streak, 1);
+    }
+
+    #[test]
+    fn test_get_streak_count() {
+        let env = make_env();
+        let contract_id = env.register(StreakRewardsContract, ());
+        let client = StreakRewardsContractClient::new(&env, &contract_id);
+        let admin = Address::generate(&env);
+        let token = Address::generate(&env);
+        client.initialize(&admin, &token, &10i128, &50i128, &200i128);
+        let user = Address::generate(&env);
+        let unused_user = Address::generate(&env);
+
+        assert_eq!(client.get_streak_count(&unused_user), 0);
+
+        client.record_deposit(&user);
+        assert_eq!(client.get_streak_count(&user), 1);
+
+        env.ledger().set_timestamp(86_400 * 2);
+        client.record_deposit(&user);
+        assert_eq!(client.get_streak_count(&user), 2);
     }
 }

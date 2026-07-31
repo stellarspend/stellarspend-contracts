@@ -787,4 +787,8 @@ impl TokenContract {
     pub fn token_metrics(env: Env) -> TokenMetrics {
         get_token_metrics(&env)
     }
+
+    pub fn get_token_balance(env: Env, owner: Address) -> i128 {
+        get_balance(&env, &owner)
+    }
 }

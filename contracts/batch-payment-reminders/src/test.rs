@@ -148,3 +148,36 @@ fn test_dispatch_batch_reminders_empty_batch() {
     let events = env.events().all();
     assert!(events.len() >= 2, "expected started + completed events");
 }
+
+// ── Issue #994: get_reminder_due_date view ────────────────────────────────────
+
+#[test]
+fn test_get_reminder_due_date_returns_stored_value() {
+    let env = Env::default();
+    let (admin, client) = setup(&env);
+
+    let user = Address::generate(&env);
+    let due = current_ledger(&env) + 100;
+    let requests = vec![
+        &env,
+        PaymentReminderRequest {
+            user: user.clone(),
+            due_date: due,
+        },
+    ];
+
+    client.dispatch_batch_reminders(&admin, &requests);
+
+    // The first (and only) reminder in the batch should be index 0, batch sequence as prefix.
+    let batch_id = current_ledger(&env);
+    let reminder_id = ((batch_id as u128) << 32) as u64;
+    assert_eq!(client.get_reminder_due_date(&reminder_id), due);
+}
+
+#[test]
+fn test_get_reminder_due_date_returns_zero_for_unknown() {
+    let env = Env::default();
+    let (_admin, client) = setup(&env);
+
+    assert_eq!(client.get_reminder_due_date(&99999), 0);
+}

@@ -100,6 +100,7 @@ impl BatchWalletContract {
 
         // Initialize result vectors
         let mut results: Vec<WalletCreateResult> = Vec::new(&env);
+        let mut shared_results: Vec<shared::batch_result::BatchItemResult> = Vec::new(&env);
         let mut successful_count: u32 = 0;
         let mut failed_count: u32 = 0;
 
@@ -133,6 +134,12 @@ impl BatchWalletContract {
                     request.owner.clone(),
                     error_code,
                 ));
+                shared_results.push_back(shared::batch_result::BatchItemResult {
+                    success: false,
+                    target: request.owner.clone(),
+                    amount: 0,
+                    error_code,
+                });
                 failed_count += 1;
                 WalletEvents::wallet_creation_failure(&env, batch_id, &request.owner, error_code);
                 continue;
@@ -155,6 +162,12 @@ impl BatchWalletContract {
 
             // Record success
             results.push_back(WalletCreateResult::Success(request.owner.clone()));
+            shared_results.push_back(shared::batch_result::BatchItemResult {
+                success: true,
+                target: request.owner.clone(),
+                amount: 0,
+                error_code: 0,
+            });
             successful_count += 1;
 
             let wallet_event = WalletCreatedEvent {
@@ -193,6 +206,7 @@ impl BatchWalletContract {
             successful: successful_count,
             failed: failed_count,
             results,
+            shared_results,
         }
     }
 
@@ -222,6 +236,7 @@ impl BatchWalletContract {
         WalletEvents::recovery_started(&env, batch_id, request_count);
 
         let mut results: Vec<WalletRecoveryResult> = Vec::new(&env);
+        let mut shared_results: Vec<shared::batch_result::BatchItemResult> = Vec::new(&env);
         let mut successful_count: u32 = 0;
         let mut failed_count: u32 = 0;
 
@@ -248,6 +263,12 @@ impl BatchWalletContract {
                     request.new_owner.clone(),
                     error_code,
                 ));
+                shared_results.push_back(shared::batch_result::BatchItemResult {
+                    success: false,
+                    target: request.old_owner.clone(),
+                    amount: 0,
+                    error_code,
+                });
                 failed_count += 1;
                 WalletEvents::wallet_recovery_failure(
                     &env,
@@ -277,6 +298,12 @@ impl BatchWalletContract {
                 request.old_owner.clone(),
                 request.new_owner.clone(),
             ));
+            shared_results.push_back(shared::batch_result::BatchItemResult {
+                success: true,
+                target: request.old_owner.clone(),
+                amount: 0,
+                error_code: 0,
+            });
             successful_count += 1;
 
             WalletEvents::wallet_recovered(
@@ -305,6 +332,7 @@ impl BatchWalletContract {
             successful: successful_count,
             failed: failed_count,
             results,
+            shared_results,
         }
     }
 

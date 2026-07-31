@@ -180,6 +180,28 @@ fn test_batch_transfer_with_invalid_amount() {
 }
 
 #[test]
+fn test_batch_transfer_reverts_when_any_request_is_invalid() {
+    let (env, admin, token, token_client, client) = setup_test_env();
+
+    let recipient1 = Address::generate(&env);
+    let recipient2 = Address::generate(&env);
+
+    let token_admin_client = token::StellarAssetClient::new(&env, &token);
+    token_admin_client.mint(&admin, &30_000_000);
+
+    let mut transfers: Vec<TransferRequest> = Vec::new(&env);
+    transfers.push_back(create_transfer_request(&env, recipient1.clone(), 10_000_000));
+    transfers.push_back(create_transfer_request(&env, recipient2.clone(), 0));
+
+    let result = client.try_batch_transfer(&admin, &token, &transfers);
+
+    assert!(result.is_err(), "invalid requests should revert the whole batch");
+    assert_eq!(token_client.balance(&recipient1), 0);
+    assert_eq!(token_client.balance(&recipient2), 0);
+    assert_eq!(token_client.balance(&admin), 30_000_000);
+}
+
+#[test]
 fn test_batch_transfer_rejects_duplicate_recipients() {
     let (env, admin, token, token_client, client) = setup_test_env();
 
@@ -578,3 +600,28 @@ fn test_batch_burn_unauthorized() {
     let unauthorized = Address::generate(&env);
     client.batch_burn(&unauthorized, &token, &burns);
 }
+
+#[test]
+fn test_get_batch_transfer_recipient_count() {
+    let (env, admin, token, token_client, client) = setup_test_env();
+
+    // Unknown batch ID returns 0
+    assert_eq!(client.get_batch_transfer_recipient_count(&999), 0);
+
+    let recipient1 = Address::generate(&env);
+    let recipient2 = Address::generate(&env);
+    let amount = 10_000_000i128;
+
+    token_client.mint(&admin, &(amount * 2));
+
+    let mut transfers: Vec<TransferRequest> = Vec::new(&env);
+    transfers.push_back(create_transfer_request(&env, recipient1, amount));
+    transfers.push_back(create_transfer_request(&env, recipient2, amount));
+
+    let result = client.batch_transfer(&admin, &token, &transfers);
+    assert_eq!(result.successful, 2);
+
+    let recipient_count = client.get_batch_transfer_recipient_count(&1);
+    assert_eq!(recipient_count, 2);
+}
+

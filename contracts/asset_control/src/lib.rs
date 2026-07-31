@@ -84,8 +84,10 @@ impl AssetControlContract {
             .instance()
             .set(&DataKey::Blacklist, &blacklist);
 
-        env.events()
-            .publish((symbol_short!("asset"), symbol_short!("unblack")), asset);
+        env.events().publish(
+            (symbol_short!("asset"), symbol_short!("unblklist")),
+            asset,
+        );
     }
 
     /// Checks if an asset is blacklisted.

@@ -355,6 +355,36 @@ fn test_get_user_goals() {
 }
 
 #[test]
+fn test_get_goal_count_no_goals() {
+    let (env, _admin, client) = setup_test_contract();
+    let user = Address::generate(&env);
+
+    assert_eq!(client.get_goal_count(&user), 0);
+}
+
+#[test]
+fn test_get_goal_count_with_goals() {
+    let (env, admin, client) = setup_test_contract();
+    let user = Address::generate(&env);
+    let other_user = Address::generate(&env);
+
+    let mut requests: Vec<SavingsGoalRequest> = Vec::new(&env);
+    requests.push_back(create_valid_request(&env, &user, "vacation", 100_000_000));
+    requests.push_back(create_valid_request(&env, &user, "house", 500_000_000));
+    requests.push_back(create_valid_request(
+        &env,
+        &other_user,
+        "emergency",
+        200_000_000,
+    ));
+
+    client.batch_set_savings_goals(&admin, &requests);
+
+    assert_eq!(client.get_goal_count(&user), 2);
+    assert_eq!(client.get_goal_count(&other_user), 1);
+}
+
+#[test]
 fn test_batch_metrics() {
     let (env, admin, client) = setup_test_contract();
 

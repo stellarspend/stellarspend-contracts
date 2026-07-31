@@ -1,8 +1,9 @@
-use soroban_sdk::contracttype;
+use soroban_sdk::{contracttype, Symbol};
 
 #[contracttype]
 pub enum DataKey {
-    Rate(soroban_sdk::String),
+    /// Stored conversion rate keyed by `(from, to)` currency symbols.
+    Rate(Symbol, Symbol),
 }
 
 #[contracttype]
