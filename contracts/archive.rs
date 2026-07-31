@@ -151,6 +151,22 @@ pub fn get_archive_batch(env: &Env, batch_id: u64) -> Option<CompressedArchive> 
         .get(&ArchiveDataKey::ArchiveBatch(batch_id))
 }
 
+/// Returns the archive entry for the given entry_id, or None if not found.
+///
+/// This is a read-only view function — no auth required, no state mutation.
+///
+/// # Arguments
+/// * `entry_id` - The unique identifier of the archived entry (batch_id)
+///
+/// # Returns
+/// * `Some(CompressedArchive)` if the entry exists in the archive
+/// * `None` if no entry with this id has been archived
+pub fn get_archive_entry(env: &Env, entry_id: u64) -> Option<CompressedArchive> {
+    env.storage()
+        .persistent()
+        .get(&ArchiveDataKey::ArchiveBatch(entry_id))
+}
+
 #[contract]
 pub struct ArchiveContract;
 
@@ -170,5 +186,9 @@ impl ArchiveContract {
 
     pub fn get_archive_batch(env: Env, batch_id: u64) -> Option<CompressedArchive> {
         get_archive_batch(&env, batch_id)
+    }
+
+    pub fn get_archive_entry(env: Env, entry_id: u64) -> Option<CompressedArchive> {
+        get_archive_entry(&env, entry_id)
     }
 }

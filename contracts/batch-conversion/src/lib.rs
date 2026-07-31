@@ -118,6 +118,7 @@ impl BatchConversionContract {
 
         // Initialize result vectors
         let mut results: Vec<ConversionResult> = Vec::new(&env);
+        let mut shared_results: Vec<shared::batch_result::BatchItemResult> = Vec::new(&env);
         let mut successful_count: u32 = 0;
         let mut failed_count: u32 = 0;
         let mut total_converted: i128 = 0;
@@ -174,6 +175,12 @@ impl BatchConversionContract {
                     request.amount_in,
                     error_code.clone(),
                 ));
+                shared_results.push_back(shared::batch_result::BatchItemResult {
+                    success: false,
+                    target: request.user.clone(),
+                    amount: request.amount_in,
+                    error_code: error_code.clone(),
+                });
                 failed_count += 1;
                 ConversionEvents::conversion_failure(
                     &env,
@@ -198,6 +205,12 @@ impl BatchConversionContract {
                         request.amount_in,
                         amount_out,
                     ));
+                    shared_results.push_back(shared::batch_result::BatchItemResult {
+                        success: true,
+                        target: request.user.clone(),
+                        amount: request.amount_in,
+                        error_code: 0,
+                    });
                     successful_count += 1;
                     total_converted = total_converted
                         .checked_add(request.amount_in)
@@ -222,6 +235,12 @@ impl BatchConversionContract {
                         request.amount_in,
                         error_code,
                     ));
+                    shared_results.push_back(shared::batch_result::BatchItemResult {
+                        success: false,
+                        target: request.user.clone(),
+                        amount: request.amount_in,
+                        error_code,
+                    });
                     failed_count += 1;
                     ConversionEvents::conversion_failure(
                         &env,
@@ -235,6 +254,20 @@ impl BatchConversionContract {
                 }
             }
         }
+
+        // Store output amounts for this batch
+        let mut output_amounts: Vec<i128> = Vec::new(&env);
+        for result in results.iter() {
+            match result {
+                ConversionResult::Success(_, _, _, _, amount_out) => {
+                    output_amounts.push_back(amount_out)
+                }
+                ConversionResult::Failure(_, _, _, _, _) => output_amounts.push_back(0),
+            }
+        }
+        env.storage()
+            .persistent()
+            .set(&DataKey::BatchOutput(batch_id), &output_amounts);
 
         // Update storage (batched at the end for gas efficiency)
         let total_batches: u64 = env
@@ -282,6 +315,7 @@ impl BatchConversionContract {
             failed: failed_count,
             total_converted,
             results,
+            shared_results,
         }
     }
 
@@ -307,6 +341,15 @@ impl BatchConversionContract {
             .instance()
             .get(&DataKey::TotalVolumeConverted)
             .unwrap_or(0)
+    }
+
+    /// Returns the output amounts for each item in a completed batch conversion.
+    /// Returns an empty vec for an unknown batch id.
+    pub fn get_batch_conversion_output(env: Env, batch_id: u64) -> Vec<i128> {
+        env.storage()
+            .persistent()
+            .get(&DataKey::BatchOutput(batch_id))
+            .unwrap_or_else(|| Vec::new(&env))
     }
 
     // Internal helper to execute a single conversion

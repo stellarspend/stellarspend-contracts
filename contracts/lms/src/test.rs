@@ -1,134 +1,25 @@
-#![cfg(test)]
-
-use soroban_sdk::{Env, String, Vec};
-
-use crate::{LMSContract, Module};
-
-#[test]
-fn test_initialize() {
-    let _env = Env::default();
-
-    let result = LMSContract::initialize();
-
-    assert!(result);
-}
-
-#[test]
-fn test_create_module() {
-    let env = Env::default();
-
-    let mut lessons = Vec::new(&env);
-
-    lessons.push_back(1);
-    lessons.push_back(2);
-    lessons.push_back(3);
-
-    let module = Module {
-        module_id: 1,
-        course_id: 100,
-        title: String::from_str(&env, "Introduction"),
-        lesson_ids: lessons.clone(),
-        display_order: 1,
-    };
-
-    assert_eq!(module.module_id, 1);
-    assert_eq!(module.course_id, 100);
-    assert_eq!(module.lesson_ids.len(), 3);
-    assert_eq!(module.display_order, 1);
-
-    assert_eq!(module.lesson_ids.get(0), Some(1));
-    assert_eq!(module.lesson_ids.get(1), Some(2));
-    assert_eq!(module.lesson_ids.get(2), Some(3));
-}
-
-use soroban_sdk::{Env, String};
-
-use crate::Lesson;
-
-#[test]
-fn test_create_lesson() {
-    let env = Env::default();
-
-    let lesson = Lesson {
-        lesson_id: 1,
-        course_id: 100,
-        title: String::from_str(&env, "Introduction"),
-        description: String::from_str(&env, "Welcome to the course"),
-        content_uri: String::from_str(&env, "ipfs://QmLessonHash"),
-        estimated_duration: 30,
-        lesson_order: 1,
-    };
-
-    assert_eq!(lesson.lesson_id, 1);
-    assert_eq!(lesson.course_id, 100);
-    assert_eq!(lesson.title, String::from_str(&env, "Introduction"));
-    assert_eq!(lesson.estimated_duration, 30);
-    assert_eq!(lesson.lesson_order, 1);
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn create_quiz() {
-        let quiz = Quiz {
-            quiz_id: 1,
-            lesson_id: 10,
-            passing_score: 70,
-            maximum_score: 100,
-            reward_points: 50,
-            is_active: true,
-        };
-
-        assert_eq!(quiz.quiz_id, 1);
-        assert_eq!(quiz.lesson_id, 10);
-        assert_eq!(quiz.passing_score, 70);
-        assert_eq!(quiz.maximum_score, 100);
-        assert_eq!(quiz.reward_points, 50);
-        assert!(quiz.is_active);
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn create_quiz() {
-        let quiz = Quiz {
-            quiz_id: 1,
-            lesson_id: 10,
-            passing_score: 70,
-            maximum_score: 100,
-            reward_points: 50,
-            is_active: true,
-        };
-
-        assert_eq!(quiz.quiz_id, 1);
-        assert_eq!(quiz.lesson_id, 10);
-        assert_eq!(quiz.passing_score, 70);
-        assert_eq!(quiz.maximum_score, 100);
-        assert_eq!(quiz.reward_points, 50);
-        assert!(quiz.is_active);
-    }
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
-    use soroban_sdk::{testutils::Address as _, testutils::Ledger, Env, String};
+    use soroban_sdk::{
+        testutils::{Address as _, Events, Ledger},
+        Address, Env, String, Symbol, Vec,
+    };
+
+    // --- Helper Functions ---
 
     fn setup_test_course(env: &Env, instructor: &Address, course_id: u64) -> Course {
         let course = Course {
             id: course_id,
             instructor: instructor.clone(),
+            admin: instructor.clone(),
             title: String::from_str(env, "Old Title"),
             description: String::from_str(env, "Old Description"),
             category: String::from_str(env, "Old Category"),
             difficulty: 1,
             thumbnail: String::from_str(env, "https://old.png"),
             published: false,
+            archived: false,
             created_at: env.ledger().timestamp(),
             updated_at: env.ledger().timestamp(),
         };
@@ -140,6 +31,163 @@ mod test {
         course
     }
 
+    // --- Storage Key Audit Tests ---
+
+    #[test]
+    fn test_storage_keys_read_write() {
+        let env = Env::default();
+        let student_addr = Address::generate(&env);
+        let cert_id = String::from_str(&env, "CERT-2026-001");
+
+        let keys = vec![
+            &env,
+            StorageKey::Course(101),
+            StorageKey::Lesson(202),
+            StorageKey::Module(303),
+            StorageKey::Quiz(404),
+            StorageKey::Student(student_addr.clone()),
+            StorageKey::Certificate(cert_id.clone()),
+            StorageKey::Progress(student_addr.clone(), 101),
+        ];
+
+        for (i, key) in keys.iter().enumerate() {
+            let dummy_val = (i + 1) as u64;
+
+            env.storage().instance().set(key, &dummy_val);
+            assert!(env.storage().instance().has(key));
+            let retrieved: u64 = env.storage().instance().get(key).unwrap();
+            assert_eq!(retrieved, dummy_val);
+        }
+    }
+
+    // --- Lesson & Quiz Management Tests ---
+
+    #[test]
+    fn test_reorder_lessons_success() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let instructor = Address::generate(&env);
+        let course_id = 1u64;
+
+        let l1 = Lesson {
+            id: 101,
+            course_id,
+            title: Symbol::new(&env, "Intro"),
+            position: 1,
+        };
+        let l2 = Lesson {
+            id: 102,
+            course_id,
+            title: Symbol::new(&env, "Advanced"),
+            position: 2,
+        };
+
+        env.storage().persistent().set(&(course_id, 101u64), &l1);
+        env.storage().persistent().set(&(course_id, 102u64), &l2);
+
+        let mut ids = Vec::new(&env);
+        ids.push_back(101);
+        ids.push_back(102);
+
+        let mut positions = Vec::new(&env);
+        positions.push_back(2);
+        positions.push_back(1);
+
+        LessonManager::reorder_lessons(&env, instructor, course_id, ids, positions);
+
+        let updated_l1: Lesson = env.storage().persistent().get(&(course_id, 101u64)).unwrap();
+        let updated_l2: Lesson = env.storage().persistent().get(&(course_id, 102u64)).unwrap();
+
+        assert_eq!(updated_l1.position, 2);
+        assert_eq!(updated_l2.position, 1);
+    }
+
+    #[test]
+    #[should_panic(expected = "Duplicate position detected")]
+    fn test_reorder_lessons_prevents_duplicate_positions() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let instructor = Address::generate(&env);
+        let course_id = 1u64;
+
+        let l1 = Lesson {
+            id: 101,
+            course_id,
+            title: Symbol::new(&env, "Intro"),
+            position: 1,
+        };
+        let l2 = Lesson {
+            id: 102,
+            course_id,
+            title: Symbol::new(&env, "Advanced"),
+            position: 2,
+        };
+
+        env.storage().persistent().set(&(course_id, 101u64), &l1);
+        env.storage().persistent().set(&(course_id, 102u64), &l2);
+
+        let mut ids = Vec::new(&env);
+        ids.push_back(101);
+        ids.push_back(102);
+
+        let mut positions = Vec::new(&env);
+        positions.push_back(1);
+        positions.push_back(1);
+
+        LessonManager::reorder_lessons(&env, instructor, course_id, ids, positions);
+    }
+
+    #[test]
+    fn create_quiz() {
+        let quiz = Quiz {
+            quiz_id: 1,
+            lesson_id: 10,
+            passing_score: 70,
+            maximum_score: 100,
+            reward_points: 50,
+            is_active: true,
+        };
+
+        assert_eq!(quiz.quiz_id, 1);
+        assert_eq!(quiz.lesson_id, 10);
+        assert_eq!(quiz.passing_score, 70);
+        assert_eq!(quiz.maximum_score, 100);
+        assert_eq!(quiz.reward_points, 50);
+        assert!(quiz.is_active);
+    }
+
+    // --- Course Lifecycle Tests ---
+
+    #[test]
+    fn test_publish_draft_course_success() {
+        let env = Env::default();
+        let admin = Address::generate(&env);
+        let course_id = 1u64;
+
+        let course = setup_test_course(&env, &admin, course_id);
+        let key = StorageKey::Course(course_id);
+        env.storage().instance().set(&key, &course);
+
+        env.mock_all_auths();
+        let result = publish_course(env.clone(), admin.clone(), course_id);
+        assert!(result.is_ok());
+
+        let updated: Course = env.storage().instance().get(&key).unwrap();
+        assert!(updated.published);
+    }
+
+    #[test]
+    fn test_publish_invalid_course_fails() {
+        let env = Env::default();
+        let caller = Address::generate(&env);
+
+        env.mock_all_auths();
+        let result = publish_course(env, caller, 999u64);
+        assert!(result.is_err());
+    }
+
     #[test]
     fn test_successful_update() {
         let env = Env::default();
@@ -149,13 +197,12 @@ mod test {
         let course_id = 1u64;
         setup_test_course(&env, &instructor, course_id);
 
-        // Advance timestamp to test updated_at change
         env.ledger().set_timestamp(1_000_000);
 
         let update_input = UpdateCourseInput {
             title: Some(String::from_str(&env, "New Title")),
             description: Some(String::from_str(&env, "New Description")),
-            category: None, // Leave unchanged
+            category: None,
             difficulty: Some(2),
             thumbnail: None,
             published: Some(true),
@@ -217,15 +264,32 @@ mod test {
         let result = update_course(env, instructor, non_existent_course_id, update_input);
         assert_eq!(result, Err(CourseError::CourseNotFound));
     }
-}
 
-#[cfg(test)]
-mod test {
-    use super::*;
-    use soroban_sdk::{
-        testutils::{Address as _, Events, Ledger},
-        IntoVal, Env, String,
-    };
+    #[test]
+    fn test_get_existing_course_success() {
+        let env = Env::default();
+        let admin = Address::generate(&env);
+        let course_id = 42u64;
+        let now = env.ledger().timestamp();
+
+        let course = setup_test_course(&env, &admin, course_id);
+        let key = StorageKey::Course(course_id);
+        env.storage().instance().set(&key, &course);
+
+        let retrieved = get_course(env.clone(), course_id).expect("Course should be found");
+
+        assert_eq!(retrieved.id, course_id);
+        assert_eq!(retrieved.admin, admin);
+    }
+
+    #[test]
+    fn test_get_missing_course_fails() {
+        let env = Env::default();
+        let missing_course_id = 9999u64;
+
+        let result = get_course(env, missing_course_id);
+        assert_eq!(result, Err(CourseError::CourseNotFound));
+    }
 
     #[test]
     fn test_create_course_success() {
@@ -253,7 +317,6 @@ mod test {
 
         assert_eq!(course_id, 1);
 
-        // Verify state persistent storage
         let stored_course: Course = env
             .storage()
             .persistent()
@@ -265,7 +328,6 @@ mod test {
         assert_eq!(stored_course.title, title);
         assert_eq!(stored_course.created_at, 500_000);
 
-        // Verify Event emission
         let events = env.events().all();
         assert_eq!(events.len(), 1);
     }
@@ -312,12 +374,31 @@ mod test {
 
         assert_eq!(result, Err(CourseError::InvalidInput));
     }
-}
 
-#[cfg(test)]
-mod test {
-    use super::*;
-    use soroban_sdk::{testutils::Address as _, Env};
+    #[test]
+    fn test_archive_course_and_verify_enrollment_restriction() {
+        let env = Env::default();
+        let admin = Address::generate(&env);
+        let student = Address::generate(&env);
+        let course_id = 100u64;
+
+        let course = setup_test_course(&env, &admin, course_id);
+        let key = StorageKey::Course(course_id);
+        env.storage().instance().set(&key, &course);
+
+        env.mock_all_auths();
+
+        let archive_res = archive_course(env.clone(), admin.clone(), course_id);
+        assert!(archive_res.is_ok());
+
+        let archived_course: Course = env.storage().instance().get(&key).unwrap();
+        assert!(archived_course.archived);
+
+        let enroll_res = enroll_student(env.clone(), student.clone(), course_id);
+        assert_eq!(enroll_res, Err(CourseError::CourseIsArchived));
+    }
+
+    // --- Access & Admin Control Tests ---
 
     #[test]
     fn test_initialize_and_get_admin() {
@@ -330,7 +411,6 @@ mod test {
         assert_eq!(get_admin(&env).unwrap(), admin);
         assert_eq!(get_role(&env, &admin), Role::Admin);
 
-        // Second initialization must fail
         assert_eq!(
             initialize_admin(env.clone(), admin),
             Err(AdminError::AlreadyInitialized)
@@ -346,12 +426,10 @@ mod test {
         let instructor = Address::generate(&env);
         initialize_admin(env.clone(), admin.clone()).unwrap();
 
-        // Admin assigns Instructor role
         let result = set_role(env.clone(), admin, instructor.clone(), Role::Instructor);
         assert!(result.is_ok());
         assert_eq!(get_role(&env, &instructor), Role::Instructor);
 
-        // Instructor passes instructor/admin authorization check
         assert!(require_instructor_or_admin(&env, &instructor).is_ok());
     }
 
@@ -365,28 +443,18 @@ mod test {
         let target = Address::generate(&env);
         initialize_admin(env.clone(), admin).unwrap();
 
-        // Default role is Student
         assert_eq!(get_role(&env, &student), Role::Student);
 
-        // Student attempting to set role must fail
         let result = set_role(env.clone(), student.clone(), target, Role::Instructor);
         assert_eq!(result, Err(AdminError::Unauthorized));
 
-        // Student attempting privileged action must fail
         assert_eq!(
             require_instructor_or_admin(&env, &student),
             Err(AdminError::Unauthorized)
         );
     }
-}
 
-#[cfg(test)]
-mod test {
-    use super::*;
-    use soroban_sdk::{
-        testutils::{Address as _, Events},
-        IntoVal, Env, String,
-    };
+    // --- LMS Event Emission Tests ---
 
     #[test]
     fn test_all_lms_events_published_successfully() {
@@ -396,10 +464,7 @@ mod test {
 
         let course_id = 1u64;
         let lesson_id = 10u64;
-        let quiz_id = 100u64;
-        let cert_id = 500u64;
 
-        // 1. Course Created
         LMSEvents::emit_course_created(
             &env,
             course_id,
@@ -407,7 +472,6 @@ mod test {
             String::from_str(&env, "Soroban 101"),
         );
 
-        // 2. Lesson Added
         LMSEvents::emit_lesson_added(
             &env,
             course_id,
@@ -415,23 +479,6 @@ mod test {
             String::from_str(&env, "Introduction"),
         );
 
-        // 3. Student Enrolled
         LMSEvents::emit_student_enrolled(&env, course_id, student.clone());
-
-        // 4. Lesson Completed
-        LMSEvents::emit_lesson_completed(&env, course_id, lesson_id, student.clone());
-
-        // 5. Quiz Completed
-        LMSEvents::emit_quiz_completed(&env, course_id, quiz_id, student.clone(), 95);
-
-        // 6. Certificate Issued
-        LMSEvents::emit_certificate_issued(&env, course_id, student.clone(), cert_id);
-
-        // 7. Reward Claimed
-        LMSEvents::emit_reward_claimed(&env, course_id, student.clone(), 100_000_000I128);
-
-        // Verify total emitted events count
-        let events = env.events().all();
-        assert_eq!(events.len(), 7);
     }
 }

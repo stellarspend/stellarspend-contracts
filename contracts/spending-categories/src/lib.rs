@@ -34,6 +34,8 @@ pub enum CategoryError {
     DuplicateName = 4,
     /// Category not found
     CategoryNotFound = 5,
+    /// Spending category limit cannot be negative
+    InvalidLimit = 6,
 }
 
 impl From<CategoryError> for soroban_sdk::Error {
@@ -70,6 +72,8 @@ pub enum DataKey {
     CategoryByName(Address, Symbol),
     /// Maps user -> list of category IDs
     UserCategories(Address),
+    /// Maps (owner, category) -> spending limit for category-specific budgets
+    SpendingCategoryLimit(Address, Symbol),
 }
 
 /// Events emitted by the contract.
@@ -291,6 +295,39 @@ impl SpendingCategoriesContract {
             .persistent()
             .get(&DataKey::UserCategories(user))
             .unwrap_or(Vec::new(&env))
+    }
+
+    /// Sets the spending limit for a specific owner/category pair.
+    ///
+    /// Limits are stored independently from category metadata so callers can
+    /// retrieve the configured cap without changing category enforcement.
+    pub fn set_spending_category_limit(
+        env: Env,
+        caller: Address,
+        owner: Address,
+        category: Symbol,
+        limit: i128,
+    ) {
+        caller.require_auth();
+        Self::require_admin(&env, &caller);
+
+        if limit < 0 {
+            panic_with_error!(&env, CategoryError::InvalidLimit);
+        }
+
+        env.storage()
+            .persistent()
+            .set(&DataKey::SpendingCategoryLimit(owner, category), &limit);
+    }
+
+    /// Returns the spending limit for a specific owner/category pair.
+    ///
+    /// Unset category limits default to `0`.
+    pub fn get_spending_category_limit(env: Env, owner: Address, category: Symbol) -> i128 {
+        env.storage()
+            .persistent()
+            .get(&DataKey::SpendingCategoryLimit(owner, category))
+            .unwrap_or(0)
     }
 
     /// Returns true when the user has a category with the supplied name.
