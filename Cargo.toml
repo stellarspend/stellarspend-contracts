@@ -46,6 +46,8 @@ members = [
     "contracts/penalty",
     "contracts/transaction-analytics",
     "contracts/treasury",
+    "contracts/wallet-profile",
+    "contracts/batch-payment",
     "contracts/spending-digest",
     "contracts/fraud-detection",
     "contracts/lms",

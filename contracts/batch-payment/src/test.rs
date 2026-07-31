@@ -3,6 +3,7 @@ extern crate std;
 
 use super::*;
 use soroban_sdk::{
+    symbol_short,
     testutils::{Address as _, Events},
     Address, Env, Symbol, TryFromVal, Vec,
 };
@@ -64,10 +65,14 @@ fn test_batch_transfer() {
     let events = env.events().all();
     let receipt_topic = soroban_sdk::symbol_short!("receipt");
     let receipt_found = events.iter().any(|event| {
-        event
-            .topics
-            .get(0)
-            .map_or(false, |topic| topic == receipt_topic.clone().into())
+        let topics = &event.1;
+        if topics.len() > 0 {
+            let topic_val = topics.get(0).unwrap();
+            let topic_sym: Symbol = TryFromVal::try_from_val(&env, &topic_val).unwrap();
+            topic_sym == receipt_topic
+        } else {
+            false
+        }
     });
     assert!(
         receipt_found,
@@ -150,6 +155,96 @@ fn test_batch_transfer_generates_unique_reference_ids() {
     assert_ne!(batch_ref_id_1, batch_ref_id_2);
     std::println!("Batch 1 Reference ID: {:?}", batch_ref_id_1);
     std::println!("Batch 2 Reference ID: {:?}", batch_ref_id_2);
+}
+
+#[test]
+fn test_get_batch_payment_status_complete() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(BatchPaymentContract, ());
+    let client = BatchPaymentContractClient::new(&env, &contract_id);
+
+    let token_admin = Address::generate(&env);
+    let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
+    let token_admin_client = token::StellarAssetClient::new(&env, &token_contract.address());
+
+    let sender = Address::generate(&env);
+    let recipient = Address::generate(&env);
+
+    token_admin_client.mint(&sender, &500);
+
+    let mut payments = Vec::new(&env);
+    payments.push_back(Payment {
+        recipient: recipient.clone(),
+        amount: 100,
+    });
+
+    // Execute batch transfer
+    client.batch_transfer(&sender, &token_contract.address(), &payments);
+
+    // Verify batch payment status is "complete" for batch ID 1
+    let status = client.get_batch_payment_status(&1);
+    assert_eq!(status, Some(symbol_short!("complete")));
+    std::println!("Batch payment status for batch 1: {:?}", status);
+}
+
+#[test]
+fn test_get_batch_payment_status_nonexistent() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(BatchPaymentContract, ());
+    let client = BatchPaymentContractClient::new(&env, &contract_id);
+
+    // Non-existent batch ID should return None
+    let status = client.get_batch_payment_status(&99);
+    assert_eq!(status, None);
+    std::println!("Status for non-existent batch: {:?}", status);
+}
+
+#[test]
+fn test_get_batch_payment_status_multiple_batches() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(BatchPaymentContract, ());
+    let client = BatchPaymentContractClient::new(&env, &contract_id);
+
+    let token_admin = Address::generate(&env);
+    let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
+    let token_admin_client = token::StellarAssetClient::new(&env, &token_contract.address());
+
+    let sender = Address::generate(&env);
+    let recipient1 = Address::generate(&env);
+    let recipient2 = Address::generate(&env);
+
+    token_admin_client.mint(&sender, &1000);
+
+    // Execute first batch
+    let mut payments1 = Vec::new(&env);
+    payments1.push_back(Payment {
+        recipient: recipient1.clone(),
+        amount: 100,
+    });
+    client.batch_transfer(&sender, &token_contract.address(), &payments1);
+
+    // Execute second batch
+    let mut payments2 = Vec::new(&env);
+    payments2.push_back(Payment {
+        recipient: recipient2.clone(),
+        amount: 200,
+    });
+    client.batch_transfer(&sender, &token_contract.address(), &payments2);
+
+    // Verify both batches have "complete" status
+    let status1 = client.get_batch_payment_status(&1);
+    let status2 = client.get_batch_payment_status(&2);
+    assert_eq!(status1, Some(symbol_short!("complete")));
+    assert_eq!(status2, Some(symbol_short!("complete")));
+    assert_ne!(status1, None);
+    assert_ne!(status2, None);
+    std::println!("Batch 1 status: {:?}, Batch 2 status: {:?}", status1, status2);
 }
 
 use soroban_sdk::{contract, contractimpl};
