@@ -3,8 +3,8 @@
 #![cfg(test)]
 
 use crate::{SavingsGoalsContract, SavingsGoalsContractClient};
-use soroban_sdk::{testutils::Address as _, testutils::Ledger, Address, Bytes, Env, Symbol, Vec};
 use penalty::{PenaltyContract, PenaltyContractClient};
+use soroban_sdk::{testutils::Address as _, testutils::Ledger, Address, Bytes, Env, Symbol, Vec};
 
 use crate::types::{
     ErrorCode, GoalResult, MilestoneAchievementRequest, MilestoneResult, SavingsGoalRequest,
@@ -352,6 +352,36 @@ fn test_get_user_goals() {
     assert_eq!(user_goals.len(), 2);
     assert_eq!(user_goals.get(0).unwrap(), 1);
     assert_eq!(user_goals.get(1).unwrap(), 2);
+}
+
+#[test]
+fn test_get_goal_count_no_goals() {
+    let (env, _admin, client) = setup_test_contract();
+    let user = Address::generate(&env);
+
+    assert_eq!(client.get_goal_count(&user), 0);
+}
+
+#[test]
+fn test_get_goal_count_with_goals() {
+    let (env, admin, client) = setup_test_contract();
+    let user = Address::generate(&env);
+    let other_user = Address::generate(&env);
+
+    let mut requests: Vec<SavingsGoalRequest> = Vec::new(&env);
+    requests.push_back(create_valid_request(&env, &user, "vacation", 100_000_000));
+    requests.push_back(create_valid_request(&env, &user, "house", 500_000_000));
+    requests.push_back(create_valid_request(
+        &env,
+        &other_user,
+        "emergency",
+        200_000_000,
+    ));
+
+    client.batch_set_savings_goals(&admin, &requests);
+
+    assert_eq!(client.get_goal_count(&user), 2);
+    assert_eq!(client.get_goal_count(&other_user), 1);
 }
 
 #[test]

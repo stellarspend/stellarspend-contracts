@@ -52,6 +52,41 @@ pub fn require_admin(env: &Env, caller: &Address) -> Result<(), SharedError> {
     Ok(())
 }
 
+/// Returns the admin address stored under an arbitrary key.
+///
+/// This generic helper allows contracts to keep their own key enum and still
+/// reuse the shared admin verification pattern.
+pub fn get_admin_with_key<K>(env: &Env, key: &K) -> Result<Address, SharedError>
+where
+    K: contracttype::ContractType,
+{
+    env.storage()
+        .instance()
+        .get(key)
+        .ok_or(SharedError::NotInitialized)
+}
+
+/// Requires the caller to be authenticated and to match the admin stored under the provided key.
+pub fn require_admin_with_key<K>(env: &Env, key: &K, caller: &Address) -> Result<(), SharedError>
+where
+    K: contracttype::ContractType,
+{
+    caller.require_auth();
+    let admin = get_admin_with_key(env, key)?;
+    if caller != &admin {
+        return Err(SharedError::Unauthorized);
+    }
+    Ok(())
+}
+
+/// Returns `true` when the caller matches the admin stored under the provided key.
+pub fn is_admin_with_key<K>(env: &Env, key: &K, caller: &Address) -> bool
+where
+    K: contracttype::ContractType,
+{
+    get_admin_with_key(env, key).map_or(false, |admin| caller == &admin)
+}
+
 // ---------------------------------------------------------------------------
 // Owner
 // ---------------------------------------------------------------------------

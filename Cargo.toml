@@ -17,6 +17,7 @@ members = [
     "contracts/batch-history",
     "contracts/batch-notifications",
     "contracts/escrow",
+    "contracts/escrow-v2",
     "contracts/budget-allocation",
     "contracts/recurring-payment",
     "contracts/batch-token-mint",
@@ -43,6 +44,7 @@ members = [
     "contracts/penalty",
     "contracts/transaction-analytics",
     "contracts/treasury",
+    "contracts/lms",
 ]
 
 [package]
@@ -59,6 +61,8 @@ autotests = false
 # incompatible with the `rand_chacha 0.3`/`rand_core 0.6` used by the env-host
 # testutils. This pin unifies the workspace on a compatible 2.x version.
 ed25519-dalek = "=2.2.0"
+ed25519-dalek = "2.2"
+soroban-sdk = { workspace = true }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
@@ -116,6 +120,10 @@ path = "tests/analytics_indexing_tests.rs"
 [[test]]
 name = "timelock_tests"
 path = "tests/timelock_tests.rs"
+
+[[test]]
+name = "multisig_tests"
+path = "tests/multisig_tests.rs"
 
 [[test]]
 name = "security_e2e_tests"

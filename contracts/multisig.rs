@@ -155,6 +155,10 @@ pub fn get_threshold(env: &Env) -> u32 {
         .unwrap_or(0)
 }
 
+pub fn get_multisig_threshold(env: &Env) -> u32 {
+    get_threshold(env)
+}
+
 pub fn get_high_value_threshold(env: &Env) -> i128 {
     env.storage()
         .instance()

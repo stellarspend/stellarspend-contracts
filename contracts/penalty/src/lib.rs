@@ -1,6 +1,10 @@
 #![no_std]
 
-use soroban_sdk::{contract, contracterror, contractimpl, contracttype, panic_with_error, Address, Env};
+use soroban_sdk::{
+    contract, contracterror, contractimpl, contracttype, panic_with_error, Address, Env,
+};
+
+pub mod withdrawal;
 
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -17,6 +21,7 @@ pub enum PenaltyDataKey {
     Admin,
     PenaltyPercent,
     Treasury,
+    AccumulatedPenalty(Address),
 }
 
 fn bump_instance(env: &Env) {
@@ -32,9 +37,7 @@ impl PenaltyContract {
         if env.storage().instance().has(&PenaltyDataKey::Admin) {
             panic_with_error!(&env, PenaltyError::AlreadyInitialized);
         }
-        env.storage()
-            .instance()
-            .set(&PenaltyDataKey::Admin, &admin);
+        env.storage().instance().set(&PenaltyDataKey::Admin, &admin);
         env.storage()
             .instance()
             .set(&PenaltyDataKey::PenaltyPercent, &penalty_percent);
@@ -100,6 +103,10 @@ impl PenaltyContract {
     pub fn calculate_penalty_fee_with_bps(_env: Env, amount: i128, bps: u32) -> i128 {
         amount * bps as i128 / 10_000
     }
+
+    pub fn get_penalty_amount(env: Env, owner: Address) -> i128 {
+        withdrawal::get_penalty_amount(&env, owner)
+    }
 }
 
 #[cfg(test)]
@@ -115,10 +122,7 @@ mod test {
         (env, contract_id, client)
     }
 
-    fn init_default(
-        env: &Env,
-        client: &PenaltyContractClient<'static>,
-    ) -> (Address, Address) {
+    fn init_default(env: &Env, client: &PenaltyContractClient<'static>) -> (Address, Address) {
         let admin = Address::generate(env);
         let treasury = Address::generate(env);
         client.initialize(&admin, &10, &treasury);

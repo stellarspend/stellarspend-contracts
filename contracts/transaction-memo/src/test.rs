@@ -175,3 +175,27 @@ fn test_empty_memo_type() {
 
     client.set_memo(&admin, &id, &memo_type, &reference, &text);
 }
+
+#[test]
+fn test_get_transaction_memo_known_tx() {
+    let (env, admin, client) = setup_test_contract();
+
+    let id = tx_id(&env, "tx-memotext");
+    let memo_type = Symbol::new(&env, "payment");
+    let reference = String::from_str(&env, "ref-001");
+    let text = String::from_str(&env, "Payment for coffee");
+
+    client.set_memo(&admin, &id, &memo_type, &reference, &text);
+
+    let memo_text = client.get_transaction_memo(&id);
+    assert_eq!(memo_text, Some(text));
+}
+
+#[test]
+fn test_get_transaction_memo_unknown_tx() {
+    let (env, _, client) = setup_test_contract();
+
+    let id = tx_id(&env, "unknown-tx");
+    let result = client.get_transaction_memo(&id);
+    assert!(result.is_none());
+}

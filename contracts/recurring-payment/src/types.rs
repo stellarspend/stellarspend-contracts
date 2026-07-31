@@ -29,6 +29,18 @@ pub struct RecurringPayment {
     pub last_missed_at: u64,
 }
 
+/// Compact schedule details for a recurring payment.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecurringPaymentSchedule {
+    /// Amount transferred on each scheduled execution.
+    pub amount: i128,
+    /// Seconds between scheduled executions.
+    pub interval: u64,
+    /// Ledger timestamp when the payment is next due.
+    pub next_due_date: u64,
+}
+
 /// Represents a recurring income stream that auto-funds budgets or goals.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]

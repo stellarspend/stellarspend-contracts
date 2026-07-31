@@ -15,8 +15,12 @@ pub mod validation;
 use soroban_sdk::{contract, contractimpl, panic_with_error, Address, Env, Vec};
 
 use crate::rewards::{credit_reward, debit_reward, register_reward_account};
-use crate::storage::{get_reward_account, get_reward_index};
-pub use crate::types::{DataKey, RewardAccount, RewardStatus, RewardTransaction, RewardType};
+use crate::storage::{
+    get_account_stats as read_account_stats, get_reward_account, get_reward_index,
+};
+pub use crate::types::{
+    DataKey, RewardAccount, RewardAccountStats, RewardStatus, RewardTransaction, RewardType,
+};
 
 /// Error codes for the rewards contract.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -108,6 +112,15 @@ impl RewardsContract {
     /// Returns the `RewardAccount` metadata for `participant`, if registered.
     pub fn get_account(env: Env, participant: Address) -> Option<RewardAccount> {
         get_reward_account(&env, &participant)
+    }
+
+    /// Returns aggregate statistics for `participant`'s reward account.
+    ///
+    /// Tracks total rewards earned, total rewards redeemed, total transactions,
+    /// and the ledger sequence of the most recent reward credit. Returns zeroed
+    /// defaults when the account has no stats yet (including unregistered accounts).
+    pub fn get_account_stats(env: Env, participant: Address) -> RewardAccountStats {
+        read_account_stats(&env, &participant)
     }
 
     /// Credits `amount` reward points to `participant`'s account.
