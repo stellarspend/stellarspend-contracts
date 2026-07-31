@@ -27,6 +27,8 @@ mod validation;
 
 use soroban_sdk::{contract, contractimpl, panic_with_error, Address, Env, Symbol, Vec};
 
+use shared::authorization::{add_allowed_contract, is_allowed_contract, remove_allowed_contract};
+
 pub use crate::types::{
     BatchLimitMetrics, BatchLimitResult, DataKey, ErrorCode, EscalationConfig, ExceptionRule,
     LimitEvents, LimitStrategy, LimitUpdateResult, LimitsConfig, SpendingLimit,
@@ -673,9 +675,8 @@ impl SpendingLimitsContract {
         caller.require_auth();
         Self::require_admin(&env, &caller);
 
-        env.storage()
-            .persistent()
-            .set(&CrossContractDataKey::Whitelist(destination.clone()), &true);
+        let key = CrossContractDataKey::Whitelist(destination.clone());
+        add_allowed_contract(&env, &key);
     }
 
     /// Removes a destination address from the spending whitelist.
@@ -684,9 +685,8 @@ impl SpendingLimitsContract {
         caller.require_auth();
         Self::require_admin(&env, &caller);
 
-        env.storage()
-            .persistent()
-            .remove(&CrossContractDataKey::Whitelist(destination.clone()));
+        let key = CrossContractDataKey::Whitelist(destination.clone());
+        remove_allowed_contract(&env, &key);
     }
 
     /// Checks if a destination address is whitelisted for receiving funds.
@@ -873,11 +873,10 @@ impl SpendingLimitsContract {
 
     /// Internal helper for destination whitelist checks without consuming Env.
     fn is_destination_whitelisted_internal(env: &Env, destination: &Address) -> bool {
+        let key = CrossContractDataKey::Whitelist(destination.clone());
         // Use the same whitelist storage pattern as cross-contract module
         // Check if destination is in whitelist
-        env.storage()
-            .persistent()
-            .has(&CrossContractDataKey::Whitelist(destination.clone()))
+        is_allowed_contract(&env, &key)
     }
 
     pub fn override_spending_limit(

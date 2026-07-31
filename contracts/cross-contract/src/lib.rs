@@ -16,6 +16,9 @@ use soroban_sdk::{
     contract, contractimpl, panic_with_error, Address, Bytes, Env, Symbol, Vec,
 };
 
+use shared::authorization::{add_allowed_contract, is_allowed_contract, remove_allowed_contract};
+use shared::reentrancy::{enter, exit};
+
 pub use crate::types::{
     BatchCallResult, CallResult, CrossContractCall, CrossContractEvents, DataKey, MAX_BATCH_CALLS,
 };
@@ -79,8 +82,14 @@ impl CrossContractInteraction {
         caller.require_auth();
         Self::require_admin(&env, &caller);
 
+        // Enforce reentrancy guard for cross-contract interactions.
+        if let Err(e) = enter(&env) {
+            panic_with_error!(&env, e);
+        }
+
         // Validate the call request
         if let Err(e) = validate_call_request(&env, &call, require_whitelist) {
+            exit(&env);
             panic_with_error!(&env, e);
         }
 
@@ -94,6 +103,9 @@ impl CrossContractInteraction {
 
         // Execute the call and handle result
         let result = Self::invoke_contract(&env, &call);
+
+        // Clear the reentrancy lock before state updates to follow checks-effects-interactions.
+        exit(&env);
 
         // Update statistics
         Self::update_call_stats(&env, result.success);
@@ -142,6 +154,11 @@ impl CrossContractInteraction {
         for i in 0..total_calls {
             let call = calls.get(i).unwrap();
 
+            // Enter reentrancy guard before each external call.
+            if let Err(e) = enter(&env) {
+                panic_with_error!(&env, e);
+            }
+
             // Emit call initiated event
             CrossContractEvents::call_initiated(
                 &env,
@@ -152,6 +169,9 @@ impl CrossContractInteraction {
 
             // Execute the call
             let result = Self::invoke_contract(&env, &call);
+
+            // Clear the reentrancy lock before following state updates.
+            exit(&env);
 
             // Update counters
             if result.success {
@@ -203,9 +223,8 @@ impl CrossContractInteraction {
         caller.require_auth();
         Self::require_admin(&env, &caller);
 
-        env.storage()
-            .persistent()
-            .set(&DataKey::Whitelist(contract.clone()), &true);
+        let key = DataKey::Whitelist(contract.clone());
+        add_allowed_contract(&env, &key);
 
         CrossContractEvents::contract_whitelisted(&env, &contract);
     }
@@ -215,9 +234,8 @@ impl CrossContractInteraction {
         caller.require_auth();
         Self::require_admin(&env, &caller);
 
-        env.storage()
-            .persistent()
-            .remove(&DataKey::Whitelist(contract.clone()));
+        let key = DataKey::Whitelist(contract.clone());
+        remove_allowed_contract(&env, &key);
 
         CrossContractEvents::contract_removed(&env, &contract);
     }
@@ -225,6 +243,11 @@ impl CrossContractInteraction {
     /// Checks if a contract is whitelisted
     pub fn is_whitelisted(env: Env, contract: Address) -> bool {
         is_whitelisted(&env, &contract)
+    }
+
+    /// Verifies whether the given contract address is on the allow-list.
+    pub fn verify_allowed_contract(env: Env, contract: Address) -> bool {
+        is_allowed_contract(&env, &contract)
     }
 
     /// Gets the admin address
