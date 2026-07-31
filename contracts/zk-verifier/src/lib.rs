@@ -2,6 +2,9 @@
 
 mod verification;
 
+#[cfg(test)]
+mod test;
+
 use soroban_sdk::{contract, contractimpl, Bytes, Env};
 
 #[contract]

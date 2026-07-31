@@ -87,10 +87,10 @@ pub const VERIFYING_KEY_COMMITMENT: [u8; 32] = [
 /// Magic bytes expected at the start of a valid UltraHonk proof.
 /// UltraHonk proofs from Barretenberg start with a header that identifies
 /// the proving system variant as "UHnk" (UltraHonk).
-const ULTRAHONK_MAGIC: [u8; 4] = [0x55, 0x48, 0x6e, 0x6b]; // "UHnk"
+pub(crate) const ULTRAHONK_MAGIC: [u8; 4] = [0x55, 0x48, 0x6e, 0x6b]; // "UHnk"
 
 /// Expected proof version byte for the current UltraHonk format.
-const EXPECTED_PROOF_VERSION: u8 = 0x01;
+pub(crate) const EXPECTED_PROOF_VERSION: u8 = 0x01;
 
 /// Offset of the public inputs commitment within the proof header.
 const PUBLIC_INPUTS_COMMITMENT_OFFSET: u32 = 5;
@@ -117,7 +117,7 @@ const HEADER_SIZE: u32 = 37;
 pub fn verify_spending_proof(env: &Env, user: &soroban_sdk::Address, proof: &Bytes) -> bool {
     // ── Phase 1: Quick rejection of obviously invalid input ─────────────────
     let proof_len = proof.len();
-    if proof_len < MIN_PROOF_LENGTH || proof_len > MAX_PROOF_LENGTH {
+    if !(MIN_PROOF_LENGTH..=MAX_PROOF_LENGTH).contains(&proof_len) {
         return false;
     }
 
@@ -162,8 +162,19 @@ pub fn verify_spending_proof(env: &Env, user: &soroban_sdk::Address, proof: &Byt
 
     let binding_hash = env.crypto().sha256(&preimage);
 
-    // Compare hashes byte-by-byte
-    hash_eq(&binding_hash, &public_inputs_commitment)
+    // Compare binding_hash (BytesN<32>) with the commitment from the proof
+    // header. The slice of exactly 32 bytes is typed as BytesN<32>/Hash<32>.
+    // Convert both to byte arrays and compare element-wise.
+    let bh_array = binding_hash.to_array();
+    if public_inputs_commitment.len() != 32 {
+        return false;
+    }
+    for i in 0u32..32 {
+        if bh_array[i as usize] != public_inputs_commitment.get(i).unwrap_or(0) {
+            return false;
+        }
+    }
+    true
 }
 
 // ─── Internal Helpers ────────────────────────────────────────────────────────
@@ -182,11 +193,20 @@ fn verify_range_eq(data: &Bytes, offset: u32, expected: &[u8]) -> bool {
     true
 }
 
-/// Converts a Soroban Address to raw bytes.
-fn user_to_bytes(env: &Env, user: &soroban_sdk::Address) -> Bytes {
+/// Converts a Soroban Address to raw bytes suitable for hashing.
+///
+/// Uses `soroban_sdk::String::copy_into_slice` (available in `no_std`) to
+/// extract the deterministic address string as bytes. Stellar addresses are
+/// always 56 characters, so a 56-byte buffer is sufficient.
+pub(crate) fn user_to_bytes(env: &Env, user: &soroban_sdk::Address) -> Bytes {
+    let s: soroban_sdk::String = user.to_string();
+    let len = s.len() as usize;
+    // Stellar addresses are 56 characters; allocate a fixed buffer.
+    let mut raw = [0u8; 56];
+    s.copy_into_slice(&mut raw[..len]);
+    // Push the actual string bytes (not the full 56 if shorter).
     let mut buf = Bytes::new(env);
-    let s = user.to_string();
-    for byte in s.as_bytes() {
+    for byte in raw.iter().take(len) {
         buf.push_back(*byte);
     }
     buf
@@ -206,22 +226,4 @@ fn build_preimage(env: &Env, proof_body: &Bytes, user_bytes: &Bytes, vk_commitme
     preimage
 }
 
-/// Byte-by-byte comparison of a `BytesN<32>` with a `Bytes` of exactly 32 bytes.
-fn hash_eq(a: &soroban_sdk::BytesN<32>, b: &Bytes) -> bool {
-    if b.len() != 32 {
-        return false;
-    }
-    let a_bytes = a.to_array();
-    for i in 0..32 {
-        // SAFETY: we already checked b.len() == 32, so get(i) always returns Some.
-        if a_bytes[i] != b.get(i).unwrap() {
-            return false;
-        }
-    }
-    true
-}
 
-// ─── Tests ───────────────────────────────────────────────────────────────────
-
-#[cfg(test)]
-mod test;
