@@ -1,5 +1,6 @@
 //! Data types and events for batch token minting operations.
 
+use shared::batch_result::BatchItemResult;
 use soroban_sdk::{contracttype, symbol_short, Address, Env, Vec};
 
 /// Maximum number of mint operations in a single batch for optimization.
@@ -77,6 +78,8 @@ pub struct BatchMintResult {
     pub failed: u32,
     /// Individual mint results
     pub results: Vec<MintResult>,
+    /// Shared batch item results for callers that need a uniform schema
+    pub shared_results: Vec<BatchItemResult>,
     /// Aggregated metrics
     pub metrics: BatchMintMetrics,
 }

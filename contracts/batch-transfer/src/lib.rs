@@ -4,6 +4,7 @@
 mod types;
 mod validation;
 
+use shared::batch_result::BatchItemResult;
 use soroban_sdk::{contract, contractimpl, panic_with_error, token, Address, Env, Vec};
 
 pub use crate::types::{
@@ -34,6 +35,8 @@ pub enum BatchTransferError {
     InvalidToken = 6,
     /// Duplicate recipient in batch
     DuplicateRecipient = 7,
+    /// Batch exceeds the available instruction budget
+    InstructionBudgetExceeded = 8,
 }
 
 impl From<BatchTransferError> for soroban_sdk::Error {
@@ -90,6 +93,10 @@ impl BatchTransferContract {
             panic_with_error!(&env, BatchTransferError::DuplicateRecipient);
         }
 
+        if let Err(error) = Self::ensure_budget_headroom(&env, request_count) {
+            panic_with_error!(&env, error);
+        }
+
         // Get batch ID and increment
         let batch_id: u64 = env
             .storage()
@@ -103,6 +110,7 @@ impl BatchTransferContract {
 
         // Initialize result vectors
         let mut results: Vec<TransferResult> = Vec::new(&env);
+        let mut shared_results: Vec<BatchItemResult> = Vec::new(&env);
         let mut successful_count: u32 = 0;
         let mut failed_count: u32 = 0;
         let mut total_transferred: i128 = 0;
@@ -151,6 +159,12 @@ impl BatchTransferContract {
                     request.amount,
                     error_code.clone(),
                 ));
+                shared_results.push_back(BatchItemResult {
+                    success: false,
+                    target: request.recipient.clone(),
+                    amount: request.amount,
+                    error_code: error_code.clone(),
+                });
                 failed_count += 1;
                 TransferEvents::transfer_failure(
                     &env,
@@ -170,6 +184,12 @@ impl BatchTransferContract {
                     request.amount,
                     2, // Insufficient balance
                 ));
+                shared_results.push_back(BatchItemResult {
+                    success: false,
+                    target: request.recipient.clone(),
+                    amount: request.amount,
+                    error_code: 2,
+                });
                 failed_count += 1;
                 TransferEvents::transfer_failure(
                     &env,
@@ -194,6 +214,12 @@ impl BatchTransferContract {
                 request.recipient.clone(),
                 request.amount,
             ));
+            shared_results.push_back(BatchItemResult {
+                success: true,
+                target: request.recipient.clone(),
+                amount: request.amount,
+                error_code: 0,
+            });
             successful_count += 1;
             total_transferred = total_transferred
                 .checked_add(request.amount)
@@ -248,6 +274,7 @@ impl BatchTransferContract {
             failed: failed_count,
             total_transferred,
             results,
+            shared_results,
         }
     }
 
@@ -282,6 +309,7 @@ impl BatchTransferContract {
         let token_client = token::Client::new(&env, &token);
 
         let mut results: Vec<BurnResult> = Vec::new(&env);
+        let mut shared_results: Vec<BatchItemResult> = Vec::new(&env);
         let mut successful_count: u32 = 0;
         let mut failed_count: u32 = 0;
         let mut total_burned: i128 = 0;
@@ -304,6 +332,12 @@ impl BatchTransferContract {
                     request.amount,
                     error_code,
                 ));
+                shared_results.push_back(BatchItemResult {
+                    success: false,
+                    target: request.owner.clone(),
+                    amount: request.amount,
+                    error_code,
+                });
                 failed_count += 1;
                 TransferEvents::burn_failure(
                     &env,
@@ -322,6 +356,12 @@ impl BatchTransferContract {
                     request.amount,
                     2,
                 ));
+                shared_results.push_back(BatchItemResult {
+                    success: false,
+                    target: request.owner.clone(),
+                    amount: request.amount,
+                    error_code: 2,
+                });
                 failed_count += 1;
                 TransferEvents::burn_failure(&env, batch_id, &request.owner, request.amount, 2);
                 continue;
@@ -331,6 +371,12 @@ impl BatchTransferContract {
             token_client.burn(&request.owner, &request.amount);
 
             results.push_back(BurnResult::Success(request.owner.clone(), request.amount));
+            shared_results.push_back(BatchItemResult {
+                success: true,
+                target: request.owner.clone(),
+                amount: request.amount,
+                error_code: 0,
+            });
             successful_count += 1;
             total_burned = total_burned
                 .checked_add(request.amount)
@@ -353,6 +399,7 @@ impl BatchTransferContract {
             failed: failed_count,
             total_burned,
             results,
+            shared_results,
         }
     }
 
@@ -407,6 +454,15 @@ impl BatchTransferContract {
         if *caller != admin {
             panic_with_error!(env, BatchTransferError::Unauthorized);
         }
+    }
+
+    fn ensure_budget_headroom(env: &Env, request_count: u32) -> Result<(), BatchTransferError> {
+        if request_count as u64 * 2_000u64 > 100_000u64 {
+            return Err(BatchTransferError::InstructionBudgetExceeded);
+        }
+
+        let _ = env.budget().cpu_instruction_count();
+        Ok(())
     }
 }
 
