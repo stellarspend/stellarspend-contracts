@@ -278,6 +278,28 @@ fn test_get_audit_logs_range_invalid_range() {
 }
 
 #[test]
+fn test_get_audit_log_count() {
+    let env = setup_env();
+    let (client, admin) = deploy_contract(&env);
+    
+    // Returns 0 on fresh contract
+    assert_eq!(client.get_audit_log_count(), 0);
+
+    client.initialize(&admin, &1000_u32);
+
+    let actor = Address::generate(&env);
+    let operation = Symbol::new(&env, "transfer");
+    let status = Symbol::new(&env, "success");
+
+    // Returns correct count after multiple log entries
+    client.log_audit(&actor, &operation, &status, None);
+    assert_eq!(client.get_audit_log_count(), 1);
+
+    client.log_audit(&actor, &operation, &status, None);
+    assert_eq!(client.get_audit_log_count(), 2);
+}
+
+#[test]
 fn test_set_admin() {
     let env = setup_env();
     let (client, admin) = deploy_contract(&env);

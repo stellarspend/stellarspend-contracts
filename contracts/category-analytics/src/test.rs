@@ -64,3 +64,34 @@ fn test_invalid_amount() {
     client.init(&admin);
     client.record_spending(&user, &category, &0);
 }
+
+#[test]
+fn test_get_top_category_returns_none() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    let contract_id = env.register_contract(None, CategoryAnalytics);
+    let client = CategoryAnalyticsClient::new(&env, &contract_id);
+
+    client.init(&admin);
+    let top = client.get_top_category(&user);
+    assert!(top.is_none());
+}
+#[test]
+fn test_get_top_category_returns_none() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    let contract_id = env.register_contract(None, CategoryAnalytics);
+    let client = CategoryAnalyticsClient::new(&env, &contract_id);
+
+    client.init(&admin);
+    let top = client.get_top_category(&user);
+    assert!(top.is_none());
+}

@@ -31,9 +31,9 @@ use soroban_sdk::{
 };
 
 pub use crate::types::{
-    AllocationGoal, AutoAllocationRequest, AutoAllocationResult, BatchGoalMetrics,
-    BatchGoalResult, BatchMilestoneMetrics, BatchMilestoneResult, ContributionRecord, DataKey,
-    ErrorCode, GoalCertificate, GoalEvents, GoalResult, GoalSnapshot, MilestoneAchievement,
+    AllocationGoal, AutoAllocationRequest, AutoAllocationResult, BatchGoalMetrics, BatchGoalResult,
+    BatchMilestoneMetrics, BatchMilestoneResult, ContributionRecord, DataKey, ErrorCode,
+    GoalCertificate, GoalEvents, GoalResult, GoalSnapshot, MilestoneAchievement,
     MilestoneAchievementRequest, MilestoneResult, SavingsGoal, SavingsGoalProgress,
 };
 use crate::validation::{validate_goal_name_unique, validate_goal_request};
@@ -1209,6 +1209,23 @@ impl SavingsGoalsContract {
             .unwrap_or(Vec::new(&env))
     }
 
+    /// Returns the number of savings goals an address has created.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `owner` - The address whose goal count is queried
+    ///
+    /// # Returns
+    /// * `u32` - The number of goals created by `owner`, or 0 if none exist
+    pub fn get_goal_count(env: Env, owner: Address) -> u32 {
+        let goals: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&DataKey::UserGoals(owner))
+            .unwrap_or(Vec::new(&env));
+        goals.len()
+    }
+
     /// Returns a previously recorded contribution for a goal.
     pub fn get_contribution_record(
         env: Env,
@@ -1652,9 +1669,10 @@ impl SavingsGoalsContract {
         let goal_name = goal.goal_name.clone();
 
         // Remove name-to-id mapping for previous owner
-        env.storage()
-            .persistent()
-            .remove(&DataKey::GoalByName(previous_owner.clone(), goal_name.clone()));
+        env.storage().persistent().remove(&DataKey::GoalByName(
+            previous_owner.clone(),
+            goal_name.clone(),
+        ));
 
         // Remove goal from previous owner's goal list
         let old_user_goals: Vec<u64> = env
@@ -1691,9 +1709,10 @@ impl SavingsGoalsContract {
             .get(&DataKey::UserGoals(new_beneficiary.clone()))
             .unwrap_or(Vec::new(&env));
         new_user_goals.push_back(goal_id);
-        env.storage()
-            .persistent()
-            .set(&DataKey::UserGoals(new_beneficiary.clone()), &new_user_goals);
+        env.storage().persistent().set(
+            &DataKey::UserGoals(new_beneficiary.clone()),
+            &new_user_goals,
+        );
 
         // Store beneficiary record for audit trail
         env.storage()
@@ -1701,12 +1720,7 @@ impl SavingsGoalsContract {
             .set(&DataKey::GoalBeneficiary(goal_id), &new_beneficiary);
 
         // Emit audit event
-        GoalEvents::beneficiary_transferred(
-            &env,
-            goal_id,
-            &previous_owner,
-            &new_beneficiary,
-        );
+        GoalEvents::beneficiary_transferred(&env, goal_id, &previous_owner, &new_beneficiary);
     }
 
     /// Returns the current beneficiary for a goal (the goal owner).
@@ -1758,10 +1772,8 @@ impl SavingsGoalsContract {
         }
 
         // Check idempotency to prevent duplicate allocations
-        let alloc_key = DataKey::AutoAllocationIdempotency(
-            caller.clone(),
-            request.idempotency_token.clone(),
-        );
+        let alloc_key =
+            DataKey::AutoAllocationIdempotency(caller.clone(), request.idempotency_token.clone());
         if env.storage().persistent().has(&alloc_key) {
             panic_with_error!(&env, SavingsGoalError::DuplicateContributionRequest);
         }
@@ -1772,9 +1784,7 @@ impl SavingsGoalsContract {
             if alloc.percentage == 0 || alloc.percentage > 100 {
                 panic_with_error!(&env, SavingsGoalError::InvalidAmount);
             }
-            percentage_sum = percentage_sum
-                .checked_add(alloc.percentage)
-                .unwrap_or(0);
+            percentage_sum = percentage_sum.checked_add(alloc.percentage).unwrap_or(0);
         }
 
         if percentage_sum != 100 {
@@ -1890,12 +1900,7 @@ impl SavingsGoalsContract {
         }
 
         // Emit auto-allocation event
-        GoalEvents::auto_allocation_executed(
-            &env,
-            &caller,
-            request.total_amount,
-            goals_allocated,
-        );
+        GoalEvents::auto_allocation_executed(&env, &caller, request.total_amount, goals_allocated);
 
         AutoAllocationResult {
             success: goals_failed == 0,

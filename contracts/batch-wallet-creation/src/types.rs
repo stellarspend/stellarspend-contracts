@@ -1,3 +1,4 @@
+use shared::batch_result::BatchItemResult;
 use soroban_sdk::{contracttype, symbol_short, Address, Env, Vec};
 
 pub const MAX_BATCH_SIZE: u32 = 100;
@@ -36,6 +37,7 @@ pub struct BatchCreateResult {
     pub successful: u32,
     pub failed: u32,
     pub results: Vec<WalletCreateResult>,
+    pub shared_results: Vec<BatchItemResult>,
 }
 
 #[derive(Clone, Debug)]
@@ -45,6 +47,7 @@ pub struct BatchRecoveryResult {
     pub successful: u32,
     pub failed: u32,
     pub results: Vec<WalletRecoveryResult>,
+    pub shared_results: Vec<BatchItemResult>,
 }
 
 #[derive(Clone)]

@@ -194,6 +194,17 @@ impl TransactionMemoContract {
         env.storage().instance().set(&DataKey::Admin, &new_admin);
     }
 
+    /// Retrieves the memo text for a transaction by transaction ID.
+    ///
+    /// Returns `Some(String)` with the memo text if a memo exists for the
+    /// given transaction ID, or `None` if no memo is found.
+    pub fn get_transaction_memo(env: Env, transaction_id: Bytes) -> Option<String> {
+        env.storage()
+            .persistent()
+            .get(&DataKey::Memo(transaction_id))
+            .map(|memo: TransactionMemo| memo.text)
+    }
+
     /// Returns the total number of memos stored.
     pub fn get_total_memos(env: Env) -> u64 {
         env.storage()

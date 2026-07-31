@@ -10,6 +10,12 @@ mod test;
 use crate::types::{BatchReminderResult, PaymentReminderRequest};
 use soroban_sdk::{contract, contractimpl, Address, Env, Vec};
 
+#[derive(Clone)]
+#[contracttype]
+pub enum ReminderDataKey {
+    Reminder(u64),
+}
+
 #[contract]
 pub struct BatchPaymentRemindersContract;
 
@@ -33,6 +39,16 @@ impl BatchPaymentRemindersContract {
         admin.require_auth();
 
         let batch_id = env.ledger().sequence() as u64;
-        logic::execute_dispatch(env, batch_id, requests)
+        logic::execute_dispatch(env.clone(), batch_id, requests.clone())
+    }
+
+    /// Returns the due timestamp for a reminder.
+    ///
+    /// Returns `0` if the reminder is unknown.
+    pub fn get_reminder_due_date(env: Env, reminder_id: u64) -> u64 {
+        env.storage()
+            .persistent()
+            .get(&ReminderDataKey::Reminder(reminder_id))
+            .unwrap_or(0)
     }
 }

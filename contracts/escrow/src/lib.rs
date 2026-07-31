@@ -1,53 +1,4 @@
-//! # Standalone Escrow Contract
-//!
-//! ╔══════════════════════════════════════════════════════════════════════╗
-//! ║  This is the REAL escrow contract for individual depositor↔recipient║
-//! ║  escrows. The Fee crate (`contracts/fee/src/escrow.rs`) has an      ║
-//! ║  **internal** module that shares the "escrow" name but only tracks  ║
-//! ║  pooled fee collection — it is NOT an escrow contract.              ║
-//! ╚══════════════════════════════════════════════════════════════════════╝
-//!
-//! This contract provides per-escrow lifecycle management (create, release,
-//! reverse) with batch operations and full event emission.
-#![no_std]
-
-mod types;
-mod validation;
-
-use soroban_sdk::{contract, contractimpl, panic_with_error, token, Address, Env, Vec};
-
-pub use crate::types::{
-    BatchReleaseResult, BatchReversalResult, DataKey, Escrow, EscrowEvents, EscrowStatus,
-    ReleaseRequest, ReleaseResult, ReversalRequest, ReversalResult, MAX_BATCH_SIZE,
-};
-use crate::validation::validate_release;
-use crate::validation::validate_reversal;
-
-/// Error codes for the escrow contract.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-#[repr(u32)]
-pub enum EscrowError {
-    /// Contract not initialized
-    NotInitialized = 1,
-    /// Caller is not authorized
-    Unauthorized = 2,
-    /// Batch is empty
-    EmptyBatch = 3,
-    /// Batch exceeds maximum size
-    BatchTooLarge = 4,
-    /// Invalid amount
-    InvalidAmount = 5,
-    /// Escrow not found
-    EscrowNotFound = 6,
-    /// Contract already initialized
-    AlreadyInitialized = 7,
-}
-
-impl From<EscrowError> for soroban_sdk::Error {
-    fn from(e: EscrowError) -> Self {
-        soroban_sdk::Error::from_contract_error(e as u32)
-    }
-}
+use soroban_sdk::{contract, contractimpl, Env};
 
 #[contract]
 pub struct EscrowContract;
@@ -771,8 +722,10 @@ impl EscrowContract {
         if *caller != admin {
             panic_with_error!(env, EscrowError::Unauthorized);
         }
+=======
+    pub fn get_escrow_balance(env: Env, escrow_id: u64) -> i128 {
+        // Retrieve the locked balance for the given escrow ID, returning 0 if it does not exist.
+        env.storage().persistent().get(&escrow_id).unwrap_or(0)
+>>>>>>> upstream/main
     }
 }
-
-#[cfg(test)]
-mod test;

@@ -6,6 +6,7 @@
 pub mod delegation;
 pub mod errors;
 pub mod fees;
+pub mod gas_optimization;
 pub mod multisig_savings_withdrawal;
 pub mod multisig_savings_withdrawal_utils;
 

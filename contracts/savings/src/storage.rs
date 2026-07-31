@@ -6,4 +6,5 @@ pub enum DataKey {
     Goal(u64),
     RewardAmount,
     RewardClaimed(Address, u64),
+    SavingsLimit(Address),
 }
