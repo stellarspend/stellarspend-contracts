@@ -32,7 +32,6 @@ members = [
     "contracts/activity-feed",
     "contracts/transactional",
     "contracts/transactions",
-<<<<<<< HEAD
     "contracts/transaction-validation",
     "contracts/merchant-tagging",
     "contracts/currency-conversion",
@@ -45,10 +44,8 @@ members = [
     "contracts/penalty",
     "contracts/transaction-analytics",
     "contracts/treasury",
-=======
     "contracts/spending-digest",
     "contracts/fraud-detection",
->>>>>>> f928585 (feat(contracts): add fraud detection, escrow disputes, spending digest & batch transfer count views (closes #915, #918, #985, #990))
 ]
 
 [package]

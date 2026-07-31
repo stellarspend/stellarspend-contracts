@@ -1,13 +1,7 @@
 mod support;
 
-<<<<<<< HEAD
 use soroban_sdk::{testutils::Address as _, Address};
 use support::setup;
-=======
-use soroban_sdk::Address;
-use support::setup;
-use soroban_sdk::testutils::Address as _;
->>>>>>> 067107d (fix(contracts): fix CI compilation errors across batch-transfer, spending-limits, multi-currency-wallet, and batch-rewards)
 
 #[test]
 fn reconciliation_balanced_after_init() {

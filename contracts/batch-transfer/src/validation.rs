@@ -1,9 +1,6 @@
 //! Validation utilities for batch transfers.
 
-<<<<<<< HEAD
 use crate::TransferRequest;
-=======
->>>>>>> 067107d (fix(contracts): fix CI compilation errors across batch-transfer, spending-limits, multi-currency-wallet, and batch-rewards)
 use soroban_sdk::{Address, Env, Vec};
 
 /// Validation error types.
@@ -28,11 +25,7 @@ pub fn validate_unique_recipient(
     recipient: &Address,
 ) -> Result<(), ValidationError> {
     for existing in seen.iter() {
-<<<<<<< HEAD
         if existing == recipient.clone() {
-=======
-        if &existing == recipient {
->>>>>>> 067107d (fix(contracts): fix CI compilation errors across batch-transfer, spending-limits, multi-currency-wallet, and batch-rewards)
             return Err(ValidationError::DuplicateRecipient(recipient.clone()));
         }
     }

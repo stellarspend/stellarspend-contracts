@@ -1,9 +1,6 @@
-<<<<<<< HEAD
-use soroban_sdk::{contracttype, symbol_short, Address, Env, Symbol, Vec};
-=======
 //! Data types and events for batch spending limit operations.
 
-use soroban_sdk::{contracttype, symbol_short, Address, Env, Vec};
+use soroban_sdk::{contracttype, symbol_short, Address, Env, Symbol, Vec};
 
 /// Maximum number of user-limit pairs in a single batch for optimization.
 pub const MAX_BATCH_SIZE: u32 = 100;
@@ -306,12 +303,8 @@ pub struct LimitsConfig {
     pub total_batches_processed: u64,
 }
 
-<<<<<<< HEAD
 /// Result of processing a single limit update.
-#[derive(Clone, Debug)]
-=======
 #[derive(Clone, Debug, Eq, PartialEq)]
->>>>>>> 067107d (fix(contracts): fix CI compilation errors across batch-transfer, spending-limits, multi-currency-wallet, and batch-rewards)
 #[contracttype]
 pub enum LimitUpdateResult {
     Success(SpendingLimit),

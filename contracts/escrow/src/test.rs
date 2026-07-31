@@ -1157,3 +1157,70 @@ fn test_set_admin_unauthorized() {
     // Should panic due to unauthorized caller
     client.set_admin(&unauthorized, &new_admin);
 }
+
+#[test]
+fn test_dispute_and_resolve_escrow() {
+    let (env, admin, token, token_client, token_admin, client) = setup_test_env();
+
+    let depositor = Address::generate(&env);
+    let recipient = Address::generate(&env);
+    let arbiter = Address::generate(&env);
+    let amount = 100_000_000i128;
+
+    token_client.mint(&depositor, &amount);
+
+    let escrow_id = client.create_escrow(
+        &depositor,
+        &recipient,
+        &Some(arbiter.clone()),
+        &amount,
+        &1000,
+    );
+
+    // Depositor raises dispute
+    client.raise_dispute(&depositor, &escrow_id);
+    let escrow = client.get_escrow(&escrow_id).unwrap();
+    assert_eq!(escrow.status, EscrowStatus::Disputed);
+
+    // Arbiter resolves dispute with 60/40 split
+    let depositor_share = 60_000_000i128;
+    let recipient_share = 40_000_000i128;
+    client.resolve_dispute(&arbiter, &escrow_id, &depositor_share, &recipient_share);
+
+    let resolved_escrow = client.get_escrow(&escrow_id).unwrap();
+    assert_eq!(resolved_escrow.status, EscrowStatus::Resolved);
+    assert_eq!(token_client.balance(&depositor), depositor_share);
+    assert_eq!(token_client.balance(&recipient), recipient_share);
+}
+
+#[test]
+fn test_batch_release_excludes_disputed_escrow() {
+    let (env, admin, _token, token_client, token_admin, client) = setup_test_env();
+
+    let depositor = Address::generate(&env);
+    let recipient1 = Address::generate(&env);
+    let recipient2 = Address::generate(&env);
+    let amount = 10_000_000i128;
+
+    token_client.mint(&depositor, &(amount * 2));
+
+    let escrow_id1 = client.create_escrow(&depositor, &recipient1, &None, &amount, &1000);
+    let escrow_id2 = client.create_escrow(&depositor, &recipient2, &None, &amount, &1000);
+
+    // Dispute escrow 1
+    client.raise_dispute(&depositor, &escrow_id1);
+
+    let mut requests: Vec<ReleaseRequest> = Vec::new(&env);
+    requests.push_back(ReleaseRequest { escrow_id: escrow_id1 });
+    requests.push_back(ReleaseRequest { escrow_id: escrow_id2 });
+
+    let result = client.batch_release_escrows(&admin, &requests);
+    assert_eq!(result.successful, 1);
+    assert_eq!(result.failed, 1);
+
+    let escrow1 = client.get_escrow(&escrow_id1).unwrap();
+    let escrow2 = client.get_escrow(&escrow_id2).unwrap();
+    assert_eq!(escrow1.status, EscrowStatus::Disputed);
+    assert_eq!(escrow2.status, EscrowStatus::Released);
+}
+

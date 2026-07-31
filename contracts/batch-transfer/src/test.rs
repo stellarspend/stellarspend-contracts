@@ -199,23 +199,8 @@ fn test_batch_transfer_rejects_duplicate_recipients() {
         Err(Ok(error)) => assert_eq!(error, expected_error),
         other => panic!("expected duplicate recipient error, got {:?}", other),
     }
-<<<<<<< HEAD
     assert_eq!(token_client.balance(&recipient), 0);
     assert_eq!(token_client.balance(&admin), amount * 2);
-=======
-
-    match result.results.get(1).unwrap() {
-        TransferResult::Failure(recv, failed_amount, error_code) => {
-            assert_eq!(recv.clone(), recipient);
-            assert_eq!(failed_amount.clone(), amount);
-            assert_eq!(error_code, 3); // Duplicate recipient
-        }
-        _ => panic!("Expected duplicate recipient to fail"),
-    }
-
-    assert_eq!(token_client.balance(&recipient), amount);
-    assert_eq!(token_client.balance(&admin), amount);
->>>>>>> 067107d (fix(contracts): fix CI compilation errors across batch-transfer, spending-limits, multi-currency-wallet, and batch-rewards)
 }
 
 #[test]
@@ -593,3 +578,28 @@ fn test_batch_burn_unauthorized() {
     let unauthorized = Address::generate(&env);
     client.batch_burn(&unauthorized, &token, &burns);
 }
+
+#[test]
+fn test_get_batch_transfer_recipient_count() {
+    let (env, admin, token, token_client, client) = setup_test_env();
+
+    // Unknown batch ID returns 0
+    assert_eq!(client.get_batch_transfer_recipient_count(&999), 0);
+
+    let recipient1 = Address::generate(&env);
+    let recipient2 = Address::generate(&env);
+    let amount = 10_000_000i128;
+
+    token_client.mint(&admin, &(amount * 2));
+
+    let mut transfers: Vec<TransferRequest> = Vec::new(&env);
+    transfers.push_back(create_transfer_request(&env, recipient1, amount));
+    transfers.push_back(create_transfer_request(&env, recipient2, amount));
+
+    let result = client.batch_transfer(&admin, &token, &transfers);
+    assert_eq!(result.successful, 2);
+
+    let recipient_count = client.get_batch_transfer_recipient_count(&1);
+    assert_eq!(recipient_count, 2);
+}
+

@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 //! # Spending Limits Contract
 //!
 //! A Soroban smart contract for managing batch spending limit updates

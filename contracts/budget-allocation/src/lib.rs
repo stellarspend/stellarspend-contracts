@@ -325,12 +325,8 @@ impl BudgetAllocationContract {
             .get(&DataKey::Budget(user.clone()));
 
         if let Some(mut record) = budget_record {
-<<<<<<< HEAD
             // This record stores the current budget amount only, so a reset
             // advances the cycle timestamp without changing the allocation.
-=======
-            // Reset only the spent amount, preserve the budget limit
->>>>>>> 067107d (fix(contracts): fix CI compilation errors across batch-transfer, spending-limits, multi-currency-wallet, and batch-rewards)
             record.last_updated = now;
 
             // Store updated record

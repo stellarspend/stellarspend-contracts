@@ -334,21 +334,11 @@ impl TransactionsContract {
         if !transaction_exists(&env, id.clone()) {
             panic_with_error!(&env, TransactionError::TransactionNotFound);
         }
-<<<<<<< HEAD
-
         let success = storage::update_transaction_status(&env, id.clone(), caller, status.clone());
 
-        if success {
-            env.events().publish(
-                (symbol_short!("tx"), symbol_short!("tx_status")),
-=======
-        
-        let success = storage::update_transaction_status(&env, id.clone(), caller, status.clone());
-        
         if success {
             env.events().publish(
                 (symbol_short!("tx"), symbol_short!("stat_upd")),
->>>>>>> 067107d (fix(contracts): fix CI compilation errors across batch-transfer, spending-limits, multi-currency-wallet, and batch-rewards)
                 (id.clone(), status),
             );
         }

@@ -10,18 +10,10 @@ pub use crate::types::{
     BatchBurnResult, BatchTransferResult, BurnRequest, BurnResult, DataKey, TransferEvents,
     TransferRequest, TransferResult, MAX_BATCH_SIZE,
 };
-<<<<<<< HEAD
-//bbbb
-<<<<<<< HEAD
 use crate::validation::{
     validate_address, validate_amount, validate_batch_not_empty, validate_unique_recipients,
 };
 use shared::validation::validate_batch_size;
-=======
-=======
->>>>>>> f928585 (feat(contracts): add fraud detection, escrow disputes, spending digest & batch transfer count views (closes #915, #918, #985, #990))
-use crate::validation::{validate_address, validate_amount, validate_unique_recipient};
->>>>>>> 067107d (fix(contracts): fix CI compilation errors across batch-transfer, spending-limits, multi-currency-wallet, and batch-rewards)
 
 /// Error codes for the batch transfer contract.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]

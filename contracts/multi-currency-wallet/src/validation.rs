@@ -133,36 +133,17 @@ pub fn validate_and_compute_balance(
 }
 
 /// Computes new balance based on operation.
-<<<<<<< HEAD
-fn compute_new_balance(
-    _env: &Env,
-    current: i128,
-    operation: &Symbol,
-    amount: i128,
-) -> Result<i128, u32> {
-    if *operation == symbol_short!("set") {
+fn compute_new_balance(current: i128, operation: &Symbol, amount: i128) -> Result<i128, u32> {
+    if operation == &symbol_short!("set") {
         Ok(amount)
-    } else if *operation == symbol_short!("add") {
+    } else if operation == &symbol_short!("add") {
         current
             .checked_add(amount)
             .ok_or(ErrorCode::ARITHMETIC_OVERFLOW)
-    } else if *operation == symbol_short!("subtract") {
+    } else if operation == &symbol_short!("subtract") {
         current
             .checked_sub(amount)
             .ok_or(ErrorCode::INSUFFICIENT_BALANCE)
-=======
-fn compute_new_balance(current: i128, operation: &Symbol, amount: i128) -> Result<i128, u32> {
-    if operation == &soroban_sdk::symbol_short!("set") {
-        Ok(amount)
-    } else if operation == &soroban_sdk::symbol_short!("add") {
-        current
-            .checked_add(amount)
-            .ok_or(ErrorCode::ARITHMETIC_OVERFLOW)
-    } else if operation == &soroban_sdk::symbol_short!("subtract") {
-        current
-            .checked_sub(amount)
-            .ok_or(ErrorCode::ARITHMETIC_OVERFLOW)
->>>>>>> 067107d (fix(contracts): fix CI compilation errors across batch-transfer, spending-limits, multi-currency-wallet, and batch-rewards)
     } else {
         Err(ErrorCode::INVALID_OPERATION)
     }

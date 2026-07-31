@@ -31,18 +31,10 @@ use soroban_sdk::{
 };
 
 pub use crate::types::{
-<<<<<<< HEAD
-    BatchGoalMetrics, BatchGoalResult, BatchMilestoneMetrics, BatchMilestoneResult,
-    ContributionRecord, DataKey, ErrorCode, GoalCertificate, GoalEvents, GoalResult, GoalSnapshot,
-    MilestoneAchievement, MilestoneAchievementRequest, MilestoneResult, SavingsGoal,
-    SavingsGoalProgress, SavingsGoalRequest, AllocationGoal, AutoAllocationRequest,
-    AutoAllocationResult, MAX_BATCH_SIZE, REVERSAL_PERIOD_SECS,
-=======
-    BatchGoalMetrics, BatchGoalResult, BatchMilestoneMetrics, BatchMilestoneResult, DataKey,
-    ErrorCode, GoalCertificate, GoalEvents, GoalResult, MilestoneAchievement,
+    AllocationGoal, AutoAllocationRequest, AutoAllocationResult, BatchGoalMetrics,
+    BatchGoalResult, BatchMilestoneMetrics, BatchMilestoneResult, ContributionRecord, DataKey,
+    ErrorCode, GoalCertificate, GoalEvents, GoalResult, GoalSnapshot, MilestoneAchievement,
     MilestoneAchievementRequest, MilestoneResult, SavingsGoal, SavingsGoalProgress,
-    SavingsGoalRequest, MAX_BATCH_SIZE,
->>>>>>> 067107d (fix(contracts): fix CI compilation errors across batch-transfer, spending-limits, multi-currency-wallet, and batch-rewards)
 };
 use crate::validation::{validate_goal_name_unique, validate_goal_request};
 
@@ -1537,10 +1529,7 @@ impl SavingsGoalsContract {
             .instance()
             .get(&DataKey::TotalMilestonesAchieved)
             .unwrap_or(0)
-    }
-
-<<<<<<< HEAD
-    /// Returns the ledger sequence at which a goal was automatically closed,
+    }    /// Returns the ledger sequence at which a goal was automatically closed,
     /// or `None` if the goal has not yet been closed.
     pub fn get_goal_closed_at(env: Env, goal_id: u64) -> Option<u64> {
         env.storage()

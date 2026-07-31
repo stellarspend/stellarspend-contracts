@@ -557,6 +557,125 @@ impl EscrowContract {
         EscrowEvents::escrow_released(&env, escrow_id, &escrow.recipient, escrow.amount);
     }
 
+    /// Raises a dispute for an active escrow.
+    ///
+    /// Can be called by depositor, recipient, or arbiter.
+    pub fn raise_dispute(env: Env, caller: Address, escrow_id: u64) {
+        caller.require_auth();
+
+        let mut escrow: Escrow = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Escrow(escrow_id))
+            .unwrap_or_else(|| panic_with_error!(&env, EscrowError::EscrowNotFound));
+
+        let is_depositor = caller == escrow.depositor;
+        let is_recipient = caller == escrow.recipient;
+        let is_arbiter = if let Some(arb) = &escrow.arbiter {
+            caller == *arb
+        } else {
+            false
+        };
+
+        if !is_depositor && !is_recipient && !is_arbiter {
+            panic_with_error!(&env, EscrowError::Unauthorized);
+        }
+
+        if escrow.status != EscrowStatus::Active {
+            panic_with_error!(&env, EscrowError::Unauthorized);
+        }
+
+        escrow.status = EscrowStatus::Disputed;
+        env.storage()
+            .persistent()
+            .set(&DataKey::Escrow(escrow_id), &escrow);
+
+        EscrowEvents::escrow_disputed(&env, escrow_id, &caller);
+    }
+
+    /// Resolves a disputed escrow with split settlement between depositor and recipient.
+    ///
+    /// Can only be called by the assigned arbiter or contract admin.
+    pub fn resolve_dispute(
+        env: Env,
+        caller: Address,
+        escrow_id: u64,
+        depositor_amount: i128,
+        recipient_amount: i128,
+    ) {
+        caller.require_auth();
+
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .unwrap_or_else(|| panic_with_error!(&env, EscrowError::NotInitialized));
+
+        let mut escrow: Escrow = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Escrow(escrow_id))
+            .unwrap_or_else(|| panic_with_error!(&env, EscrowError::EscrowNotFound));
+
+        let is_admin = caller == admin;
+        let is_arbiter = if let Some(arb) = &escrow.arbiter {
+            caller == *arb
+        } else {
+            false
+        };
+
+        if !is_admin && !is_arbiter {
+            panic_with_error!(&env, EscrowError::Unauthorized);
+        }
+
+        if escrow.status != EscrowStatus::Disputed {
+            panic_with_error!(&env, EscrowError::Unauthorized);
+        }
+
+        if depositor_amount < 0 || recipient_amount < 0 {
+            panic_with_error!(&env, EscrowError::InvalidAmount);
+        }
+
+        let total_split = depositor_amount
+            .checked_add(recipient_amount)
+            .unwrap_or_else(|| panic_with_error!(&env, EscrowError::InvalidAmount));
+
+        if total_split != escrow.amount {
+            panic_with_error!(&env, EscrowError::InvalidAmount);
+        }
+
+        let token_client = token::Client::new(&env, &escrow.token);
+
+        if depositor_amount > 0 {
+            token_client.transfer(
+                &env.current_contract_address(),
+                &escrow.depositor,
+                &depositor_amount,
+            );
+        }
+
+        if recipient_amount > 0 {
+            token_client.transfer(
+                &env.current_contract_address(),
+                &escrow.recipient,
+                &recipient_amount,
+            );
+        }
+
+        escrow.status = EscrowStatus::Resolved;
+        env.storage()
+            .persistent()
+            .set(&DataKey::Escrow(escrow_id), &escrow);
+
+        EscrowEvents::escrow_resolved(
+            &env,
+            escrow_id,
+            &caller,
+            depositor_amount,
+            recipient_amount,
+        );
+    }
+
     /// Returns an escrow by ID.
     pub fn get_escrow(env: Env, escrow_id: u64) -> Option<Escrow> {
         env.storage().persistent().get(&DataKey::Escrow(escrow_id))

@@ -84,15 +84,10 @@ impl AssetControlContract {
             .instance()
             .set(&DataKey::Blacklist, &blacklist);
 
-<<<<<<< HEAD
-        env.events()
-            .publish((symbol_short!("asset"), symbol_short!("unblack")), asset);
-=======
         env.events().publish(
             (symbol_short!("asset"), symbol_short!("unblklist")),
             asset,
         );
->>>>>>> 067107d (fix(contracts): fix CI compilation errors across batch-transfer, spending-limits, multi-currency-wallet, and batch-rewards)
     }
 
     /// Checks if an asset is blacklisted.

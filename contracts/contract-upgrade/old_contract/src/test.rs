@@ -7,15 +7,8 @@ use soroban_sdk::{testutils::Address as _, vec, Address, BytesN, Env, Error, Inv
 
 const DELAY: u64 = 48 * 60 * 60;
 
-<<<<<<< HEAD
 fn dummy_hash(e: &Env) -> BytesN<32> {
     BytesN::from_array(e, &[7u8; 32])
-=======
-mod new_contract {
-    soroban_sdk::contractimport!(
-       file = "../../../target/wasm32-unknown-unknown/release/soroban_upgradeable_contract_new_contract.wasm"
-    );
->>>>>>> 067107d (fix(contracts): fix CI compilation errors across batch-transfer, spending-limits, multi-currency-wallet, and batch-rewards)
 }
 
 /// Assert that a `try_*` client call failed with the given contract error.
@@ -58,7 +51,6 @@ fn test_admin_can_configure_signers_and_delay() {
     client.set_upgrade_signers(&vec![&env, s1, s2, s3], &2);
     client.set_timelock_delay(&3600);
 
-<<<<<<< HEAD
     assert_eq!(client.get_signers().len(), 3);
     assert_eq!(client.get_threshold(), 2);
     assert_eq!(client.get_timelock_delay(), 3600);
