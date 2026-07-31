@@ -16,9 +16,8 @@ mod test;
 mod types;
 
 use crate::types::{
-    BatchBudgetResult, BudgetAllocationSummary, BudgetRecord, BudgetRenewalConfig,
-    BudgetRequest, BudgetVersion, CategoryBudgetRequest,
-    DataKey, UserBudgetCategories,
+    BatchBudgetResult, BudgetAllocationSummary, BudgetRecord, BudgetRenewalConfig, BudgetRequest,
+    BudgetVersion, CategoryBudgetRequest, DataKey, UserBudgetCategories,
 };
 use soroban_sdk::{contract, contractimpl, symbol_short, Address, Env, Map, Symbol, Vec};
 
@@ -476,10 +475,9 @@ impl BudgetAllocationContract {
         };
 
         // Store the version snapshot
-        env.storage().persistent().set(
-            &DataKey::BudgetVersion(user.clone(), new_version),
-            &version,
-        );
+        env.storage()
+            .persistent()
+            .set(&DataKey::BudgetVersion(user.clone(), new_version), &version);
 
         // Update version counter
         env.storage()

@@ -601,11 +601,7 @@ impl GoalEvents {
         previous_owner: &Address,
         new_beneficiary: &Address,
     ) {
-        let topics = (
-            symbol_short!("goal"),
-            symbol_short!("benef_xfer"),
-            goal_id,
-        );
+        let topics = (symbol_short!("goal"), symbol_short!("benef_xfer"), goal_id);
         env.events()
             .publish(topics, (previous_owner.clone(), new_beneficiary.clone()));
     }
@@ -617,10 +613,7 @@ impl GoalEvents {
         total_amount: i128,
         goal_count: u32,
     ) {
-        let topics = (
-            symbol_short!("goal"),
-            symbol_short!("auto_alloc"),
-        );
+        let topics = (symbol_short!("goal"), symbol_short!("auto_alloc"));
         env.events()
             .publish(topics, (user.clone(), total_amount, goal_count));
     }
