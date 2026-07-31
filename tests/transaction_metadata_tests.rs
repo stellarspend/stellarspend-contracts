@@ -58,3 +58,26 @@ fn test_transaction_metadata_event_emitted() {
     let events = env.events().all();
     assert_eq!(events.len(), 1);
 }
+
+#[test]
+fn test_get_transaction_metadata_by_u64_id() {
+    let env = Env::default();
+
+    let tx_id: u64 = 12345;
+    let transaction_id = Bytes::from_slice(&env, &tx_id.to_be_bytes());
+
+    let mut metadata = Map::new(&env);
+    metadata.set(Symbol::short("key"), String::from_str(&env, "value"));
+
+    TransactionMetadataContract::set_metadata(env.clone(), transaction_id, metadata.clone());
+
+    // Known tx_id should return Some(metadata)
+    let stored = TransactionMetadataContract::get_transaction_metadata(env.clone(), tx_id)
+        .expect("metadata should exist for known tx_id");
+    assert_eq!(stored.data, metadata);
+
+    // Unknown tx_id should return None
+    let unknown_tx_id: u64 = 99999;
+    let not_found = TransactionMetadataContract::get_transaction_metadata(env.clone(), unknown_tx_id);
+    assert!(not_found.is_none());
+}
