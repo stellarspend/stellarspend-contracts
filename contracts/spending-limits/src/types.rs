@@ -386,7 +386,7 @@ pub enum DataKey {
 }
 
 /// Error codes for limit validation and enforcement.
-pub mod ErrorCode {
+pub mod error_code {
     /// Invalid limit amount (negative or zero)
     pub const INVALID_LIMIT: u32 = 0;
     /// Invalid user address

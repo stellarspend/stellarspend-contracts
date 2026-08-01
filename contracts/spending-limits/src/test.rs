@@ -13,7 +13,7 @@ use soroban_sdk::{
 };
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
-use crate::types::{ErrorCode, LimitStrategy, LimitUpdateResult, SpendingLimitRequest};
+use crate::types::{error_code, LimitStrategy, LimitUpdateResult, SpendingLimitRequest};
 use alloc::format;
 
 /// Helper function to create a test environment with initialized contract.
@@ -150,7 +150,7 @@ fn test_batch_update_with_invalid_requests() {
     match &result.results.get(1).unwrap() {
         LimitUpdateResult::Success(_) => panic!("Expected second request to fail"),
         LimitUpdateResult::Failure(_, error_code) => {
-            assert_eq!(*error_code, ErrorCode::INVALID_LIMIT);
+            assert_eq!(*error_code, error_code::INVALID_LIMIT);
         }
     }
 }
@@ -172,7 +172,7 @@ fn test_batch_update_invalid_limit_negative() {
 
     match &result.results.get(0).unwrap() {
         LimitUpdateResult::Failure(_, error_code) => {
-            assert_eq!(*error_code, ErrorCode::INVALID_LIMIT);
+            assert_eq!(*error_code, error_code::INVALID_LIMIT);
         }
         LimitUpdateResult::Success(_) => panic!("Expected failure"),
     }
@@ -195,7 +195,7 @@ fn test_batch_update_invalid_limit_too_high() {
 
     match &result.results.get(0).unwrap() {
         LimitUpdateResult::Failure(_, error_code) => {
-            assert_eq!(*error_code, ErrorCode::INVALID_LIMIT);
+            assert_eq!(*error_code, error_code::INVALID_LIMIT);
         }
         LimitUpdateResult::Success(_) => panic!("Expected failure"),
     }

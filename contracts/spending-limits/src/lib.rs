@@ -30,10 +30,11 @@ use soroban_sdk::{contract, contractimpl, panic_with_error, Address, Env, Symbol
 use shared::authorization::{add_allowed_contract, is_allowed_contract, remove_allowed_contract};
 
 pub use crate::types::{
-    BatchLimitMetrics, BatchLimitResult, DataKey, ErrorCode, EscalationConfig, ExceptionRule,
+    BatchLimitMetrics, BatchLimitResult, DataKey, EscalationConfig, ExceptionRule,
     LimitEvents, LimitStrategy, LimitUpdateResult, LimitsConfig, SpendingLimit,
     SpendingLimitRequest, MAX_BATCH_SIZE,
 };
+pub use crate::types::error_code;
 use crate::validation::validate_limit_request;
 
 // Add cross-contract imports for whitelist functionality

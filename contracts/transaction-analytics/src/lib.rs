@@ -39,9 +39,10 @@ pub use crate::analytics::{
 
 // Fees exports (single, de-duplicated block)
 pub use crate::fees::{
-    calculate_batch_fees, calculate_transaction_fee, deduct_fees, get_current_fee_config,
-    get_operation_fee_config, store_fee_config, store_operation_fee_config, update_fee_config,
-    update_operation_fee_config, validate_fee_config,
+    calculate_batch_fees, calculate_transaction_fee, deduct_fees, distribute_fee,
+    get_current_fee_config, get_operation_fee_config, is_fee_paused, store_fee_config,
+    store_operation_fee_config, update_fee_config, update_operation_fee_config,
+    validate_fee_config, validate_recipient_shares,
 };
 
 // Types exports
