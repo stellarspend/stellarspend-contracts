@@ -155,7 +155,7 @@ impl BatchTokenMintContract {
         let current_ledger = env.ledger().sequence() as u64;
 
         // Initialize token client
-        let token_client = token::Client::new(&env, &token);
+        let _token_client = token::Client::new(&env, &token);
 
         // Initialize result tracking
         let mut results: Vec<MintResult> = Vec::new(&env);

@@ -10,6 +10,8 @@ pub mod authorization;
 pub mod batch_result;
 pub mod date_utils;
 pub mod errors;
+pub mod oracle;
+pub mod reflector_oracle;
 pub mod sanitizer;
 pub mod reentrancy;
 pub mod utils;

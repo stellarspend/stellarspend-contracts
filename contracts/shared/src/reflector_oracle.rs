@@ -1,4 +1,4 @@
-use soroban_sdk::{Env, Address, String, Vec, panic_with_error};
+use soroban_sdk::{panic_with_error, symbol_short, Env, Address, String, Symbol, IntoVal};
 use crate::oracle::{PriceOracle, Price, OracleError};
 
 /// Reflector Oracle Adapter
@@ -19,14 +19,10 @@ impl ReflectorOracle {
 impl PriceOracle for ReflectorOracle {
     fn get_price(&self, env: &Env, asset_a: String, asset_b: String) -> Price {
         // Call the Reflector contract to get the current price
-        let result: (i128, u64) = env
-            .invoke_contract(
-                &self.contract_address,
-                &("get_price", &asset_a, &asset_b),
-            )
-            .unwrap_or_else(|e| {
-                panic_with_error!(env, OracleError::OracleUnavailable);
-            });
+        let fn_name: Symbol = symbol_short!("get_price");
+        let args = soroban_sdk::vec![&env, asset_a.clone().into_val(env), asset_b.clone().into_val(env)];
+        let result: Result<(i128, u64), soroban_sdk::Error> = env.invoke_contract(&self.contract_address, &fn_name, args);
+        let result = result.unwrap_or_else(|_| panic_with_error!(env, OracleError::OracleUnavailable));
 
         let (value, timestamp) = result;
 
@@ -41,14 +37,15 @@ impl PriceOracle for ReflectorOracle {
 
     fn get_twap(&self, env: &Env, asset_a: String, asset_b: String, window_seconds: u64) -> Price {
         // Call the Reflector contract to get TWAP
-        let result: (i128, u64) = env
-            .invoke_contract(
-                &self.contract_address,
-                &("get_twap", &asset_a, &asset_b, &window_seconds),
-            )
-            .unwrap_or_else(|e| {
-                panic_with_error!(env, OracleError::OracleUnavailable);
-            });
+        let fn_name: Symbol = symbol_short!("get_twap");
+        let args = soroban_sdk::vec![
+            &env,
+            asset_a.clone().into_val(env),
+            asset_b.clone().into_val(env),
+            window_seconds.into_val(env),
+        ];
+        let result: Result<(i128, u64), soroban_sdk::Error> = env.invoke_contract(&self.contract_address, &fn_name, args);
+        let result = result.unwrap_or_else(|_| panic_with_error!(env, OracleError::OracleUnavailable));
 
         let (value, timestamp) = result;
 

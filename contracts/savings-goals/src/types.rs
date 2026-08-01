@@ -603,7 +603,15 @@ impl GoalEvents {
         previous_owner: &Address,
         new_beneficiary: &Address,
     ) {
+<<<<<<< HEAD
         let topics = (symbol_short!("goal"), symbol_short!("benef_xfer"), goal_id);
+=======
+        let topics = (
+            symbol_short!("goal"),
+            symbol_short!("b_xfer"),
+            goal_id,
+        );
+>>>>>>> f0958f1 (fix: resolve build errors in multi-currency-wallet (missing shared modules, storage API, Vec/Box scope))
         env.events()
             .publish(topics, (previous_owner.clone(), new_beneficiary.clone()));
     }
@@ -615,7 +623,14 @@ impl GoalEvents {
         total_amount: i128,
         goal_count: u32,
     ) {
+<<<<<<< HEAD
         let topics = (symbol_short!("goal"), symbol_short!("auto_alloc"));
+=======
+        let topics = (
+            symbol_short!("goal"),
+            symbol_short!("auto_alc"),
+        );
+>>>>>>> f0958f1 (fix: resolve build errors in multi-currency-wallet (missing shared modules, storage API, Vec/Box scope))
         env.events()
             .publish(topics, (user.clone(), total_amount, goal_count));
     }

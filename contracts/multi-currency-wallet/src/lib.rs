@@ -1,10 +1,13 @@
 #![no_std]
+
+extern crate alloc;
+
 mod oracle;
 
+use alloc::boxed::Box;
 use oracle::OracleManager;
-use shared::oracle::{format_price, OracleError, Price};
 use shared::reflector_oracle::ReflectorOracle;
-use soroban_sdk::{contract, contracttype, panic_with_error, Address, Env, String};
+use soroban_sdk::{contract, contractimpl, contracttype, panic_with_error, Address, Env, String, Vec};
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -55,34 +58,37 @@ impl MultiCurrencyWallet {
             max_deviation_bps,
         };
 
-        env.storage()
-            .set(&String::from_str(&env, "wallet"), &wallet);
+        env.storage().instance().set(&String::from_str(&env, "wallet"), &wallet);
     }
 
     /// Add a balance to the wallet
     pub fn add_balance(env: Env, asset: String, amount: i128) {
         let mut wallet: CurrencyWallet = env
             .storage()
+            .instance()
             .get(&String::from_str(&env, "wallet"))
             .unwrap_or_else(|| panic!("Wallet not initialized"));
 
         // Update balance
         let mut found = false;
-        for (i, (existing_asset, existing_amount)) in wallet.balances.iter().enumerate() {
-            if *existing_asset == asset {
+        let mut updated_balances = Vec::new(&env);
+        for (existing_asset, existing_amount) in wallet.balances.iter() {
+            if existing_asset == asset {
                 let new_amount = existing_amount + amount;
-                wallet.balances.set(i, (asset.clone(), new_amount));
+                updated_balances.push_back((asset.clone(), new_amount));
                 found = true;
-                break;
+            } else {
+                updated_balances.push_back((existing_asset.clone(), existing_amount));
             }
         }
 
         if !found {
-            wallet.balances.push((asset, amount));
+            updated_balances.push_back((asset, amount));
         }
 
-        env.storage()
-            .set(&String::from_str(&env, "wallet"), &wallet);
+        wallet.balances = updated_balances;
+
+        env.storage().instance().set(&String::from_str(&env, "wallet"), &wallet);
     }
 
     /// Convert currency using oracle rate
@@ -90,6 +96,7 @@ impl MultiCurrencyWallet {
         // 1. Get the wallet
         let wallet: CurrencyWallet = env
             .storage()
+            .instance()
             .get(&String::from_str(&env, "wallet"))
             .unwrap_or_else(|| panic!("Wallet not initialized"));
 
@@ -144,35 +151,40 @@ impl MultiCurrencyWallet {
     ) {
         let mut wallet: CurrencyWallet = env
             .storage()
+            .instance()
             .get(&String::from_str(&env, "wallet"))
             .unwrap();
 
+        let mut updated_balances = Vec::new(&env);
+        let mut from_found = false;
+        let mut to_found = false;
+
         // Subtract from balance
-        for (i, (asset, amount)) in wallet.balances.iter().enumerate() {
-            if *asset == from_asset {
+        for (asset, amount) in wallet.balances.iter() {
+            if asset == from_asset {
                 let new_amount = amount - from_amount;
-                wallet.balances.set(i, (from_asset.clone(), new_amount));
-                break;
-            }
-        }
-
-        // Add to balance
-        let mut found = false;
-        for (i, (asset, amount)) in wallet.balances.iter().enumerate() {
-            if *asset == to_asset {
+                updated_balances.push_back((from_asset.clone(), new_amount));
+                from_found = true;
+            } else if asset == to_asset {
                 let new_amount = amount + to_amount;
-                wallet.balances.set(i, (to_asset.clone(), new_amount));
-                found = true;
-                break;
+                updated_balances.push_back((to_asset.clone(), new_amount));
+                to_found = true;
+            } else {
+                updated_balances.push_back((asset.clone(), amount));
             }
         }
 
-        if !found {
-            wallet.balances.push((to_asset, to_amount));
+        if !from_found {
+            updated_balances.push_back((from_asset, 0 - from_amount));
         }
 
-        env.storage()
-            .set(&String::from_str(&env, "wallet"), &wallet);
+        if !to_found {
+            updated_balances.push_back((to_asset, to_amount));
+        }
+
+        wallet.balances = updated_balances;
+
+        env.storage().instance().set(&String::from_str(&env, "wallet"), &wallet);
     }
 
     /// Get wallet assets (list of asset symbols)
@@ -193,12 +205,13 @@ impl MultiCurrencyWallet {
     pub fn get_balance(env: Env, asset: String) -> i128 {
         let wallet: CurrencyWallet = env
             .storage()
+            .instance()
             .get(&String::from_str(&env, "wallet"))
             .unwrap_or_else(|| panic!("Wallet not initialized"));
 
         for (existing_asset, amount) in wallet.balances.iter() {
-            if *existing_asset == asset {
-                return *amount;
+            if existing_asset == asset {
+                return amount;
             }
         }
 
@@ -209,6 +222,7 @@ impl MultiCurrencyWallet {
     pub fn is_oracle_fresh(env: Env, asset_a: String, asset_b: String) -> bool {
         let wallet: CurrencyWallet = env
             .storage()
+            .instance()
             .get(&String::from_str(&env, "wallet"))
             .unwrap_or_else(|| panic!("Wallet not initialized"));
 

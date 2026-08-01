@@ -347,7 +347,7 @@ impl BudgetAllocationContract {
         let now = env.ledger().timestamp();
 
         // Get current budget record
-        let mut budget_record: Option<BudgetRecord> = env
+        let budget_record: Option<BudgetRecord> = env
             .storage()
             .persistent()
             .get(&DataKey::Budget(user.clone()));
