@@ -913,40 +913,6 @@ impl SpendingLimitsContract {
 
 #[cfg(test)]
 mod test;
-=======
-//! # Spending Limits Contract
-//!
-//! A Soroban smart contract for managing batch spending limit updates
-//! for multiple users simultaneously.
-//!
-//! ## Features
-//!
-//! - **Batch Processing**: Efficiently update spending limits for multiple users in a single call
-//! - **Comprehensive Validation**: Validates limit amounts and user addresses
-//! - **Event Emission**: Emits events for limit updates and batch processing
-//! - **Error Handling**: Gracefully handles invalid inputs with detailed error codes
-//! - **Optimized Storage**: Minimizes storage writes by batching operations
-//! - **Partial Failure Support**: Invalid updates don't affect valid ones
-//!
-//! ## Optimization Strategies
-//!
-//! - Single-pass processing for O(n) complexity
-//! - Minimized storage operations (batch writes at the end)
-//! - Efficient data structures
-//! - Batched event emissions
-
-#![no_std]
-
-mod types;
-mod validation;
-
-use soroban_sdk::{contract, contractimpl, panic_with_error, Address, Env, Vec};
-
-pub use crate::types::{
-    BatchLimitMetrics, BatchLimitResult, DataKey, ErrorCode, LimitEvents, LimitUpdateResult,
-    SpendingLimit, SpendingLimitRequest, MAX_BATCH_SIZE,
-};
-use crate::validation::validate_limit_request;
 
 // Add imports for whitelist functionality
 use soroban_sdk::{Bytes, Symbol};
