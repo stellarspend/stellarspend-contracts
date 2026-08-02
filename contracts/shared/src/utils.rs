@@ -1,5 +1,4 @@
 use alloc::format;
-use alloc::string::ToString;
 use soroban_sdk::{Env, String, Symbol};
 
 /// Shared validation errors for simple reusable helpers.
@@ -67,7 +66,7 @@ pub fn increment_counter(env: &Env, counter_key: &Symbol) -> u64 {
 /// tracking and reconciliation of individual transactions.
 pub fn generate_transaction_reference_id(
     env: &Env,
-    sender: &soroban_sdk::Address,
+    _sender: &soroban_sdk::Address,
     counter_key: &Symbol,
 ) -> String {
     // Increment the transaction counter to ensure uniqueness

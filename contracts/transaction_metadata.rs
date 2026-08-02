@@ -54,6 +54,15 @@ impl TransactionMetadataContract {
         env.storage().persistent().get(&key)
     }
 
+    /// Retrieve stored metadata by u64 tx_id
+    pub fn get_transaction_metadata(
+        env: Env,
+        tx_id: u64,
+    ) -> Option<TransactionMetadata> {
+        let transaction_id = Bytes::from_slice(&env, &tx_id.to_be_bytes());
+        Self::get_metadata(env, transaction_id)
+    }
+
     /// Validate metadata size and structure
     fn validate_metadata(env: &Env, metadata: &Map<Symbol, String>) {
         let mut total_size: u32 = 0;

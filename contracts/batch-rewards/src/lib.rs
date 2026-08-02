@@ -98,6 +98,14 @@ impl BatchRewardsContract {
             .unwrap_or(0)
     }
 
+    /// Gets the total reward amount distributed in a specific batch.
+    pub fn get_batch_rewards_total(env: Env, batch_id: u64) -> i128 {
+        env.storage()
+            .instance()
+            .get(&DataKey::BatchRewardTotal(batch_id))
+            .unwrap_or(0)
+    }
+
     /// Sets a new admin address.
     pub fn set_admin(env: Env, caller: Address, new_admin: Address) {
         caller.require_auth();
@@ -158,6 +166,7 @@ impl BatchRewardsContract {
 
         // Initialize result vectors
         let mut results: Vec<RewardResult> = Vec::new(&env);
+        let mut shared_results: Vec<shared::batch_result::BatchItemResult> = Vec::new(&env);
         let mut successful_count: u32 = 0;
         let mut failed_count: u32 = 0;
         let mut total_distributed: i128 = 0;
@@ -224,6 +233,12 @@ impl BatchRewardsContract {
                         reward.recipient.clone(),
                         reward.amount,
                     ));
+                    shared_results.push_back(shared::batch_result::BatchItemResult {
+                        success: true,
+                        target: reward.recipient.clone(),
+                        amount: reward.amount,
+                        error_code: 0,
+                    });
                     RewardEvents::reward_success(&env, batch_id, &reward.recipient, reward.amount);
                 }
                 Err(_) => {
@@ -234,6 +249,12 @@ impl BatchRewardsContract {
                         reward.amount,
                         error_code,
                     ));
+                    shared_results.push_back(shared::batch_result::BatchItemResult {
+                        success: false,
+                        target: reward.recipient.clone(),
+                        amount: reward.amount,
+                        error_code,
+                    });
                     RewardEvents::reward_failure(
                         &env,
                         batch_id,
@@ -249,6 +270,9 @@ impl BatchRewardsContract {
         env.storage()
             .instance()
             .set(&DataKey::TotalBatches, &batch_id);
+        env.storage()
+            .instance()
+            .set(&DataKey::BatchRewardTotal(batch_id), &total_distributed);
 
         // Mark the idempotency token as used for this completed batch.
         env.storage().persistent().set(&token_key, &true);
@@ -288,6 +312,7 @@ impl BatchRewardsContract {
             failed: failed_count,
             total_distributed,
             results,
+            shared_results,
         }
     }
 

@@ -1,154 +1,87 @@
 #![allow(dead_code)]
 
-use soroban_sdk::{
-    contracttype,
-    Address,
-    Env,
-    String,
-    Vec,
-};
+use soroban_sdk::{contracttype, Address, String};
 
 /// Storage keys used throughout the LMS contract.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum DataKey {
+pub enum StorageKey {
+    /// Auto-increment counter for course IDs.
+    NextCourseId,
+    /// Storage key for a specific course by ID
+    Course(u64),
+    /// Storage key for a specific lesson by ID
+    Lesson(u64),
+    /// Storage key for a specific module by ID
+    Module(u64),
+    /// Storage key for a specific quiz by ID
+    Quiz(u64),
+    /// Storage key for student account record by Address
     Student(Address),
-}
-
-/// Persistent student profile.
-///
-/// Stores learner progress and reward information.
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct StudentProfile {
-    /// Student wallet address
-    pub wallet: Address,
-
-    /// IDs of enrolled courses
-    pub enrolled_courses: Vec<String>,
-
-    /// IDs of completed lessons
-    pub completed_lessons: Vec<String>,
-
-    /// Earned certificate IDs
-    pub certificates: Vec<String>,
-
-    /// Experience points
-    pub xp: u64,
-
-    /// Reward balance
-    pub reward_balance: i128,
-}
-
-/// Saves a student profile into persistent storage.
-pub fn save_student_profile(env: &Env, profile: &StudentProfile) {
-    env.storage()
-        .persistent()
-        .set(&DataKey::Student(profile.wallet.clone()), profile);
-}
-
-/// Retrieves a student profile by wallet address.
-pub fn get_student_profile(
-    env: &Env,
-    wallet: &Address,
-) -> Option<StudentProfile> {
-    env.storage()
-        .persistent()
-        .get(&DataKey::Student(wallet.clone()))
-}
-
-/// Updates an existing student profile.
-///
-/// Since Soroban storage overwrites values with the same key,
-/// updating is equivalent to saving.
-pub fn update_student_profile(
-    env: &Env,
-    profile: &StudentProfile,
-) {
-    save_student_profile(env, profile);
+    /// Storage key for a certificate record by ID or serial string
+    Certificate(String),
+    /// Storage key tracking student progress for a given course (Student Address, Course ID)
+    Progress(Address, u64),
+    /// Storage key tracking a student's withdrawal timestamp for a given course
+    /// (Student Address, Course ID). Presence of this key means the student
+    /// actively withdrew; the underlying `Progress` record is left untouched
+    /// so the progress percentage at time of withdrawal remains queryable.
+    Withdrawn(Address, u64),
+    /// Storage key tracking whether/when a student completed a specific lesson,
+    /// storing a `u64` ledger timestamp. Presence of the key means completed;
+    /// absence means not completed. Keyed by (Student Address, Lesson ID).
+    LessonCompletion(Address, u64),
+    /// Storage key tracking the total number of lessons registered for a
+    /// course (a `u32` counter), used as the denominator for course progress
+    /// percentage calculations. Keyed by Course ID.
+    CourseLessonCount(u64),
+    /// Storage key tracking how many lessons a student has completed within a
+    /// given course (a `u32` counter, incremented by `complete_lesson`), used
+    /// as the numerator for course progress percentage calculations. Keyed by
+    /// (Student Address, Course ID).
+    CompletedLessonCount(Address, u64),
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use soroban_sdk::{
-        testutils::Address as _,
-        Env,
-        Vec,
-    };
+    use soroban_sdk::{testutils::Address as _, vec, Env};
 
     #[test]
-    fn save_profile() {
+    fn test_storage_keys_read_write() {
         let env = Env::default();
+        let contract_id = env.register(crate::LMSContract, ());
+        let student_addr = Address::generate(&env);
+        let cert_id = String::from_str(&env, "CERT-2026-001");
 
-        let wallet = Address::generate(&env);
+        // One instance of every StorageKey variant.
+        let keys = vec![
+            &env,
+            StorageKey::NextCourseId,
+            StorageKey::Course(101),
+            StorageKey::Lesson(202),
+            StorageKey::Module(303),
+            StorageKey::Quiz(404),
+            StorageKey::Student(student_addr.clone()),
+            StorageKey::Certificate(cert_id.clone()),
+            StorageKey::Progress(student_addr.clone(), 101),
+            StorageKey::Withdrawn(student_addr.clone(), 101),
+            StorageKey::LessonCompletion(student_addr.clone(), 202),
+            StorageKey::CourseLessonCount(101),
+            StorageKey::CompletedLessonCount(student_addr.clone(), 101),
+        ];
 
-        let profile = StudentProfile {
-            wallet: wallet.clone(),
-            enrolled_courses: Vec::new(&env),
-            completed_lessons: Vec::new(&env),
-            certificates: Vec::new(&env),
-            xp: 100,
-            reward_balance: 500,
-        };
+        env.as_contract(&contract_id, || {
+            // Verify write, exists, and read back for each key
+            for (i, key) in keys.iter().enumerate() {
+                let dummy_val = (i + 1) as u64;
 
-        save_student_profile(&env, &profile);
+                env.storage().instance().set(&key, &dummy_val);
 
-        let stored = get_student_profile(&env, &wallet);
-
-        assert!(stored.is_some());
-        assert_eq!(stored.unwrap(), profile);
-    }
-
-    #[test]
-    fn retrieve_profile() {
-        let env = Env::default();
-
-        let wallet = Address::generate(&env);
-
-        let profile = StudentProfile {
-            wallet: wallet.clone(),
-            enrolled_courses: Vec::new(&env),
-            completed_lessons: Vec::new(&env),
-            certificates: Vec::new(&env),
-            xp: 50,
-            reward_balance: 1000,
-        };
-
-        save_student_profile(&env, &profile);
-
-        let retrieved = get_student_profile(&env, &wallet).unwrap();
-
-        assert_eq!(retrieved.wallet, wallet);
-        assert_eq!(retrieved.xp, 50);
-        assert_eq!(retrieved.reward_balance, 1000);
-    }
-
-    #[test]
-    fn update_profile() {
-        let env = Env::default();
-
-        let wallet = Address::generate(&env);
-
-        let mut profile = StudentProfile {
-            wallet: wallet.clone(),
-            enrolled_courses: Vec::new(&env),
-            completed_lessons: Vec::new(&env),
-            certificates: Vec::new(&env),
-            xp: 0,
-            reward_balance: 0,
-        };
-
-        save_student_profile(&env, &profile);
-
-        profile.xp = 250;
-        profile.reward_balance = 5000;
-
-        update_student_profile(&env, &profile);
-
-        let updated = get_student_profile(&env, &wallet).unwrap();
-
-        assert_eq!(updated.xp, 250);
-        assert_eq!(updated.reward_balance, 5000);
+                assert!(env.storage().instance().has(&key));
+                let retrieved: u64 = env.storage().instance().get(&key).unwrap();
+                assert_eq!(retrieved, dummy_val);
+            }
+        });
     }
 }

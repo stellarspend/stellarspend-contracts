@@ -16,6 +16,10 @@ pub mod ErrorCode {
     pub const UNAUTHORIZED: u32 = 3;
     /// Deadline not yet reached (for time-based reversals)
     pub const DEADLINE_NOT_REACHED: u32 = 4;
+    /// Escrow is disputed
+    pub const IS_DISPUTED: u32 = 5;
+    /// Escrow already resolved
+    pub const ALREADY_RESOLVED: u32 = 6;
 }
 
 /// Validation error types for reversals.
@@ -31,6 +35,10 @@ pub enum ValidationError {
     Unauthorized,
     /// Deadline has not been reached yet
     DeadlineNotReached,
+    /// Escrow is disputed
+    IsDisputed,
+    /// Escrow has already been resolved
+    AlreadyResolved,
 }
 
 impl ValidationError {
@@ -42,6 +50,8 @@ impl ValidationError {
             ValidationError::AlreadyReversed => ErrorCode::ALREADY_REVERSED,
             ValidationError::Unauthorized => ErrorCode::UNAUTHORIZED,
             ValidationError::DeadlineNotReached => ErrorCode::DEADLINE_NOT_REACHED,
+            ValidationError::IsDisputed => ErrorCode::IS_DISPUTED,
+            ValidationError::AlreadyResolved => ErrorCode::ALREADY_RESOLVED,
         }
     }
 }
@@ -72,6 +82,8 @@ pub fn validate_reversal(
     match escrow.status {
         EscrowStatus::Released => return Err(ValidationError::AlreadyReleased),
         EscrowStatus::Reversed => return Err(ValidationError::AlreadyReversed),
+        EscrowStatus::Disputed => return Err(ValidationError::IsDisputed),
+        EscrowStatus::Resolved => return Err(ValidationError::AlreadyResolved),
         EscrowStatus::Active => {}
     }
 
@@ -109,6 +121,8 @@ pub fn validate_release(
     match escrow.status {
         EscrowStatus::Released => return Err(ValidationError::AlreadyReleased),
         EscrowStatus::Reversed => return Err(ValidationError::AlreadyReversed),
+        EscrowStatus::Disputed => return Err(ValidationError::IsDisputed),
+        EscrowStatus::Resolved => return Err(ValidationError::AlreadyResolved),
         EscrowStatus::Active => {}
     }
 

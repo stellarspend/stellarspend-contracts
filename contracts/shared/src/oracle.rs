@@ -1,4 +1,6 @@
-use soroban_sdk::{Address, Env, Vec, String, panic_with_error};
+extern crate alloc;
+
+use soroban_sdk::{Env, String};
 
 /// Oracle price feed interface
 /// 
@@ -64,10 +66,17 @@ pub enum OracleError {
     InvalidAssetPair = 6,
 }
 
+impl From<OracleError> for soroban_sdk::Error {
+    fn from(error: OracleError) -> Self {
+        soroban_sdk::Error::from_contract_error(error as u32)
+    }
+}
+
 /// Helper function to convert a price to a human-readable string
 pub fn format_price(price: &Price) -> String {
     let value = price.value;
     let integer = value / 10_000_000;
     let fractional = value % 10_000_000;
-    format!("{}.{:07}", integer, fractional)
+    let formatted = alloc::format!("{}.{:07}", integer, fractional);
+    String::from_str(&Env::default(), &formatted)
 }

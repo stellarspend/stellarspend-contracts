@@ -123,6 +123,10 @@ impl WalletProfileContract {
         env.storage().persistent().get(&DataKey::Profile(user))
     }
 
+    pub fn get_wallet_profile(env: Env, owner: Address) -> Option<WalletProfile> {
+        env.storage().persistent().get(&DataKey::Profile(owner))
+    }
+
     pub fn get_admin(env: Env) -> Address {
         env.storage()
             .instance()

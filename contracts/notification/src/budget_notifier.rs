@@ -1,6 +1,6 @@
 use soroban_sdk::Env;
 
-use crate::notifications::events::emit_budget_event;
+use crate::events::emit_budget_event;
 
 pub struct BudgetNotifier;
 

@@ -130,11 +130,6 @@ pub fn has_reward_account(env: &Env, account: &Address) -> bool {
         .has(&DataKey::RewardAccount(account.clone()))
 }
 
-/// Returns the `AccountStatus` for `account`, if the account exists.
-pub fn get_account_status(env: &Env, account: &Address) -> Option<AccountStatus> {
-    get_reward_account(env, account).map(|acc| acc.account_status)
-}
-
 /// Updates the `AccountStatus` for `account` and updates `last_updated` timestamp.
 pub fn set_account_status(env: &Env, account: &Address, status: AccountStatus) -> bool {
     if let Some(mut acc) = get_reward_account(env, account) {
@@ -150,6 +145,32 @@ pub fn set_account_status(env: &Env, account: &Address, status: AccountStatus) -
 /// Returns the `metadata_version` for `account`, if the account exists.
 pub fn get_metadata_version(env: &Env, account: &Address) -> Option<u32> {
     get_reward_account(env, account).map(|acc| acc.metadata_version)
+// ── Reward Account Statistics ──────────────────────────────────────────────────
+
+/// Returns aggregate statistics for `account`.
+///
+/// Returns zeroed defaults if no stats entry exists yet.
+pub fn get_account_stats(env: &Env, account: &Address) -> RewardAccountStats {
+    let key = DataKey::AccountStats(account.clone());
+    let stats = env
+        .storage()
+        .persistent()
+        .get::<DataKey, RewardAccountStats>(&key)
+        .unwrap_or(RewardAccountStats {
+            total_earned: 0,
+            total_redeemed: 0,
+            total_transactions: 0,
+            last_reward_timestamp: 0,
+        });
+    if stats.total_transactions != 0 || stats.total_earned != 0 || stats.total_redeemed != 0 {
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, PERSISTENT_TTL_BUMP, PERSISTENT_TTL_BUMP);
+    }
+    stats
+}
+
+
 }
 
 // ── Reward Transaction Counter ─────────────────────────────────────────────────

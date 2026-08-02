@@ -334,12 +334,11 @@ impl TransactionsContract {
         if !transaction_exists(&env, id.clone()) {
             panic_with_error!(&env, TransactionError::TransactionNotFound);
         }
-
         let success = storage::update_transaction_status(&env, id.clone(), caller, status.clone());
 
         if success {
             env.events().publish(
-                (symbol_short!("tx"), symbol_short!("tx_status")),
+                (symbol_short!("tx"), symbol_short!("stat_upd")),
                 (id.clone(), status),
             );
         }

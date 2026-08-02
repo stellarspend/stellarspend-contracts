@@ -1,115 +1,51 @@
-#![cfg(test)]
-
-use soroban_sdk::{Env, String, Vec};
-
-use crate::{LMSContract, Module};
-
-#[test]
-fn test_initialize() {
-    let _env = Env::default();
-
-    let result = LMSContract::initialize();
-
-    assert!(result);
-}
-
-#[test]
-fn test_create_module() {
-    let env = Env::default();
-
-    let mut lessons = Vec::new(&env);
-
-    lessons.push_back(1);
-    lessons.push_back(2);
-    lessons.push_back(3);
-
-    let module = Module {
-        module_id: 1,
-        course_id: 100,
-        title: String::from_str(&env, "Introduction"),
-        lesson_ids: lessons.clone(),
-        display_order: 1,
+#[cfg(test)]
+mod test {
+    use super::*;
+    use soroban_sdk::{
+        testutils::{Address as _, Events, Ledger},
+        Address, Env, String, Symbol, Vec,
     };
 
-    assert_eq!(module.module_id, 1);
-    assert_eq!(module.course_id, 100);
-    assert_eq!(module.lesson_ids.len(), 3);
-    assert_eq!(module.display_order, 1);
-
-    assert_eq!(module.lesson_ids.get(0), Some(1));
-    assert_eq!(module.lesson_ids.get(1), Some(2));
-    assert_eq!(module.lesson_ids.get(2), Some(3));
-}
-
-use soroban_sdk::{Env, String};
-
-use crate::Lesson;
-
-#[test]
-fn test_create_lesson() {
-    let env = Env::default();
-
-    let lesson = Lesson {
-        lesson_id: 1,
-        course_id: 100,
-        title: String::from_str(&env, "Introduction"),
-        description: String::from_str(&env, "Welcome to the course"),
-        content_uri: String::from_str(&env, "ipfs://QmLessonHash"),
-        estimated_duration: 30,
-        lesson_order: 1,
+    use crate::{
+        admin::{initialize_admin, set_role, get_admin, get_role, require_instructor_or_admin, Role, AdminError},
+        errors::LmsError,
+        lesson::{LessonDataKey, LessonRecord, LessonManager},
+        models::{Lesson, Module, Quiz, Course, UpdateCourseInput, CourseError},
+        storage::{save_student_profile, get_student_profile, StudentProfile, DataKey, StorageKey},
+        event::LMSEvents,
+        LMSContract, LMSContractClient,
+        course::{create_course, get_course, update_course, publish_course, archive_course, enroll_student},
     };
 
-    assert_eq!(lesson.lesson_id, 1);
-    assert_eq!(lesson.course_id, 100);
-    assert_eq!(lesson.title, String::from_str(&env, "Introduction"));
-    assert_eq!(lesson.estimated_duration, 30);
-    assert_eq!(lesson.lesson_order, 1);
-}
+    // --- Helper Functions ---
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+    fn setup(env: &Env) -> (Address, Address, Address, LMSContractClient<'_>) {
+        env.mock_all_auths();
 
-    #[test]
-    fn create_quiz() {
-        let quiz = Quiz {
-            quiz_id: 1,
-            lesson_id: 10,
-            passing_score: 70,
-            maximum_score: 100,
-            reward_points: 50,
-            is_active: true,
-        };
+        let contract_id = env.register_contract(None, LMSContract);
+        let client = LMSContractClient::new(env, &contract_id);
 
-        assert_eq!(quiz.quiz_id, 1);
-        assert_eq!(quiz.lesson_id, 10);
-        assert_eq!(quiz.passing_score, 70);
-        assert_eq!(quiz.maximum_score, 100);
-        assert_eq!(quiz.reward_points, 50);
-        assert!(quiz.is_active);
+        let admin = Address::generate(env);
+        let instructor = Address::generate(env);
+
+        env.as_contract(&contract_id, || {
+            initialize_admin(env.clone(), admin.clone()).unwrap();
+            set_role(env.clone(), admin.clone(), instructor.clone(), Role::Instructor).unwrap();
+        });
+
+        (contract_id, admin, instructor, client)
     }
-}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn create_quiz() {
-        let quiz = Quiz {
-            quiz_id: 1,
-            lesson_id: 10,
-            passing_score: 70,
-            maximum_score: 100,
-            reward_points: 50,
-            is_active: true,
-        };
-
-        assert_eq!(quiz.quiz_id, 1);
-        assert_eq!(quiz.lesson_id, 10);
-        assert_eq!(quiz.passing_score, 70);
-        assert_eq!(quiz.maximum_score, 100);
-        assert_eq!(quiz.reward_points, 50);
-        assert!(quiz.is_active);
-    }
-}
+    fn setup_test_course(env: &Env, instructor: &Address, course_id: u64) -> Course {
+        let course = Course {
+            id: course_id,
+            instructor: instructor.clone(),
+            admin: instructor.clone(),
+            title: String::from_str(env, "Old Title"),
+            description: String::from_str(env, "Old Description"),
+            category: String::from_str(env, "Old Category"),
+            difficulty: 1,
+            thumbnail: String::from_str(env, "https://old.png"),
+            published: false,
+            archived: false,
+            created

@@ -146,6 +146,11 @@ impl FeeEvents {
         );
     }
 
+    pub fn reconciliation_completed(env: &Env, is_match: bool, difference: i128) {
+        let topics = (symbol_short!("fee"), symbol_short!("reconcile"));
+        env.events().publish(topics, (is_match, difference));
+    }
+
     pub fn min_fee_updated(env: &Env, min_fee: i128) {
         publish(env, symbol_short!("fee"), symbol_short!("minfee"), min_fee);
     }

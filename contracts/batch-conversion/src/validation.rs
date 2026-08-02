@@ -5,8 +5,6 @@ use soroban_sdk::{Address, Env};
 /// Validation error types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ValidationError {
-    /// Invalid address
-    _InvalidAddress,
     /// Invalid conversion amount
     InvalidAmount,
     /// Invalid expected output amount

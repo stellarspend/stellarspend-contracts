@@ -1,5 +1,5 @@
 #![allow(unused)]
-use soroban_sdk::{contract, contractimpl, Env, String, Vec};
+use soroban_sdk::{contract, contractimpl, Env, String, Symbol, Vec};
 
 pub mod math;
 pub mod types;
@@ -24,6 +24,16 @@ impl CurrencyConversionContract {
         base_currency: String,
     ) -> i128 {
         math::normalize_balances(balances, rates, base_currency)
+    }
+
+    /// Returns the stored conversion rate for a currency pair.
+    ///
+    /// Returns `0` when no rate is stored for `(from, to)`.
+    pub fn get_conversion_rate(env: Env, from: Symbol, to: Symbol) -> i128 {
+        env.storage()
+            .persistent()
+            .get(&DataKey::Rate(from, to))
+            .unwrap_or(0)
     }
 }
 

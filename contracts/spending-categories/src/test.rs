@@ -161,6 +161,31 @@ fn test_get_nonexistent_category() {
 }
 
 #[test]
+fn test_get_spending_category_limit_returns_set_limit() {
+    let (env, admin, client) = setup_test_contract();
+    let owner = Address::generate(&env);
+    let category = symbol_short!("Travel");
+
+    client.set_spending_category_limit(&admin, &owner, &category, &25_000);
+
+    assert_eq!(
+        client.get_spending_category_limit(&owner, &category),
+        25_000
+    );
+}
+
+#[test]
+fn test_get_spending_category_limit_defaults_to_zero() {
+    let (env, _, client) = setup_test_contract();
+    let owner = Address::generate(&env);
+
+    assert_eq!(
+        client.get_spending_category_limit(&owner, &symbol_short!("Unset")),
+        0
+    );
+}
+
+#[test]
 fn test_set_admin() {
     let (env, admin, client) = setup_test_contract();
     let new_admin = Address::generate(&env);
