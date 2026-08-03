@@ -7,7 +7,8 @@
 use soroban_sdk::{vec, Address, Env, Vec};
 
 use crate::types::{
-    AccountStatus, DataKey, RewardAccount, RewardAccountStats, RewardTransaction, PERSISTENT_TTL_BUMP,
+    AccountStatus, DataKey, RewardAccount, RewardAccountStats, RewardTransaction,
+    PERSISTENT_TTL_BUMP,
 };
 
 // ── Reward Balance ─────────────────────────────────────────────────────────────
@@ -176,7 +177,6 @@ pub fn get_account_stats(env: &Env, account: &Address) -> RewardAccountStats {
     }
     stats
 }
-
 
 // ── Reward Transaction Counter ─────────────────────────────────────────────────
 

@@ -14,11 +14,11 @@ use crate::storage::{
     set_reward_transaction, set_reward_tx_counter,
 };
 use crate::types::{
-    RewardAccount, RewardAccountStats, RewardStatus, RewardTransaction, RewardType,
-};
-use crate::types::{
     AccountStatus, RewardAccount, RewardStatus, RewardTransaction, RewardType,
     DEFAULT_METADATA_VERSION,
+};
+use crate::types::{
+    RewardAccount, RewardAccountStats, RewardStatus, RewardTransaction, RewardType,
 };
 use crate::validation::{
     validate_account_not_registered, validate_account_registered, validate_contract_initialized,
