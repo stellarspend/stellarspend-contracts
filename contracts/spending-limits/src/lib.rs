@@ -936,4 +936,3 @@ impl SpendingLimitsContract {
 
 #[cfg(test)]
 mod test;
-

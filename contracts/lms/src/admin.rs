@@ -29,10 +29,12 @@ pub fn initialize_admin(env: Env, admin: Address) -> Result<(), AdminError> {
     if env.storage().persistent().has(&DataKey::Admin) {
         return Err(AdminError::AlreadyInitialized);
     }
-    
+
     admin.require_auth();
     env.storage().persistent().set(&DataKey::Admin, &admin);
-    env.storage().persistent().set(&DataKey::UserRole(admin.clone()), &Role::Admin);
+    env.storage()
+        .persistent()
+        .set(&DataKey::UserRole(admin.clone()), &Role::Admin);
     Ok(())
 }
 
@@ -57,7 +59,9 @@ pub fn set_role(env: Env, caller: Address, target: Address, role: Role) -> Resul
     caller.require_auth();
     require_admin(&env, &caller)?;
 
-    env.storage().persistent().set(&DataKey::UserRole(target), &role);
+    env.storage()
+        .persistent()
+        .set(&DataKey::UserRole(target), &role);
     Ok(())
 }
 

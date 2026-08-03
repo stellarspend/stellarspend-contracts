@@ -55,10 +55,7 @@ pub fn remove_lesson(env: Env, caller: Address, lesson_id: u64) -> Result<(), Lm
 
         let mut new_ids = Vec::new(&env);
         for j in 0..module.lesson_ids.len() {
-            let id = module
-                .lesson_ids
-                .get(j)
-                .ok_or(LmsError::ModuleNotFound)?;
+            let id = module.lesson_ids.get(j).ok_or(LmsError::ModuleNotFound)?;
             if id != lesson_id {
                 new_ids.push_back(id);
             }

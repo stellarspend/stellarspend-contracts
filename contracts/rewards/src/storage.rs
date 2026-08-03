@@ -145,6 +145,13 @@ pub fn set_account_status(env: &Env, account: &Address, status: AccountStatus) -
 /// Returns the `metadata_version` for `account`, if the account exists.
 pub fn get_metadata_version(env: &Env, account: &Address) -> Option<u32> {
     get_reward_account(env, account).map(|acc| acc.metadata_version)
+}
+
+/// Returns the `AccountStatus` for `account`, if the account exists.
+pub fn get_account_status(env: &Env, account: &Address) -> Option<AccountStatus> {
+    get_reward_account(env, account).map(|acc| acc.account_status)
+}
+
 // ── Reward Account Statistics ──────────────────────────────────────────────────
 
 /// Returns aggregate statistics for `account`.
@@ -170,8 +177,6 @@ pub fn get_account_stats(env: &Env, account: &Address) -> RewardAccountStats {
     stats
 }
 
-
-}
 
 // ── Reward Transaction Counter ─────────────────────────────────────────────────
 

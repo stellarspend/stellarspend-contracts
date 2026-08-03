@@ -1,4 +1,3 @@
-
 use soroban_sdk::{contracttype, String, Vec};
 
 #[contracttype]

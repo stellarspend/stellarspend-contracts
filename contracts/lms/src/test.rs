@@ -22,7 +22,13 @@ fn setup(env: &Env) -> (Address, Address, Address, LMSContractClient<'_>) {
 
     env.as_contract(&contract_id, || {
         initialize_admin(env.clone(), admin.clone()).unwrap();
-        set_role(env.clone(), admin.clone(), instructor.clone(), Role::Instructor).unwrap();
+        set_role(
+            env.clone(),
+            admin.clone(),
+            instructor.clone(),
+            Role::Instructor,
+        )
+        .unwrap();
     });
 
     (contract_id, admin, instructor, client)
@@ -120,9 +126,11 @@ fn remove_existing_lesson() {
     assert_eq!(updated_module.lesson_ids.len(), 1);
     assert_eq!(updated_module.lesson_ids.get(0), Some(101));
 
-    let stored =
-        env.as_contract(&contract_id, || crate::storage::get_student_profile(&env, &student))
-            .unwrap();
+    let stored = env
+        .as_contract(&contract_id, || {
+            crate::storage::get_student_profile(&env, &student)
+        })
+        .unwrap();
     assert_eq!(stored.completed_lessons, completed_lessons);
 
     assert_eq!(env.events().all().len(), 1);

@@ -297,8 +297,7 @@ mod tests {
             )
             .expect("Course creation should succeed");
 
-            let stored_course =
-                get_course(env.clone(), course_id).expect("Course should exist");
+            let stored_course = get_course(env.clone(), course_id).expect("Course should exist");
             let event_count = env.events().all().len();
 
             (course_id, stored_course, event_count)
@@ -508,7 +507,12 @@ mod tests {
                 published: None,
             };
 
-            update_course(env.clone(), unauthorized_user.clone(), course_id, update_input)
+            update_course(
+                env.clone(),
+                unauthorized_user.clone(),
+                course_id,
+                update_input,
+            )
         });
 
         assert_eq!(result, Err(CourseError::Unauthorized));
@@ -533,7 +537,12 @@ mod tests {
         };
 
         let result = env.as_contract(&contract_id, || {
-            update_course(env.clone(), instructor, non_existent_course_id, update_input)
+            update_course(
+                env.clone(),
+                instructor,
+                non_existent_course_id,
+                update_input,
+            )
         });
         assert_eq!(result, Err(CourseError::CourseNotFound));
     }
@@ -580,8 +589,9 @@ mod tests {
             setup_course(&env, &instructor, course_id, true);
             archive_course(env.clone(), instructor.clone(), course_id).unwrap();
         });
-        let result =
-            env.as_contract(&contract_id, || archive_course(env.clone(), instructor, course_id));
+        let result = env.as_contract(&contract_id, || {
+            archive_course(env.clone(), instructor, course_id)
+        });
 
         assert_eq!(result, Err(CourseError::AlreadyArchived));
     }
@@ -617,8 +627,9 @@ mod tests {
         let contract_id = setup(&env);
         let student = Address::generate(&env);
 
-        let result =
-            env.as_contract(&contract_id, || enroll_student(env.clone(), student, 9999u64));
+        let result = env.as_contract(&contract_id, || {
+            enroll_student(env.clone(), student, 9999u64)
+        });
         assert_eq!(result, Err(CourseError::CourseNotFound));
     }
 }

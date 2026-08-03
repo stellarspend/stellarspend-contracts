@@ -6,11 +6,11 @@ pub mod course;
 pub mod enrollment;
 pub mod errors;
 pub mod event;
-pub mod lesson;   // keep lesson removal feature
+pub mod lesson; // keep lesson removal feature
 pub mod models;
 pub mod progress;
-pub mod storage;
 pub mod quiz;
+pub mod storage;
 
 #[cfg(test)]
 mod test;

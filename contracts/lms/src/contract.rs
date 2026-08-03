@@ -4,8 +4,8 @@ use crate::admin::{self, AdminError, Role};
 use crate::course::{self, Course, CourseError, UpdateCourseInput};
 use crate::enrollment::{self, EnrollmentStatus};
 use crate::errors::LmsError;
-use crate::progress;
-use crate::lesson; // bring in lesson removal
+use crate::lesson;
+use crate::progress; // bring in lesson removal
 
 #[contract]
 pub struct LMSContract;
@@ -83,11 +83,7 @@ impl LMSContract {
         enrollment::withdraw_student(env, student, course_id)
     }
 
-    pub fn get_enrollment_status(
-        env: Env,
-        student: Address,
-        course_id: u64,
-    ) -> EnrollmentStatus {
+    pub fn get_enrollment_status(env: Env, student: Address, course_id: u64) -> EnrollmentStatus {
         enrollment::get_enrollment_status(env, student, course_id)
     }
 

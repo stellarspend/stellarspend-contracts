@@ -15,23 +15,19 @@ pub mod validation;
 
 use soroban_sdk::{contract, contractimpl, panic_with_error, Address, Env, Vec};
 
-use crate::rewards::{credit_reward, debit_reward, get_rewards_balance, register_reward_account};
-use crate::storage::{get_reward_account, get_reward_index};
-pub use crate::types::{DataKey, RewardAccount, RewardStatus, RewardTransaction, RewardType, DEFAULT_METADATA_VERSION};
 use crate::queries::{
     query_lifetime_earnings, query_reward_balance, query_statistics, query_transaction_count,
 };
 use crate::rewards::{credit_reward, debit_reward, get_rewards_balance, register_reward_account};
-use crate::rewards::{credit_reward, debit_reward, register_reward_account};
 use crate::storage::{
-    get_account_stats as read_account_stats, get_reward_account, get_reward_index,
+    get_account_stats as read_account_stats, get_account_status, get_metadata_version,
+    get_reward_account, get_reward_index, set_account_status,
 };
-use crate::storage::{get_reward_account, get_reward_index};
+use crate::types::AccountStatus;
 pub use crate::types::{
-    DataKey, RewardAccount, RewardAccountStats, RewardStatus, RewardTransaction, RewardType,
+    DataKey, RewardAccount, RewardAccountStats, RewardStatistics, RewardStatus, RewardTransaction,
+    RewardType, DEFAULT_METADATA_VERSION,
 };
-pub use crate::types::{DataKey, RewardAccount, RewardStatus, RewardTransaction, RewardType};
-
 /// Error codes for the rewards contract.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(u32)]
@@ -239,6 +235,8 @@ impl RewardsContract {
         if !set_account_status(&env, &participant, status) {
             panic_with_error!(&env, RewardsError::AccountNotFound);
         }
+    }
+
     /// Returns the current claimable reward balance for `participant`.
     pub fn get_reward_balance(env: Env, participant: Address) -> i128 {
         query_reward_balance(&env, &participant)

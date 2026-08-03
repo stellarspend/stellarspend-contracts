@@ -45,7 +45,8 @@ pub fn register_lesson(
 ) -> Result<(), LmsError> {
     caller.require_auth();
 
-    let course = course::get_course(env.clone(), course_id).map_err(|_| LmsError::CourseNotFound)?;
+    let course =
+        course::get_course(env.clone(), course_id).map_err(|_| LmsError::CourseNotFound)?;
     if course.instructor != caller {
         return Err(LmsError::Unauthorized);
     }
@@ -131,7 +132,9 @@ pub fn complete_lesson(
     let completed_key = StorageKey::CompletedLessonCount(student.clone(), course_id);
     let completed: u32 = env.storage().persistent().get(&completed_key).unwrap_or(0);
     let new_completed = completed.checked_add(1).ok_or(LmsError::Overflow)?;
-    env.storage().persistent().set(&completed_key, &new_completed);
+    env.storage()
+        .persistent()
+        .set(&completed_key, &new_completed);
 
     LMSEvents::emit_lesson_completed(&env, course_id, lesson_id, student);
 
@@ -373,7 +376,10 @@ mod tests {
             let completed_count: u32 = env
                 .storage()
                 .persistent()
-                .get(&StorageKey::CompletedLessonCount(student.clone(), course_id))
+                .get(&StorageKey::CompletedLessonCount(
+                    student.clone(),
+                    course_id,
+                ))
                 .unwrap();
             let event_count = env.events().all().len();
             (timestamp, completed_count, event_count)

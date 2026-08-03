@@ -25,8 +25,8 @@
 mod types;
 mod validation;
 
+use crate::types::{SavingsGoalRequest, MAX_BATCH_SIZE, REVERSAL_PERIOD_SECS};
 use penalty::PenaltyContractClient;
-use crate::types::{MAX_BATCH_SIZE, REVERSAL_PERIOD_SECS, SavingsGoalRequest};
 use soroban_sdk::{
     contract, contractimpl, panic_with_error, symbol_short, Address, Bytes, Env, Symbol, Vec,
 };
@@ -1874,7 +1874,6 @@ impl SavingsGoalsContract {
         }
         normalized
     }
-
 
     // Internal helper to verify admin
     fn require_admin(env: &Env, caller: &Address) {
