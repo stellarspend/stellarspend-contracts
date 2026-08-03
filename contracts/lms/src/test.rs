@@ -211,3 +211,101 @@ fn verify_course_consistency_after_removal() {
         assert_ne!(updated_module.lesson_ids.get(i).unwrap(), lesson_id);
     }
 }
+
+#[test]
+fn test_update_lesson_success() {
+    let env = Env::default();
+    let (contract_id, _admin, instructor, client) = setup(&env);
+
+    let course_id = 1u64;
+    let lesson_id = 42u64;
+
+    let lesson = Lesson {
+        lesson_id,
+        course_id,
+        title: String::from_str(&env, "Original Title"),
+        description: String::from_str(&env, "Original Desc"),
+        content_uri: String::from_str(&env, "ipfs://original"),
+        estimated_duration: 20,
+        lesson_order: 1,
+    };
+    let record = LessonRecord {
+        lesson,
+        removed: false,
+        removed_at: 0,
+    };
+    env.as_contract(&contract_id, || {
+        env.storage()
+            .persistent()
+            .set(&LessonDataKey::Lesson(lesson_id), &record);
+    });
+
+    let updated = client
+        .update_lesson(
+            &instructor,
+            &lesson_id,
+            &String::from_str(&env, "Updated Title"),
+            &String::from_str(&env, "ipfs://new"),
+            &45u32,
+            &String::from_str(&env, "Updated Desc"),
+        )
+        .unwrap();
+
+    assert_eq!(updated.title, String::from_str(&env, "Updated Title"));
+    assert_eq!(updated.content_uri, String::from_str(&env, "ipfs://new"));
+    assert_eq!(updated.estimated_duration, 45);
+    assert_eq!(updated.description, String::from_str(&env, "Updated Desc"));
+    assert_eq!(updated.lesson_order, 1); // unchanged
+}
+
+#[test]
+fn test_update_lesson_unauthorized() {
+    let env = Env::default();
+    let (contract_id, _admin, _instructor, client) = setup(&env);
+
+    let lesson_id = 42u64;
+    let lesson = Lesson {
+        lesson_id,
+        course_id: 1,
+        title: String::from_str(&env, "Title"),
+        description: String::from_str(&env, "Desc"),
+        content_uri: String::from_str(&env, "ipfs://x"),
+        estimated_duration: 10,
+        lesson_order: 1,
+    };
+    let record = LessonRecord { lesson, removed: false, removed_at: 0 };
+    env.as_contract(&contract_id, || {
+        env.storage()
+            .persistent()
+            .set(&LessonDataKey::Lesson(lesson_id), &record);
+    });
+
+    let stranger = Address::generate(&env);
+    let result = client.update_lesson(
+        &stranger,
+        &lesson_id,
+        &String::from_str(&env, "Hacked"),
+        &String::from_str(&env, "ipfs://hack"),
+        &1u32,
+        &String::from_str(&env, "bad"),
+    );
+
+    assert_eq!(result, Err(LmsError::Unauthorized));
+}
+
+#[test]
+fn test_update_lesson_not_found() {
+    let env = Env::default();
+    let (_contract_id, _admin, instructor, client) = setup(&env);
+
+    let result = client.update_lesson(
+        &instructor,
+        &999u64,
+        &String::from_str(&env, "Title"),
+        &String::from_str(&env, "ipfs://x"),
+        &10u32,
+        &String::from_str(&env, "desc"),
+    );
+
+    assert_eq!(result, Err(LmsError::LessonNotFound));
+}
