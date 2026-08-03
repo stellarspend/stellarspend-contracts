@@ -353,7 +353,7 @@ impl SharedBudgetContract {
 
         // Check member limit
         let mut member_count = 0u32;
-        for member in budget.members.iter() {
+        for _member in budget.members.iter() {
             member_count += 1;
         }
 

@@ -347,3 +347,30 @@ fn test_get_user_settings_returns_saved_values() {
     assert!(settings.last_login.is_some());
     assert_eq!(settings.nickname, Some(nickname));
 }
+
+// ── Issue #997: get_users_count view ─────────────────────────────────────────
+
+#[test]
+fn get_users_count_returns_registered_user_total() {
+    let env = Env::default();
+    let admin = Address::generate(&env);
+    let contract_id = env.register(UsersContract, ());
+    let client = UsersContractClient::new(&env, &contract_id);
+
+    client.initialize(&admin);
+
+    let first_user = Address::generate(&env);
+    let second_user = Address::generate(&env);
+
+    assert_eq!(client.get_users_count(), 0);
+
+    client.register_user(&first_user);
+    assert_eq!(client.get_users_count(), 1);
+
+    client.register_user(&second_user);
+    assert_eq!(client.get_users_count(), 2);
+
+    // Duplicate registration does not increase count.
+    client.register_user(&first_user);
+    assert_eq!(client.get_users_count(), 2);
+}

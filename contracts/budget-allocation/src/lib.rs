@@ -16,9 +16,8 @@ mod test;
 mod types;
 
 use crate::types::{
-    BatchBudgetResult, BudgetAllocationSummary, BudgetRecord, BudgetRenewalConfig,
-    BudgetRequest, BudgetVersion, CategoryBudgetRequest,
-    DataKey, UserBudgetCategories,
+    BatchBudgetResult, BudgetAllocationSummary, BudgetRecord, BudgetRenewalConfig, BudgetRequest,
+    BudgetVersion, CategoryBudgetRequest, DataKey, UserBudgetCategories,
 };
 use soroban_sdk::{contract, contractimpl, symbol_short, Address, Env, Map, Symbol, Vec};
 
@@ -215,6 +214,32 @@ impl BudgetAllocationContract {
         env.storage().persistent().get(&DataKey::Budget(user))
     }
 
+    /// Returns a list of category-amount pairs showing how a budget is allocated.
+    ///
+    /// # Arguments
+    /// * `owner` - The address whose budget breakdown to retrieve
+    ///
+    /// # Returns
+    /// A vector of (category_name, amount) pairs, or an empty vector if the
+    /// address has no category allocations.
+    pub fn get_budget_allocation_breakdown(env: Env, owner: Address) -> Vec<(Symbol, i128)> {
+        let mut result = Vec::new(&env);
+
+        let user_categories: Option<UserBudgetCategories> = env
+            .storage()
+            .persistent()
+            .get(&DataKey::BudgetCategories(owner));
+
+        if let Some(categories) = user_categories {
+            for key in categories.categories.keys() {
+                let amount = categories.categories.get(key.clone()).unwrap();
+                result.push_back((key, amount));
+            }
+        }
+
+        result
+    }
+
     /// Retrieves a summary of the allocation state for a specific user.
     pub fn get_budget_allocation_summary(
         env: Env,
@@ -319,7 +344,7 @@ impl BudgetAllocationContract {
         let now = env.ledger().timestamp();
 
         // Get current budget record
-        let mut budget_record: Option<BudgetRecord> = env
+        let budget_record: Option<BudgetRecord> = env
             .storage()
             .persistent()
             .get(&DataKey::Budget(user.clone()));
@@ -476,10 +501,9 @@ impl BudgetAllocationContract {
         };
 
         // Store the version snapshot
-        env.storage().persistent().set(
-            &DataKey::BudgetVersion(user.clone(), new_version),
-            &version,
-        );
+        env.storage()
+            .persistent()
+            .set(&DataKey::BudgetVersion(user.clone(), new_version), &version);
 
         // Update version counter
         env.storage()

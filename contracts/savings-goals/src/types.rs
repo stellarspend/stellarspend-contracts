@@ -376,23 +376,25 @@ pub mod ErrorCode {
     /// Contribution amount is invalid (zero or negative)
     pub const INVALID_CONTRIBUTION_AMOUNT: u32 = 12;
     /// Duplicate goal name for the same user
-    pub const DUPLICATE_GOAL_NAME: u32 = 11;
+    pub const DUPLICATE_GOAL_NAME: u32 = 13;
     /// Goal is locked; withdrawals not yet allowed
-    pub const GOAL_LOCKED: u32 = 12;
+    pub const GOAL_LOCKED: u32 = 14;
     /// Withdrawal amount exceeds current balance
-    pub const INSUFFICIENT_BALANCE: u32 = 13;
+    pub const INSUFFICIENT_BALANCE: u32 = 15;
     /// Invalid withdrawal or contribution amount
-    pub const INVALID_WITHDRAW_AMOUNT: u32 = 14;
+    pub const INVALID_WITHDRAW_AMOUNT: u32 = 16;
     /// Deadline alert threshold configuration is invalid
-    pub const INVALID_ALERT_THRESHOLD: u32 = 15;
+    pub const INVALID_ALERT_THRESHOLD: u32 = 17;
     /// Contribution retry re-used an existing idempotency token
-    pub const DUPLICATE_CONTRIBUTION_REQUEST: u32 = 16;
+    pub const DUPLICATE_CONTRIBUTION_REQUEST: u32 = 18;
     /// #779: Beneficiary transfer rejected — caller is not the goal owner
-    pub const BENEFICIARY_TRANSFER_UNAUTHORIZED: u32 = 17;
+    pub const BENEFICIARY_TRANSFER_UNAUTHORIZED: u32 = 19;
     /// #779: Auto-allocation percentages do not sum to 100
-    pub const ALLOCATION_PERCENTAGES_INVALID: u32 = 18;
+    pub const ALLOCATION_PERCENTAGES_INVALID: u32 = 20;
     /// #779: Auto-allocation token already used (duplicate)
-    pub const DUPLICATE_ALLOCATION_REQUEST: u32 = 19;
+    pub const DUPLICATE_ALLOCATION_REQUEST: u32 = 21;
+    /// Cannot merge goals (invalid parameters)
+    pub const CANNOT_MERGE: u32 = 22;
 }
 
 /// Events emitted by the savings goals contract.
@@ -601,11 +603,7 @@ impl GoalEvents {
         previous_owner: &Address,
         new_beneficiary: &Address,
     ) {
-        let topics = (
-            symbol_short!("goal"),
-            symbol_short!("benef_xfer"),
-            goal_id,
-        );
+        let topics = (symbol_short!("goal"), symbol_short!("benefxfr"), goal_id);
         env.events()
             .publish(topics, (previous_owner.clone(), new_beneficiary.clone()));
     }
@@ -617,11 +615,21 @@ impl GoalEvents {
         total_amount: i128,
         goal_count: u32,
     ) {
-        let topics = (
-            symbol_short!("goal"),
-            symbol_short!("auto_alloc"),
-        );
+        let topics = (symbol_short!("goal"), symbol_short!("autoalc"));
         env.events()
             .publish(topics, (user.clone(), total_amount, goal_count));
+    }
+
+    /// Event emitted when a goal completion certificate is issued.
+    pub fn certificate_issued(env: &Env, goal_id: u64, timestamp: u64) {
+        let topics = (symbol_short!("cert"), symbol_short!("issued"), goal_id);
+        env.events().publish(topics, (goal_id, timestamp));
+    }
+
+    /// Event emitted when two goals are merged.
+    pub fn goals_merged(env: &Env, source_id: u64, target_id: u64, amount_merged: i128) {
+        let topics = (symbol_short!("goal"), symbol_short!("merged"), target_id);
+        env.events()
+            .publish(topics, (source_id, target_id, amount_merged));
     }
 }

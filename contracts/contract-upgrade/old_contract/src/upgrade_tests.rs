@@ -34,6 +34,18 @@ fn assert_err<T: core::fmt::Debug>(
     }
 }
 
+mod old_contract {
+    soroban_sdk::contractimport!(
+        file = "../../../target/wasm32-unknown-unknown/release/soroban_upgradeable_contract_old_contract.wasm"
+    );
+}
+
+mod new_contract {
+    soroban_sdk::contractimport!(
+        file = "../../../target/wasm32-unknown-unknown/release/soroban_upgradeable_contract_new_contract.wasm"
+    );
+}
+
 /// Register a contract with a 2-of-3 multisig and the default timelock.
 fn setup_2of3(env: &Env) -> (Address, Address, Address, Address) {
     let admin = Address::generate(env);

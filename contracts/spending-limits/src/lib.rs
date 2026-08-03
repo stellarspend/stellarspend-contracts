@@ -628,18 +628,40 @@ impl SpendingLimitsContract {
         );
     }
 
-    /// Retrieves a user's spending limit.
+    /// Retrieves a user's full spending limit record.
     ///
     /// # Arguments
     /// * `env` - The contract environment
     /// * `user` - The user's address
     ///
     /// # Returns
-    /// * `Option<SpendingLimit>` - The limit if found
-    pub fn get_spending_limit(env: Env, user: Address) -> Option<SpendingLimit> {
+    /// * `Option<SpendingLimit>` - The full limit record if found, `None` otherwise.
+    pub fn get_spending_limit_details(env: Env, user: Address) -> Option<SpendingLimit> {
         env.storage()
             .persistent()
             .get(&DataKey::SpendingLimit(user))
+    }
+
+    /// Returns the current spending limit for a given address as a scalar.
+    ///
+    /// This is the read-only view requested in [#961]: it returns the configured
+    /// monthly spending limit (in stroops) for `owner`, or `0` when no limit has
+    /// been set for that address (documented default). Callers that need the full
+    /// record (reset window, category, activity state) should use
+    /// [`Self::get_spending_limit_details`].
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `owner` - The address whose spending limit to query
+    ///
+    /// # Returns
+    /// * `i128` - The current monthly spending limit, or `0` if none is set.
+    pub fn get_spending_limit(env: Env, owner: Address) -> i128 {
+        env.storage()
+            .persistent()
+            .get::<DataKey, SpendingLimit>(&DataKey::SpendingLimit(owner))
+            .map(|limit| limit.monthly_limit)
+            .unwrap_or(0)
     }
 
     /// Returns the admin address.

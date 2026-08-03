@@ -4,6 +4,8 @@ use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, panic_with_error, Address, Env,
 };
 
+pub mod withdrawal;
+
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(u32)]
@@ -19,6 +21,7 @@ pub enum PenaltyDataKey {
     Admin,
     PenaltyPercent,
     Treasury,
+    AccumulatedPenalty(Address),
 }
 
 fn bump_instance(env: &Env) {
@@ -99,6 +102,10 @@ impl PenaltyContract {
     /// Calculate penalty fee using provided basis points (e.g., 1000 = 10%).
     pub fn calculate_penalty_fee_with_bps(_env: Env, amount: i128, bps: u32) -> i128 {
         amount * bps as i128 / 10_000
+    }
+
+    pub fn get_penalty_amount(env: Env, owner: Address) -> i128 {
+        withdrawal::get_penalty_amount(&env, owner)
     }
 }
 

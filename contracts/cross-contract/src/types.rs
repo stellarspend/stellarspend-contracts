@@ -19,6 +19,8 @@ pub enum DataKey {
     FailedCalls,
     /// Whitelist of allowed contract addresses
     Whitelist(Address),
+    /// Address of the last contract that made a cross-contract call into this crate
+    LastCaller,
 }
 
 /// Request for a cross-contract call

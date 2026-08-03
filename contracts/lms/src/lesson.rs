@@ -1,144 +1,79 @@
-use soroban_sdk::{contracttype, Address, Env, String};
+use soroban_sdk::{contracttype, Address, Env, Vec};
 
-use crate::errors::LmsError;
-use crate::models::Lesson;
+use crate::{
+    admin,
+    errors::LmsError,
+    event::LMSEvents,
+    models::{Lesson, Module},
+};
 
 #[contracttype]
-#[derive(Clone)]
-pub enum LessonKey {
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum LessonDataKey {
     Lesson(u64),
-    Admin,
+    Module(u64),
+    CourseModules(u64),
 }
 
-pub fn save_lesson(env: &Env, lesson: &Lesson) {
-    env.storage()
-        .persistent()
-        .set(&LessonKey::Lesson(lesson.lesson_id), lesson);
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LessonRecord {
+    pub lesson: Lesson,
+    pub removed: bool,
+    pub removed_at: u64,
 }
 
-pub fn get_lesson(env: &Env, lesson_id: u64) -> Option<Lesson> {
-    env.storage()
-        .persistent()
-        .get(&LessonKey::Lesson(lesson_id))
-}
+pub fn remove_lesson(env: Env, caller: Address, lesson_id: u64) -> Result<(), LmsError> {
+    caller.require_auth();
+    admin::require_instructor_or_admin(&env, &caller).map_err(|_| LmsError::Unauthorized)?;
 
-pub fn update_lesson(
-    env: &Env,
-    caller: &Address,
-    lesson_id: u64,
-    title: String,
-    content_uri: String,
-    estimated_duration: u32,
-    description: String,
-) -> Result<Lesson, LmsError> {
-    let admin: Address = env
+    let mut record: LessonRecord = env
         .storage()
-        .instance()
-        .get(&LessonKey::Admin)
-        .ok_or(LmsError::Unauthorized)?;
+        .persistent()
+        .get(&LessonDataKey::Lesson(lesson_id))
+        .ok_or(LmsError::LessonNotFound)?;
 
-    if caller != &admin {
-        return Err(LmsError::Unauthorized);
+    if record.removed {
+        return Ok(());
     }
 
-    let mut lesson = get_lesson(env, lesson_id).ok_or(LmsError::LessonNotFound)?;
+    let course_id = record.lesson.course_id;
 
-    lesson.title = title;
-    lesson.content_uri = content_uri;
-    lesson.estimated_duration = estimated_duration;
-    lesson.description = description;
+    let module_ids: Vec<u64> = env
+        .storage()
+        .persistent()
+        .get(&LessonDataKey::CourseModules(course_id))
+        .ok_or(LmsError::CourseNotFound)?;
 
-    save_lesson(env, &lesson);
+    for i in 0..module_ids.len() {
+        let module_id = module_ids.get(i).ok_or(LmsError::ModuleNotFound)?;
+        let mut module: Module = env
+            .storage()
+            .persistent()
+            .get(&LessonDataKey::Module(module_id))
+            .ok_or(LmsError::ModuleNotFound)?;
 
-    Ok(lesson)
-}
+        let mut new_ids = Vec::new(&env);
+        for j in 0..module.lesson_ids.len() {
+            let id = module.lesson_ids.get(j).ok_or(LmsError::ModuleNotFound)?;
+            if id != lesson_id {
+                new_ids.push_back(id);
+            }
+        }
+        module.lesson_ids = new_ids;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use soroban_sdk::{testutils::Address as _, Env, String};
-
-    fn setup(env: &Env) -> (Address, Lesson) {
-        let admin = Address::generate(env);
-        env.storage().instance().set(&LessonKey::Admin, &admin);
-
-        let lesson = Lesson {
-            lesson_id: 1,
-            course_id: 10,
-            title: String::from_str(env, "Intro"),
-            description: String::from_str(env, "Original description"),
-            content_uri: String::from_str(env, "ipfs://original"),
-            estimated_duration: 20,
-            lesson_order: 1,
-        };
-
-        save_lesson(env, &lesson);
-        (admin, lesson)
+        env.storage()
+            .persistent()
+            .set(&LessonDataKey::Module(module_id), &module);
     }
 
-    #[test]
-    fn test_update_lesson_success() {
-        let env = Env::default();
-        env.mock_all_auths();
-        let (admin, _) = setup(&env);
+    record.removed = true;
+    record.removed_at = env.ledger().timestamp();
+    env.storage()
+        .persistent()
+        .set(&LessonDataKey::Lesson(lesson_id), &record);
 
-        let updated = update_lesson(
-            &env,
-            &admin,
-            1,
-            String::from_str(&env, "Updated Title"),
-            String::from_str(&env, "ipfs://new"),
-            45,
-            String::from_str(&env, "Updated description"),
-        )
-        .unwrap();
+    LMSEvents::emit_lesson_removed(&env, course_id, lesson_id);
 
-        assert_eq!(updated.title, String::from_str(&env, "Updated Title"));
-        assert_eq!(updated.content_uri, String::from_str(&env, "ipfs://new"));
-        assert_eq!(updated.estimated_duration, 45);
-        assert_eq!(updated.description, String::from_str(&env, "Updated description"));
-        assert_eq!(updated.lesson_order, 1);
-
-        let stored = get_lesson(&env, 1).unwrap();
-        assert_eq!(stored, updated);
-    }
-
-    #[test]
-    fn test_update_lesson_unauthorized() {
-        let env = Env::default();
-        env.mock_all_auths();
-        let _ = setup(&env);
-
-        let stranger = Address::generate(&env);
-        let result = update_lesson(
-            &env,
-            &stranger,
-            1,
-            String::from_str(&env, "Hacked"),
-            String::from_str(&env, "ipfs://hack"),
-            1,
-            String::from_str(&env, "bad"),
-        );
-
-        assert_eq!(result, Err(LmsError::Unauthorized));
-    }
-
-    #[test]
-    fn test_update_lesson_not_found() {
-        let env = Env::default();
-        env.mock_all_auths();
-        let (admin, _) = setup(&env);
-
-        let result = update_lesson(
-            &env,
-            &admin,
-            999,
-            String::from_str(&env, "Title"),
-            String::from_str(&env, "ipfs://x"),
-            10,
-            String::from_str(&env, "desc"),
-        );
-
-        assert_eq!(result, Err(LmsError::LessonNotFound));
-    }
+    Ok(())
 }

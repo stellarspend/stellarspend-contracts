@@ -7,6 +7,7 @@
 #![no_std]
 
 pub mod events;
+pub mod queries;
 pub mod rewards;
 pub mod storage;
 pub mod types;
@@ -14,10 +15,19 @@ pub mod validation;
 
 use soroban_sdk::{contract, contractimpl, panic_with_error, Address, Env, Vec};
 
-use crate::rewards::{credit_reward, debit_reward, register_reward_account};
-use crate::storage::{get_reward_account, get_reward_index};
-pub use crate::types::{DataKey, RewardAccount, RewardStatus, RewardTransaction, RewardType};
-
+use crate::queries::{
+    query_lifetime_earnings, query_reward_balance, query_statistics, query_transaction_count,
+};
+use crate::rewards::{credit_reward, debit_reward, get_rewards_balance, register_reward_account};
+use crate::storage::{
+    get_account_stats as read_account_stats, get_account_status, get_metadata_version,
+    get_reward_account, get_reward_index, set_account_status,
+};
+use crate::types::AccountStatus;
+pub use crate::types::{
+    DataKey, RewardAccount, RewardAccountStats, RewardStatistics, RewardStatus, RewardTransaction,
+    RewardType, DEFAULT_METADATA_VERSION,
+};
 /// Error codes for the rewards contract.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(u32)]
@@ -110,6 +120,22 @@ impl RewardsContract {
         get_reward_account(&env, &participant)
     }
 
+    /// Returns the current unclaimed reward balance for `owner`.
+    ///
+    /// Returns `0` if no reward account exists or the balance is zero.
+    pub fn get_rewards_balance(env: Env, owner: Address) -> i128 {
+        get_rewards_balance(&env, &owner)
+    }
+
+    /// Returns aggregate statistics for `participant`'s reward account.
+    ///
+    /// Tracks total rewards earned, total rewards redeemed, total transactions,
+    /// and the ledger sequence of the most recent reward credit. Returns zeroed
+    /// defaults when the account has no stats yet (including unregistered accounts).
+    pub fn get_account_stats(env: Env, participant: Address) -> RewardAccountStats {
+        read_account_stats(&env, &participant)
+    }
+
     /// Credits `amount` reward points to `participant`'s account.
     ///
     /// Only the contract admin may call this entry point. The amount must be
@@ -183,6 +209,52 @@ impl RewardsContract {
     /// `get_reward_transaction(id)` to retrieve full transaction details.
     pub fn get_transactions_for(env: Env, participant: Address) -> Vec<u64> {
         get_reward_index(&env, &participant)
+    }
+
+    /// Returns the `AccountStatus` for `participant`, if registered.
+    pub fn get_account_status(env: Env, participant: Address) -> Option<AccountStatus> {
+        get_account_status(&env, &participant)
+    }
+
+    /// Returns the `metadata_version` for `participant`, if registered.
+    pub fn get_metadata_version(env: Env, participant: Address) -> Option<u32> {
+        get_metadata_version(&env, &participant)
+    }
+
+    /// Updates the `AccountStatus` for `participant`.
+    ///
+    /// Requires admin authorization. Updates `last_updated` timestamp automatically.
+    pub fn set_account_status(env: Env, participant: Address, status: AccountStatus) {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .unwrap_or_else(|| panic_with_error!(&env, RewardsError::NotInitialized));
+        admin.require_auth();
+
+        if !set_account_status(&env, &participant, status) {
+            panic_with_error!(&env, RewardsError::AccountNotFound);
+        }
+    }
+
+    /// Returns the current claimable reward balance for `participant`.
+    pub fn get_reward_balance(env: Env, participant: Address) -> i128 {
+        query_reward_balance(&env, &participant)
+    }
+
+    /// Returns the total rewards ever earned by `participant`.
+    pub fn get_lifetime_earnings(env: Env, participant: Address) -> i128 {
+        query_lifetime_earnings(&env, &participant)
+    }
+
+    /// Returns the total number of reward transactions for `participant`.
+    pub fn get_transaction_count(env: Env, participant: Address) -> u32 {
+        query_transaction_count(&env, &participant)
+    }
+
+    /// Returns aggregated statistics for `participant`.
+    pub fn get_statistics(env: Env, participant: Address) -> RewardStatistics {
+        query_statistics(&env, &participant)
     }
 
     // ── Internal helpers ──────────────────────────────────────────────────

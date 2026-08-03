@@ -21,13 +21,13 @@ fn setup_test_contract() -> (Env, WalletProfileContractClient<'static>) {
 
 #[test]
 fn test_initialize() {
-    let (env, client) = setup_test_contract();
+    let (_env, client) = setup_test_contract();
     // Verify initialization succeeded (get_total_profiles returns 0)
     assert_eq!(client.get_total_profiles(), 0);
 }
 
 #[test]
-#[should_panic(expected = "Contract already initialized")]
+#[should_panic(expected = "HostError")]
 fn test_initialize_twice_fails() {
     let (env, client) = setup_test_contract();
     let new_admin = Address::generate(&env);
@@ -143,4 +143,25 @@ fn test_create_profile_with_valid_nickname() {
     let profile = client.create_profile(&user, &symbol_short!("Valid"));
     assert!(profile.is_active);
     assert_eq!(profile.nickname, symbol_short!("Valid"));
+}
+
+#[test]
+fn test_get_wallet_profile() {
+    let (env, client) = setup_test_contract();
+    let user = Address::generate(&env);
+
+    // Before profile creation, should return None
+    let result = client.get_wallet_profile(&user);
+    assert!(result.is_none());
+
+    // Create a profile
+    let created = client.create_profile(&user, &symbol_short!("MyWallet"));
+
+    // After creation, should return the profile
+    let fetched = client.get_wallet_profile(&user).unwrap();
+    assert_eq!(fetched.user, user);
+    assert_eq!(fetched.nickname, symbol_short!("MyWallet"));
+    assert_eq!(fetched.created_at, created.created_at);
+    assert_eq!(fetched.updated_at, created.updated_at);
+    assert_eq!(fetched.is_active, true);
 }

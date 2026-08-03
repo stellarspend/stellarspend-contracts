@@ -75,6 +75,11 @@ impl UsersContract {
         storage_get_user_count(&env)
     }
 
+    /// Return the total count of registered users as u32.
+    pub fn get_users_count(env: Env) -> u32 {
+        storage_get_user_count(&env) as u32
+    }
+
     /// Return the total count of registered users.
     pub fn get_all_users_count(env: Env) -> u64 {
         storage_get_user_count(&env)

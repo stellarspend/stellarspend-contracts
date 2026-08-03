@@ -1,5 +1,6 @@
+use alloc::boxed::Box;
 use shared::oracle::{OracleError, Price, PriceOracle};
-use soroban_sdk::{panic_with_error, Env, String};
+use soroban_sdk::{Env, String};
 
 /// Oracle manager for the multi-currency wallet
 pub struct OracleManager {

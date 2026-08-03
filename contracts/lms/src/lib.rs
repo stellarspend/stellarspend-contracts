@@ -1,14 +1,20 @@
 #![no_std]
 
+pub mod admin;
 mod contract;
-mod models;
-#[allow(dead_code)]
-mod storage;
+pub mod course;
+pub mod enrollment;
 pub mod errors;
-pub mod lesson;
+pub mod event;
+pub mod lesson; // keep lesson removal feature
+pub mod models;
+pub mod progress;
+pub mod quiz;
+pub mod storage;
 
 #[cfg(test)]
 mod test;
 
 pub use contract::*;
-pub use models::{Course, Lesson, Module, Quiz};
+pub use lesson::*;
+pub use models::*;

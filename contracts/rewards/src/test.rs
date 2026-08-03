@@ -1,14 +1,18 @@
 #![cfg(test)]
 
-use soroban_sdk::{testutils::Address as _, Address, Env};
+use soroban_sdk::{testutils::Address as _, testutils::Ledger as _, Address, Env};
 
 use crate::{
     storage::{
-        get_lifetime_claimed, get_lifetime_earned, get_reward_account, get_reward_balance,
-        get_reward_index, get_reward_transaction, get_reward_tx_counter, has_reward_account,
-        set_lifetime_claimed, set_lifetime_earned, set_reward_account, set_reward_balance,
+        get_account_status, get_lifetime_claimed, get_lifetime_earned, get_metadata_version,
+        get_reward_account, get_reward_balance, get_reward_index, get_reward_transaction,
+        get_reward_tx_counter, has_reward_account, set_account_status, set_lifetime_claimed,
+        set_lifetime_earned, set_reward_account, set_reward_balance,
     },
-    types::{RewardAccount, RewardStatus, RewardTransaction, RewardType},
+    types::{
+        AccountStatus, RewardAccount, RewardStatus, RewardTransaction, RewardType,
+        DEFAULT_METADATA_VERSION,
+    },
     RewardsContract, RewardsContractClient,
 };
 
@@ -167,6 +171,8 @@ fn test_set_and_get_reward_account() {
             lifetime_claimed: 8_000_000,
             created_at: 100,
             last_updated: 200,
+            account_status: AccountStatus::Active,
+            metadata_version: DEFAULT_METADATA_VERSION,
         };
 
         set_reward_account(&env, &user, &record);
@@ -179,6 +185,8 @@ fn test_set_and_get_reward_account() {
         assert_eq!(fetched.lifetime_claimed, 8_000_000);
         assert_eq!(fetched.created_at, 100);
         assert_eq!(fetched.last_updated, 200);
+        assert_eq!(fetched.account_status, AccountStatus::Active);
+        assert_eq!(fetched.metadata_version, DEFAULT_METADATA_VERSION);
     });
 }
 
@@ -641,6 +649,41 @@ fn test_debit_reward_before_init_panics() {
     client.debit_reward(&user, &1_000, &RewardType::Streak);
 }
 
+// ── Get rewards balance tests ──────────────────────────────────────────────────
+
+#[test]
+fn test_get_rewards_balance_returns_balance_after_credit() {
+    let (_env, admin, user, client) = setup_with_user();
+    client.credit_reward(&user, &1_000_000, &RewardType::SpendingLimit);
+    let balance = client.get_rewards_balance(&user);
+    assert_eq!(balance, 1_000_000);
+}
+
+#[test]
+fn test_get_rewards_balance_returns_zero_for_unregistered() {
+    let (env, admin, client) = setup();
+    client.initialize(&admin);
+    let stranger = Address::generate(&env);
+    let balance = client.get_rewards_balance(&stranger);
+    assert_eq!(balance, 0);
+}
+
+#[test]
+fn test_get_rewards_balance_returns_zero_for_fresh_account() {
+    let (_env, admin, user, client) = setup_with_user();
+    let balance = client.get_rewards_balance(&user);
+    assert_eq!(balance, 0);
+}
+
+#[test]
+fn test_get_rewards_balance_reflects_debits() {
+    let (_env, admin, user, client) = setup_with_user();
+    client.credit_reward(&user, &1_000_000, &RewardType::Streak);
+    client.debit_reward(&user, &400_000, &RewardType::Streak);
+    let balance = client.get_rewards_balance(&user);
+    assert_eq!(balance, 600_000);
+}
+
 // ── Data model tests (#877) ───────────────────────────────────────────────────
 
 #[test]
@@ -869,8 +912,6 @@ fn test_reward_index_storage_helper_directly() {
 
 // ── RewardTransaction / TxCounter storage helpers (#877) ─────────────────────
 
-use crate::storage::{set_reward_transaction, set_reward_tx_counter};
-
 #[test]
 fn test_get_reward_transaction_returns_none_for_missing_id() {
     let env = Env::default();
@@ -1009,4 +1050,218 @@ fn test_reward_tx_counter_increments_correctly() {
         }
         assert_eq!(get_reward_tx_counter(&env), 5);
     });
+}
+
+// ── Metadata tests ─────────────────────────────────────────────────────────────
+
+#[test]
+fn test_metadata_initialized_correctly() {
+    let (env, admin, client) = setup();
+    client.initialize(&admin);
+    let user = Address::generate(&env);
+
+    client.register_account(&user);
+
+    let account = client.get_account(&user).expect("account must exist");
+    assert_eq!(account.created_at, env.ledger().timestamp());
+    assert_eq!(account.last_updated, env.ledger().timestamp());
+    assert_eq!(account.account_status, AccountStatus::Active);
+    assert_eq!(account.metadata_version, DEFAULT_METADATA_VERSION);
+
+    assert_eq!(
+        client.get_account_status(&user),
+        Some(AccountStatus::Active)
+    );
+    assert_eq!(
+        client.get_metadata_version(&user),
+        Some(DEFAULT_METADATA_VERSION)
+    );
+}
+
+#[test]
+fn test_metadata_updates_automatically_and_queries_expose_it() {
+    let (env, admin, client) = setup();
+    client.initialize(&admin);
+    let user = Address::generate(&env);
+
+    client.register_account(&user);
+    let initial_acc = client.get_account(&user).unwrap();
+
+    // Fast-forward timestamp
+    env.ledger().set_timestamp(env.ledger().timestamp() + 500);
+
+    // Credit reward -> automatically updates last_updated timestamp
+    client.credit_reward(&user, &1_000, &RewardType::ManualGrant);
+
+    let updated_acc = client.get_account(&user).unwrap();
+    assert_eq!(updated_acc.created_at, initial_acc.created_at);
+    assert_eq!(updated_acc.last_updated, initial_acc.last_updated + 500);
+
+    // Update account status -> updates last_updated timestamp
+    env.ledger().set_timestamp(env.ledger().timestamp() + 300);
+    client.set_account_status(&user, &AccountStatus::Suspended);
+
+    assert_eq!(
+        client.get_account_status(&user),
+        Some(AccountStatus::Suspended)
+    );
+    let suspended_acc = client.get_account(&user).unwrap();
+    assert_eq!(suspended_acc.account_status, AccountStatus::Suspended);
+    assert_eq!(suspended_acc.last_updated, updated_acc.last_updated + 300);
+}
+
+// ── Reward account statistics tests (#869) ────────────────────────────────────
+
+#[test]
+fn test_account_stats_default_to_zero() {
+    let env = Env::default();
+    let user = Address::generate(&env);
+    let contract_id = env.register(RewardsContract, ());
+    env.as_contract(&contract_id, || {
+        let stats = get_account_stats(&env, &user);
+        assert_eq!(stats.total_earned, 0);
+        assert_eq!(stats.total_redeemed, 0);
+        assert_eq!(stats.total_transactions, 0);
+        assert_eq!(stats.last_reward_timestamp, 0);
+    });
+}
+
+#[test]
+fn test_set_and_get_account_stats() {
+    let env = Env::default();
+    let user = Address::generate(&env);
+    let contract_id = env.register(RewardsContract, ());
+    env.as_contract(&contract_id, || {
+        let record = RewardAccountStats {
+            total_earned: 1_000_000,
+            total_redeemed: 250_000,
+            total_transactions: 4,
+            last_reward_timestamp: 42,
+        };
+        set_account_stats(&env, &user, &record);
+        let fetched = get_account_stats(&env, &user);
+        assert_eq!(fetched, record);
+    });
+}
+
+#[test]
+fn test_register_account_initializes_zero_stats() {
+    let (env, admin, client) = setup();
+    client.initialize(&admin);
+    let user = Address::generate(&env);
+    client.register_account(&user);
+
+    let stats = client.get_account_stats(&user);
+    assert_eq!(stats.total_earned, 0);
+    assert_eq!(stats.total_redeemed, 0);
+    assert_eq!(stats.total_transactions, 0);
+    assert_eq!(stats.last_reward_timestamp, 0);
+}
+
+#[test]
+fn test_credit_updates_earned_and_transaction_count() {
+    let (env, admin, client) = setup();
+    client.initialize(&admin);
+    let user = Address::generate(&env);
+    client.register_account(&user);
+
+    env.ledger().with_mut(|li| li.sequence_number = 100);
+    client.credit_reward(&user, &500_000, &RewardType::SpendingLimit);
+    env.ledger().with_mut(|li| li.sequence_number = 150);
+    client.credit_reward(&user, &250_000, &RewardType::Streak);
+
+    let stats = client.get_account_stats(&user);
+    assert_eq!(stats.total_earned, 750_000);
+    assert_eq!(stats.total_redeemed, 0);
+    assert_eq!(stats.total_transactions, 2);
+    assert_eq!(stats.last_reward_timestamp, 150);
+}
+
+#[test]
+fn test_debit_updates_redeemed_and_transaction_count() {
+    let (env, admin, client) = setup();
+    client.initialize(&admin);
+    let user = Address::generate(&env);
+    client.register_account(&user);
+
+    client.credit_reward(&user, &1_000_000, &RewardType::SavingsGoal);
+    client.debit_reward(&user, &400_000, &RewardType::SavingsGoal);
+
+    let stats = client.get_account_stats(&user);
+    assert_eq!(stats.total_earned, 1_000_000);
+    assert_eq!(stats.total_redeemed, 400_000);
+    assert_eq!(stats.total_transactions, 2);
+}
+
+#[test]
+fn test_last_reward_timestamp_updates_on_credit_only() {
+    let (env, admin, client) = setup();
+    client.initialize(&admin);
+    let user = Address::generate(&env);
+    client.register_account(&user);
+
+    env.ledger().with_mut(|li| li.sequence_number = 42);
+    client.credit_reward(&user, &1_000_000, &RewardType::Referral);
+    let after_credit = client.get_account_stats(&user).last_reward_timestamp;
+    assert_eq!(after_credit, 42);
+
+    env.ledger().with_mut(|li| li.sequence_number = 99);
+    client.debit_reward(&user, &100_000, &RewardType::Referral);
+    let after_debit = client.get_account_stats(&user).last_reward_timestamp;
+    assert_eq!(after_debit, 42);
+}
+
+#[test]
+fn test_stats_match_account_lifetime_totals() {
+    let (env, admin, client) = setup();
+    client.initialize(&admin);
+    let user = Address::generate(&env);
+    client.register_account(&user);
+
+    client.credit_reward(&user, &800_000, &RewardType::ManualGrant);
+    client.debit_reward(&user, &300_000, &RewardType::ManualGrant);
+
+    let account = client.get_account(&user).unwrap();
+    let stats = client.get_account_stats(&user);
+    assert_eq!(stats.total_earned, account.lifetime_earned);
+    assert_eq!(stats.total_redeemed, account.lifetime_claimed);
+}
+
+#[test]
+fn test_stats_are_independent_per_user() {
+    let (env, admin, client) = setup();
+    client.initialize(&admin);
+    let user_a = Address::generate(&env);
+    let user_b = Address::generate(&env);
+    client.register_account(&user_a);
+    client.register_account(&user_b);
+
+    client.credit_reward(&user_a, &1_000, &RewardType::Streak);
+    client.credit_reward(&user_b, &5_000, &RewardType::ManualGrant);
+    client.debit_reward(&user_a, &400, &RewardType::Streak);
+
+    let a = client.get_account_stats(&user_a);
+    let b = client.get_account_stats(&user_b);
+    assert_eq!(a.total_earned, 1_000);
+    assert_eq!(a.total_redeemed, 400);
+    assert_eq!(a.total_transactions, 2);
+    assert_eq!(b.total_earned, 5_000);
+    assert_eq!(b.total_redeemed, 0);
+    assert_eq!(b.total_transactions, 1);
+}
+
+#[test]
+fn test_existing_credit_debit_behavior_unchanged() {
+    let (env, admin, client) = setup();
+    client.initialize(&admin);
+    let user = Address::generate(&env);
+    client.register_account(&user);
+
+    client.credit_reward(&user, &1_000_000, &RewardType::SpendingLimit);
+    client.debit_reward(&user, &250_000, &RewardType::SpendingLimit);
+
+    let account = client.get_account(&user).unwrap();
+    assert_eq!(account.balance, 750_000);
+    assert_eq!(account.lifetime_earned, 1_000_000);
+    assert_eq!(account.lifetime_claimed, 250_000);
 }

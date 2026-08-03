@@ -1,0 +1,8 @@
+{
+  "name": "stellarspend-contracts",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "build": "cargo build --workspace"
+  }
+}

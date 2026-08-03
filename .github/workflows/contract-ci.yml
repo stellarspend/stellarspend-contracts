@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       - name: Install Rust stable toolchain
         uses: dtolnay/rust-toolchain@v1
@@ -22,7 +22,7 @@ jobs:
           targets: wasm32-unknown-unknown
 
       - name: Cache cargo registry and build
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@v2.7.7
         with:
           workspaces: "."
 
@@ -44,10 +44,10 @@ jobs:
             || echo "ed25519-dalek 3.x not in lockfile; already compatible"
 
       - name: Run Clippy
-        run: cargo clippy -- -D warnings
+        run: cargo clippy --features testutils -- -D warnings
 
       - name: Run tests
-        run: cargo test
+        run: cargo test --features testutils
 
       - name: Build WASM release
         run: cargo build --target wasm32-unknown-unknown --release

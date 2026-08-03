@@ -72,7 +72,7 @@ pub struct SpendingLimitRequest {
 }
 
 /// Represents a configured spending limit for a user.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 #[contracttype]
 pub struct SpendingLimit {
     /// User's address

@@ -64,6 +64,24 @@ fn test_set_signers_and_threshold_works() {
 }
 
 #[test]
+fn test_get_multisig_threshold_returns_correct_value() {
+    let (env, admin, client) = setup_test_contract();
+
+    let signer_1 = Address::generate(&env);
+    let signer_2 = Address::generate(&env);
+    let signer_3 = Address::generate(&env);
+
+    let mut signers: Vec<Address> = Vec::new(&env);
+    signers.push_back(signer_1);
+    signers.push_back(signer_2);
+    signers.push_back(signer_3);
+
+    client.set_signers(&admin, &signers, &2);
+
+    assert_eq!(client.get_multisig_threshold(), 2);
+}
+
+#[test]
 #[should_panic]
 fn test_set_signers_admin_only() {
     let (env, admin, client) = setup_test_contract();
@@ -431,6 +449,12 @@ fn test_schedule_timelocked_transaction_to_blocked_destination_fails() {
 
     let asset: Option<Address> = None;
     let execute_at = env.ledger().timestamp() + 1000;
-    client.schedule_timelocked_transaction(&from, &to, &100, &symbol_short!("pay"), &asset, &execute_at);
+    client.schedule_timelocked_transaction(
+        &from,
+        &to,
+        &100,
+        &symbol_short!("pay"),
+        &asset,
+        &execute_at,
+    );
 }
-

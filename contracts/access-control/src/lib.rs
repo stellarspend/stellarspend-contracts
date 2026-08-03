@@ -5,6 +5,7 @@
 
 #![no_std]
 
+use shared::auth::require_admin_with_key;
 use soroban_sdk::{contract, contractimpl, contracttype, panic_with_error, Address, Env, Map};
 
 /// Storage keys for the access control contract
@@ -296,13 +297,13 @@ impl AccessControlContract {
 impl AccessControlContract {
     /// Internal helper: Require that the caller has admin role
     fn require_admin(env: &Env, caller: &Address) {
-        let admin: Address = env
-            .storage()
-            .instance()
-            .get(&DataKey::Admin)
-            .unwrap_or_else(|| panic_with_error!(env, AccessControlError::NotInitialized));
-        if caller != &admin {
-            panic_with_error!(env, AccessControlError::Unauthorized);
+        if let Err(err) = require_admin_with_key(env, &DataKey::Admin, caller) {
+            match err {
+                shared::errors::SharedError::NotInitialized => {
+                    panic_with_error!(env, AccessControlError::NotInitialized)
+                }
+                _ => panic_with_error!(env, AccessControlError::Unauthorized),
+            }
         }
     }
 }

@@ -78,6 +78,15 @@ impl<'a> BudgetAllocationContractClient<'a> {
             )
         })
     }
+
+    pub fn get_budget_allocation_breakdown(&self, owner: &Address) -> Vec<(Symbol, i128)> {
+        self.env.as_contract(self.contract_id, || {
+            BudgetAllocationContract::get_budget_allocation_breakdown(
+                self.env.clone(),
+                owner.clone(),
+            )
+        })
+    }
 }
 
 #[test]
@@ -273,4 +282,72 @@ fn test_budget_allocation_summary_zero_total_usage_percentage() {
     assert_eq!(summary.total_allocation, 0);
     assert_eq!(summary.remaining_allocation, 0);
     assert_eq!(summary.usage_percentage, 0);
+}
+
+#[test]
+fn test_budget_allocation_breakdown_returns_correct_pairs() {
+    let (env, contract_id, admin) = create_contract();
+    let client = BudgetAllocationContractClient::new(&env, &contract_id);
+
+    let user = Address::generate(&env);
+
+    let categories = vec![
+        &env,
+        BudgetCategory {
+            name: soroban_sdk::symbol_short!("food"),
+            amount: 500,
+        },
+        BudgetCategory {
+            name: soroban_sdk::symbol_short!("transport"),
+            amount: 200,
+        },
+        BudgetCategory {
+            name: soroban_sdk::symbol_short!("entertain"),
+            amount: 150,
+        },
+    ];
+
+    let request = CategoryBudgetRequest {
+        user: user.clone(),
+        categories: categories.clone(),
+        total_amount: 850,
+    };
+
+    assert!(client.allocate_budget_by_category(&admin, &request));
+
+    let breakdown = client.get_budget_allocation_breakdown(&user);
+    assert_eq!(breakdown.len(), 3);
+
+    // Build a map for easy lookup since order is not guaranteed
+    let mut found_food = false;
+    let mut found_transport = false;
+    let mut found_entertain = false;
+
+    for (sym, amount) in breakdown.iter() {
+        if sym == soroban_sdk::symbol_short!("food") {
+            found_food = true;
+            assert_eq!(amount, 500);
+        } else if sym == soroban_sdk::symbol_short!("transport") {
+            found_transport = true;
+            assert_eq!(amount, 200);
+        } else if sym == soroban_sdk::symbol_short!("entertain") {
+            found_entertain = true;
+            assert_eq!(amount, 150);
+        }
+    }
+
+    assert!(found_food);
+    assert!(found_transport);
+    assert!(found_entertain);
+}
+
+#[test]
+fn test_budget_allocation_breakdown_empty_for_no_allocations() {
+    let (env, contract_id, _admin) = create_contract();
+    let client = BudgetAllocationContractClient::new(&env, &contract_id);
+
+    let user = Address::generate(&env);
+
+    let breakdown = client.get_budget_allocation_breakdown(&user);
+    assert!(breakdown.is_empty());
 }

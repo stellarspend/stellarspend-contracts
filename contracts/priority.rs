@@ -127,6 +127,16 @@ impl PriorityContract {
         id
     }
 
+    pub fn get_priority_score(env: Env, tx_id: u64) -> u32 {
+        let item_opt: Option<PendingItem> =
+            env.storage().instance().get(&DataKey::PendingItem(tx_id));
+        if let Some(item) = item_opt {
+            item.priority
+        } else {
+            0
+        }
+    }
+
     pub fn dequeue(env: Env) -> Option<PendingItem> {
         // If any lower-priority item has starved beyond threshold, dequeue it first.
         let now = env.ledger().timestamp();
@@ -166,7 +176,7 @@ impl PriorityContract {
             .instance()
             .get(&key)
             .unwrap_or_else(|| Vec::new(env));
-        q.push_back(&id);
+        q.push_back(id);
         env.storage().instance().set(&key, &q);
     }
 
@@ -189,9 +199,9 @@ impl PriorityContract {
         let mut i = 1u32;
         while (i as usize) < len as usize {
             let v = q
-                .get(i as usize)
+                .get(i)
                 .unwrap_or_else(|| panic_with_error!(env, PriorityError::EmptyQueue));
-            new_q.push_back(&v);
+            new_q.push_back(v);
             i += 1;
         }
         env.storage().instance().set(&key, &new_q);
