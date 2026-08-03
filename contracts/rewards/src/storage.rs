@@ -6,7 +6,9 @@
 
 use soroban_sdk::{vec, Address, Env, Vec};
 
-use crate::types::{DataKey, RewardAccount, RewardAccountStats, RewardTransaction, PERSISTENT_TTL_BUMP};
+use crate::types::{
+    AccountStatus, DataKey, RewardAccount, RewardTransaction, PERSISTENT_TTL_BUMP,
+};
 
 // ── Reward Balance ─────────────────────────────────────────────────────────────
 
@@ -128,6 +130,21 @@ pub fn has_reward_account(env: &Env, account: &Address) -> bool {
         .has(&DataKey::RewardAccount(account.clone()))
 }
 
+/// Updates the `AccountStatus` for `account` and updates `last_updated` timestamp.
+pub fn set_account_status(env: &Env, account: &Address, status: AccountStatus) -> bool {
+    if let Some(mut acc) = get_reward_account(env, account) {
+        acc.account_status = status;
+        acc.last_updated = env.ledger().timestamp();
+        set_reward_account(env, account, &acc);
+        true
+    } else {
+        false
+    }
+}
+
+/// Returns the `metadata_version` for `account`, if the account exists.
+pub fn get_metadata_version(env: &Env, account: &Address) -> Option<u32> {
+    get_reward_account(env, account).map(|acc| acc.metadata_version)
 // ── Reward Account Statistics ──────────────────────────────────────────────────
 
 /// Returns aggregate statistics for `account`.
@@ -153,13 +170,7 @@ pub fn get_account_stats(env: &Env, account: &Address) -> RewardAccountStats {
     stats
 }
 
-/// Persists aggregate statistics for `account`.
-pub fn set_account_stats(env: &Env, account: &Address, stats: &RewardAccountStats) {
-    let key = DataKey::AccountStats(account.clone());
-    env.storage().persistent().set(&key, stats);
-    env.storage()
-        .persistent()
-        .extend_ttl(&key, PERSISTENT_TTL_BUMP, PERSISTENT_TTL_BUMP);
+
 }
 
 // ── Reward Transaction Counter ─────────────────────────────────────────────────

@@ -17,7 +17,7 @@ use soroban_sdk::{contract, contractimpl, panic_with_error, Address, Env, Vec};
 
 use crate::rewards::{credit_reward, debit_reward, get_rewards_balance, register_reward_account};
 use crate::storage::{get_reward_account, get_reward_index};
-pub use crate::types::{DataKey, RewardAccount, RewardStatus, RewardTransaction, RewardType};
+pub use crate::types::{DataKey, RewardAccount, RewardStatus, RewardTransaction, RewardType, DEFAULT_METADATA_VERSION};
 use crate::queries::{
     query_lifetime_earnings, query_reward_balance, query_statistics, query_transaction_count,
 };
@@ -210,6 +210,30 @@ impl RewardsContract {
         get_reward_index(&env, &participant)
     }
 
+    /// Returns the `AccountStatus` for `participant`, if registered.
+    pub fn get_account_status(env: Env, participant: Address) -> Option<AccountStatus> {
+        get_account_status(&env, &participant)
+    }
+
+    /// Returns the `metadata_version` for `participant`, if registered.
+    pub fn get_metadata_version(env: Env, participant: Address) -> Option<u32> {
+        get_metadata_version(&env, &participant)
+    }
+
+    /// Updates the `AccountStatus` for `participant`.
+    ///
+    /// Requires admin authorization. Updates `last_updated` timestamp automatically.
+    pub fn set_account_status(env: Env, participant: Address, status: AccountStatus) {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .unwrap_or_else(|| panic_with_error!(&env, RewardsError::NotInitialized));
+        admin.require_auth();
+
+        if !set_account_status(&env, &participant, status) {
+            panic_with_error!(&env, RewardsError::AccountNotFound);
+        }
     /// Returns the current claimable reward balance for `participant`.
     pub fn get_reward_balance(env: Env, participant: Address) -> i128 {
         query_reward_balance(&env, &participant)
