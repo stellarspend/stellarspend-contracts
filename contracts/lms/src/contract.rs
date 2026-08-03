@@ -109,6 +109,28 @@ impl LMSContract {
         lesson::remove_lesson(env, caller, lesson_id)
     }
 
+    /// Updates lesson metadata (title, content URI, duration, description).
+    /// Only the course's owning instructor or admin may update lessons.
+    pub fn update_lesson(
+        env: Env,
+        caller: Address,
+        lesson_id: u64,
+        title: String,
+        content_uri: String,
+        estimated_duration: u32,
+        description: String,
+    ) -> Result<crate::models::Lesson, LmsError> {
+        lesson::update_lesson(
+            &env,
+            &caller,
+            lesson_id,
+            title,
+            content_uri,
+            estimated_duration,
+            description,
+        )
+    }
+
     /// Marks `lesson_id` as completed by `student`. Rejects non-enrolled
     /// students, unknown/mismatched lessons, and duplicate completions.
     pub fn complete_lesson(

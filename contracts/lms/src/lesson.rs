@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, Address, Env, Vec};
+use soroban_sdk::{contracttype, Address, Env, String, Vec};
 
 use crate::{
     admin,
@@ -76,4 +76,34 @@ pub fn remove_lesson(env: Env, caller: Address, lesson_id: u64) -> Result<(), Lm
     LMSEvents::emit_lesson_removed(&env, course_id, lesson_id);
 
     Ok(())
+}
+
+pub fn update_lesson(
+    env: &Env,
+    caller: &Address,
+    lesson_id: u64,
+    title: String,
+    content_uri: String,
+    estimated_duration: u32,
+    description: String,
+) -> Result<Lesson, LmsError> {
+    caller.require_auth();
+    admin::require_instructor_or_admin(env, caller).map_err(|_| LmsError::Unauthorized)?;
+
+    let mut record: LessonRecord = env
+        .storage()
+        .persistent()
+        .get(&LessonDataKey::Lesson(lesson_id))
+        .ok_or(LmsError::LessonNotFound)?;
+
+    record.lesson.title = title;
+    record.lesson.content_uri = content_uri;
+    record.lesson.estimated_duration = estimated_duration;
+    record.lesson.description = description;
+
+    env.storage()
+        .persistent()
+        .set(&LessonDataKey::Lesson(lesson_id), &record);
+
+    Ok(record.lesson)
 }
