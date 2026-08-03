@@ -244,7 +244,11 @@ fn test_get_batch_payment_status_multiple_batches() {
     assert_eq!(status2, Some(symbol_short!("complete")));
     assert_ne!(status1, None);
     assert_ne!(status2, None);
-    std::println!("Batch 1 status: {:?}, Batch 2 status: {:?}", status1, status2);
+    std::println!(
+        "Batch 1 status: {:?}, Batch 2 status: {:?}",
+        status1,
+        status2
+    );
 }
 
 use soroban_sdk::{contract, contractimpl};

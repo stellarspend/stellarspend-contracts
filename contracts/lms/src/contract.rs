@@ -107,10 +107,10 @@ impl LMSContract {
     pub fn remove_lesson(
         env: Env,
         caller: Address,
-        course_id: u64,
+        _course_id: u64,
         lesson_id: u64,
     ) -> Result<(), LmsError> {
-        lesson::remove_lesson(env, caller, course_id, lesson_id)
+        lesson::remove_lesson(env, caller, lesson_id)
     }
 
     /// Marks `lesson_id` as completed by `student`. Rejects non-enrolled
@@ -121,4 +121,6 @@ impl LMSContract {
         course_id: u64,
         lesson_id: u64,
     ) -> Result<(), LmsError> {
-        progress::complete_lesson
+        progress::complete_lesson(env, student, course_id, lesson_id)
+    }
+}

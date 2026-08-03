@@ -5,8 +5,8 @@
 
 #![no_std]
 
-use soroban_sdk::{contract, contractimpl, contracttype, panic_with_error, Address, Env, Map};
 use shared::auth::require_admin_with_key;
+use soroban_sdk::{contract, contractimpl, contracttype, panic_with_error, Address, Env, Map};
 
 /// Storage keys for the access control contract
 #[contracttype]

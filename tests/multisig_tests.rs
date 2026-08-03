@@ -449,6 +449,12 @@ fn test_schedule_timelocked_transaction_to_blocked_destination_fails() {
 
     let asset: Option<Address> = None;
     let execute_at = env.ledger().timestamp() + 1000;
-    client.schedule_timelocked_transaction(&from, &to, &100, &symbol_short!("pay"), &asset, &execute_at);
+    client.schedule_timelocked_transaction(
+        &from,
+        &to,
+        &100,
+        &symbol_short!("pay"),
+        &asset,
+        &execute_at,
+    );
 }
-

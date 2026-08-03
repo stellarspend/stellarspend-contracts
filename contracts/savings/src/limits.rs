@@ -5,10 +5,7 @@ use crate::types::ContributionPeriod;
 
 pub const DEFAULT_MAX_LIMIT: i128 = i128::MAX;
 
-pub fn current_bucket(
-    env: &Env,
-    period: &ContributionPeriod,
-) -> u64 {
+pub fn current_bucket(env: &Env, period: &ContributionPeriod) -> u64 {
     let timestamp = env.ledger().timestamp();
 
     match period {

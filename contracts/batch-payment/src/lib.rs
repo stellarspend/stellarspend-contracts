@@ -81,9 +81,10 @@ impl BatchPaymentContract {
         }
 
         // Record batch payment status as complete
-        env.storage()
-            .persistent()
-            .set(&DataKey::BatchStatus(batch_counter), &symbol_short!("complete"));
+        env.storage().persistent().set(
+            &DataKey::BatchStatus(batch_counter),
+            &symbol_short!("complete"),
+        );
 
         // Emit batch completion event with reference ID
         // Topics: (batch, complete, batch_reference_id)

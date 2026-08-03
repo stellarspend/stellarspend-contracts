@@ -128,7 +128,8 @@ impl PriorityContract {
     }
 
     pub fn get_priority_score(env: Env, tx_id: u64) -> u32 {
-        let item_opt: Option<PendingItem> = env.storage().instance().get(&DataKey::PendingItem(tx_id));
+        let item_opt: Option<PendingItem> =
+            env.storage().instance().get(&DataKey::PendingItem(tx_id));
         if let Some(item) = item_opt {
             item.priority
         } else {

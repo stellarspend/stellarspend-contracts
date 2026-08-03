@@ -26,6 +26,7 @@ mod types;
 mod validation;
 
 use penalty::PenaltyContractClient;
+use crate::types::{MAX_BATCH_SIZE, REVERSAL_PERIOD_SECS, SavingsGoalRequest};
 use soroban_sdk::{
     contract, contractimpl, panic_with_error, symbol_short, Address, Bytes, Env, Symbol, Vec,
 };
@@ -920,7 +921,7 @@ impl SavingsGoalsContract {
                     goal_id,
                     user: goal.user.clone(),
                     target_amount: goal.target_amount,
-                    completed_at: timestamp,
+                    issued_at: timestamp,
                 };
                 env.storage().persistent().set(&cert_key, &cert);
                 GoalEvents::certificate_issued(env, goal_id, timestamp);
@@ -976,62 +977,6 @@ impl SavingsGoalsContract {
         }
     }
 
-    /// Merges a source goal into a target goal.
-    /// The source goal will be archived (is_active = false) and its current amount will be moved to the target goal.
-    ///
-    /// # Arguments
-    /// * `env` - The contract environment
-    /// * `caller` - The address calling this function (must be owner of both goals)
-    /// * `source_goal_id` - The ID of the goal to merge from
-    /// * `target_goal_id` - The ID of the goal to merge to
-    pub fn merge_goals(env: Env, caller: Address, source_goal_id: u64, target_goal_id: u64) {
-        caller.require_auth();
-
-        if source_goal_id == target_goal_id {
-            panic_with_error!(&env, ErrorCode::CANNOT_MERGE);
-        }
-
-        let mut source_goal: SavingsGoal = env
-            .storage()
-            .persistent()
-            .get(&DataKey::Goal(source_goal_id))
-            .unwrap_or_else(|| panic_with_error!(&env, ErrorCode::GOAL_NOT_FOUND));
-
-        let mut target_goal: SavingsGoal = env
-            .storage()
-            .persistent()
-            .get(&DataKey::Goal(target_goal_id))
-            .unwrap_or_else(|| panic_with_error!(&env, ErrorCode::GOAL_NOT_FOUND));
-
-        if source_goal.user != caller || target_goal.user != caller {
-            panic_with_error!(&env, ErrorCode::UNAUTHORIZED_USER);
-        }
-
-        if !source_goal.is_active || !target_goal.is_active {
-            panic_with_error!(&env, ErrorCode::GOAL_NOT_ACTIVE);
-        }
-
-        let amount_to_merge = source_goal.current_amount;
-        target_goal.current_amount = target_goal
-            .current_amount
-            .checked_add(amount_to_merge)
-            .unwrap_or(i128::MAX);
-
-        source_goal.current_amount = 0;
-        source_goal.is_active = false;
-
-        env.storage()
-            .persistent()
-            .set(&DataKey::Goal(source_goal_id), &source_goal);
-        env.storage()
-            .persistent()
-            .set(&DataKey::Goal(target_goal_id), &target_goal);
-
-        GoalEvents::goals_merged(&env, source_goal_id, target_goal_id, amount_to_merge);
-
-        // Check milestones for the target goal after adding funds
-        Self::check_and_emit_milestones(&env, target_goal_id);
-    }
     // ...existing code...
 
     /// Partially withdraws funds from a savings goal.
@@ -1546,7 +1491,8 @@ impl SavingsGoalsContract {
             .instance()
             .get(&DataKey::TotalMilestonesAchieved)
             .unwrap_or(0)
-    }    /// Returns the ledger sequence at which a goal was automatically closed,
+    }
+    /// Returns the ledger sequence at which a goal was automatically closed,
     /// or `None` if the goal has not yet been closed.
     pub fn get_goal_closed_at(env: Env, goal_id: u64) -> Option<u64> {
         env.storage()
@@ -1927,12 +1873,8 @@ impl SavingsGoalsContract {
             }
         }
         normalized
-=======
-    /// Retrieves a completion certificate by goal ID.
-    pub fn get_certificate(env: Env, goal_id: u64) -> Option<GoalCertificate> {
-        env.storage().persistent().get(&DataKey::Certificate(goal_id))
->>>>>>> 067107d (fix(contracts): fix CI compilation errors across batch-transfer, spending-limits, multi-currency-wallet, and batch-rewards)
     }
+
 
     // Internal helper to verify admin
     fn require_admin(env: &Env, caller: &Address) {

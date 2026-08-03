@@ -1,13 +1,15 @@
 #![no_std]
 
+mod budget_notifier;
 mod errors;
 mod events;
-mod budget_notifier;
 mod types;
 
-use soroban_sdk::{contract, contractimpl, contracttype, panic_with_error, Address, Env, String, Symbol, Vec};
 use budget_notifier::BudgetNotifier;
 use errors::NotificationError;
+use soroban_sdk::{
+    contract, contractimpl, contracttype, panic_with_error, Address, Env, String, Symbol, Vec,
+};
 use types::{Notification, NotificationResult};
 
 #[contracttype]
@@ -44,7 +46,10 @@ impl NotificationContract {
 
             if success {
                 env.events().publish(
-                    (Symbol::new(&env, "notification_sent"), notification.recipient.clone()),
+                    (
+                        Symbol::new(&env, "notification_sent"),
+                        notification.recipient.clone(),
+                    ),
                     notification.message.clone(),
                 );
             }
@@ -59,7 +64,9 @@ impl NotificationContract {
     }
 
     pub fn set_notification_preference(env: Env, owner: Address, enabled: bool) {
-        env.storage().persistent().set(&DataKey::NotificationPreference(owner), &enabled);
+        env.storage()
+            .persistent()
+            .set(&DataKey::NotificationPreference(owner), &enabled);
     }
 
     pub fn get_notification_preference(env: Env, owner: Address) -> bool {

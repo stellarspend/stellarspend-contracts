@@ -222,10 +222,7 @@ impl BudgetAllocationContract {
     /// # Returns
     /// A vector of (category_name, amount) pairs, or an empty vector if the
     /// address has no category allocations.
-    pub fn get_budget_allocation_breakdown(
-        env: Env,
-        owner: Address,
-    ) -> Vec<(Symbol, i128)> {
+    pub fn get_budget_allocation_breakdown(env: Env, owner: Address) -> Vec<(Symbol, i128)> {
         let mut result = Vec::new(&env);
 
         let user_categories: Option<UserBudgetCategories> = env

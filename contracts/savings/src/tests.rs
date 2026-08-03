@@ -19,7 +19,7 @@ fn test_get_savings_limit_default() {
 fn test_set_and_get_savings_limit() {
     let env = Env::default();
     env.mock_all_auths();
-    
+
     let contract_id = env.register(SavingsContract, ());
     let client = SavingsContractClient::new(&env, &contract_id);
 

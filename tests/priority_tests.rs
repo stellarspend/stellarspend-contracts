@@ -52,7 +52,7 @@ fn test_get_priority_score() {
 
     assert_eq!(client.get_priority_score(&id1), 1);
     assert_eq!(client.get_priority_score(&id2), 2);
-    
+
     // Unknown ID should return 0
     assert_eq!(client.get_priority_score(&999), 0);
 }

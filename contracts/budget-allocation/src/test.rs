@@ -79,10 +79,7 @@ impl<'a> BudgetAllocationContractClient<'a> {
         })
     }
 
-    pub fn get_budget_allocation_breakdown(
-        &self,
-        owner: &Address,
-    ) -> Vec<(Symbol, i128)> {
+    pub fn get_budget_allocation_breakdown(&self, owner: &Address) -> Vec<(Symbol, i128)> {
         self.env.as_contract(self.contract_id, || {
             BudgetAllocationContract::get_budget_allocation_breakdown(
                 self.env.clone(),

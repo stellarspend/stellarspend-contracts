@@ -30,7 +30,9 @@ impl FraudDetectionContract {
             env.storage()
                 .instance()
                 .set(&DataKey::RiskScore(user.clone()), &100u32);
-            env.storage().instance().set(&DataKey::FlaggedTx(tx_id), &true);
+            env.storage()
+                .instance()
+                .set(&DataKey::FlaggedTx(tx_id), &true);
             return 100;
         }
 
@@ -74,7 +76,9 @@ impl FraudDetectionContract {
         let mut score = 0u32;
         if recent_count >= 5 {
             score = 80;
-            env.storage().instance().set(&DataKey::FlaggedTx(tx_id), &true);
+            env.storage()
+                .instance()
+                .set(&DataKey::FlaggedTx(tx_id), &true);
         }
 
         env.storage()

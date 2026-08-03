@@ -181,4 +181,3 @@ pub struct RewardStatistics {
     /// Total number of reward transactions for this account.
     pub tx_count: u32,
 }
-

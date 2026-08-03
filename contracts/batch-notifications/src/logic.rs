@@ -40,8 +40,5 @@ pub fn execute_dispatch(
 /// Returns 0 if no entry exists for the batch_id.
 pub fn read_batch_count(env: &Env, batch_id: u64) -> u32 {
     let key = (symbol_short!("batch_cnt"), batch_id);
-    env.storage()
-        .persistent()
-        .get::<_, u32>(&key)
-        .unwrap_or(0)
+    env.storage().persistent().get::<_, u32>(&key).unwrap_or(0)
 }

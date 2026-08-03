@@ -84,7 +84,10 @@ fn test_get_validation_errors_returns_error_codes_for_failed_transaction() {
 
     let errors = client.get_validation_errors(&1u64);
     assert_eq!(errors.len(), 1);
-    assert_eq!(errors.get(0).unwrap(), TimestampValidationError::FutureTimestamp as u32);
+    assert_eq!(
+        errors.get(0).unwrap(),
+        TimestampValidationError::FutureTimestamp as u32
+    );
 }
 
 #[test]

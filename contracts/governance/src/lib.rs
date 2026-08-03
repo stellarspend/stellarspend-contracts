@@ -138,12 +138,7 @@ impl GovernanceEvents {
         let topics = (symbol_short!("gov"), symbol_short!("upg_executed"));
         env.events().publish(
             topics,
-            (
-                id,
-                wasm_hash.clone(),
-                new_version,
-                env.ledger().timestamp(),
-            ),
+            (id, wasm_hash.clone(), new_version, env.ledger().timestamp()),
         );
     }
 }
@@ -282,9 +277,10 @@ pub fn create_upgrade_proposal(
         deadline,
     };
 
-    env.storage()
-        .persistent()
-        .set(&GovernanceDataKey::UpgradeProposal(new_id), &upgrade_proposal);
+    env.storage().persistent().set(
+        &GovernanceDataKey::UpgradeProposal(new_id),
+        &upgrade_proposal,
+    );
     env.storage()
         .instance()
         .set(&GovernanceDataKey::ProposalCount, &new_id);
@@ -414,11 +410,7 @@ pub fn execute_proposal(env: &Env, caller: Address, proposal_id: u32) {
 ///
 /// Returns the Wasm hash and version that were authorized so the caller can
 /// perform the actual upgrade.
-pub fn consume_upgrade_proposal(
-    env: &Env,
-    caller: Address,
-    proposal_id: u32,
-) -> (BytesN<32>, u32) {
+pub fn consume_upgrade_proposal(env: &Env, caller: Address, proposal_id: u32) -> (BytesN<32>, u32) {
     caller.require_auth();
 
     let mut up: UpgradeProposal = env
@@ -533,7 +525,11 @@ impl GovernanceContract {
         execute_proposal(&env, caller, proposal_id);
     }
 
-    pub fn consume_upgrade_proposal(env: Env, caller: Address, proposal_id: u32) -> (BytesN<32>, u32) {
+    pub fn consume_upgrade_proposal(
+        env: Env,
+        caller: Address,
+        proposal_id: u32,
+    ) -> (BytesN<32>, u32) {
         consume_upgrade_proposal(&env, caller, proposal_id)
     }
 

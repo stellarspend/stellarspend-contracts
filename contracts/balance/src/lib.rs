@@ -39,13 +39,7 @@ impl BalanceContract {
         env.storage().instance().set(&DataKey::Admin, &admin);
     }
 
-    pub fn set_user_balance(
-        env: Env,
-        admin: Address,
-        user: Address,
-        asset: Address,
-        amount: i128,
-    ) {
+    pub fn set_user_balance(env: Env, admin: Address, user: Address, asset: Address, amount: i128) {
         admin.require_auth();
         Self::require_admin(&env, &admin);
 

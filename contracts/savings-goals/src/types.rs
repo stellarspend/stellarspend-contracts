@@ -603,15 +603,7 @@ impl GoalEvents {
         previous_owner: &Address,
         new_beneficiary: &Address,
     ) {
-<<<<<<< HEAD
-        let topics = (symbol_short!("goal"), symbol_short!("benef_xfer"), goal_id);
-=======
-        let topics = (
-            symbol_short!("goal"),
-            symbol_short!("b_xfer"),
-            goal_id,
-        );
->>>>>>> f0958f1 (fix: resolve build errors in multi-currency-wallet (missing shared modules, storage API, Vec/Box scope))
+        let topics = (symbol_short!("goal"), symbol_short!("benefxfr"), goal_id);
         env.events()
             .publish(topics, (previous_owner.clone(), new_beneficiary.clone()));
     }
@@ -623,14 +615,7 @@ impl GoalEvents {
         total_amount: i128,
         goal_count: u32,
     ) {
-<<<<<<< HEAD
-        let topics = (symbol_short!("goal"), symbol_short!("auto_alloc"));
-=======
-        let topics = (
-            symbol_short!("goal"),
-            symbol_short!("auto_alc"),
-        );
->>>>>>> f0958f1 (fix: resolve build errors in multi-currency-wallet (missing shared modules, storage API, Vec/Box scope))
+        let topics = (symbol_short!("goal"), symbol_short!("autoalc"));
         env.events()
             .publish(topics, (user.clone(), total_amount, goal_count));
     }
@@ -644,6 +629,7 @@ impl GoalEvents {
     /// Event emitted when two goals are merged.
     pub fn goals_merged(env: &Env, source_id: u64, target_id: u64, amount_merged: i128) {
         let topics = (symbol_short!("goal"), symbol_short!("merged"), target_id);
-        env.events().publish(topics, (source_id, target_id, amount_merged));
+        env.events()
+            .publish(topics, (source_id, target_id, amount_merged));
     }
 }

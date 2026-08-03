@@ -58,7 +58,11 @@ pub fn require_admin(env: &Env, caller: &Address) -> Result<(), SharedError> {
 /// reuse the shared admin verification pattern.
 pub fn get_admin_with_key<K>(env: &Env, key: &K) -> Result<Address, SharedError>
 where
+<<<<<<< HEAD
     K: IntoVal<Env, Val>,
+=======
+    K: soroban_sdk::IntoVal<Env, soroban_sdk::Val>,
+>>>>>>> ed22346 (fix: move profile settings to workspace root Cargo.toml)
 {
     env.storage()
         .instance()
@@ -69,7 +73,11 @@ where
 /// Requires the caller to be authenticated and to match the admin stored under the provided key.
 pub fn require_admin_with_key<K>(env: &Env, key: &K, caller: &Address) -> Result<(), SharedError>
 where
+<<<<<<< HEAD
     K: IntoVal<Env, Val>,
+=======
+    K: soroban_sdk::IntoVal<Env, soroban_sdk::Val>,
+>>>>>>> ed22346 (fix: move profile settings to workspace root Cargo.toml)
 {
     caller.require_auth();
     let admin = get_admin_with_key(env, key)?;
@@ -82,7 +90,11 @@ where
 /// Returns `true` when the caller matches the admin stored under the provided key.
 pub fn is_admin_with_key<K>(env: &Env, key: &K, caller: &Address) -> bool
 where
+<<<<<<< HEAD
     K: IntoVal<Env, Val>,
+=======
+    K: soroban_sdk::IntoVal<Env, soroban_sdk::Val>,
+>>>>>>> ed22346 (fix: move profile settings to workspace root Cargo.toml)
 {
     get_admin_with_key(env, key).map_or(false, |admin| caller == &admin)
 }

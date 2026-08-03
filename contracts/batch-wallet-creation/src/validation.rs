@@ -42,7 +42,10 @@ pub fn check_batch_duplicates(requests: &Vec<WalletCreateRequest>) -> Result<(),
 }
 
 /// Returns the first duplicate wallet address found in the batch, or None.
-pub fn find_duplicate_wallet(env: &Env, wallets: &[soroban_sdk::Address]) -> Option<soroban_sdk::Address> {
+pub fn find_duplicate_wallet(
+    env: &Env,
+    wallets: &[soroban_sdk::Address],
+) -> Option<soroban_sdk::Address> {
     let mut seen = soroban_sdk::Vec::<soroban_sdk::Address>::new(env);
     for wallet in wallets {
         if seen.iter().any(|item| item == *wallet) {

@@ -1,5 +1,3 @@
-//! Data types and events for batch spending limit operations.
-
 use soroban_sdk::{contracttype, symbol_short, Address, Env, Symbol, Vec};
 
 /// Maximum number of user-limit pairs in a single batch for optimization.
@@ -112,7 +110,7 @@ pub struct LimitsConfig {
 }
 
 /// Result of processing a single limit update.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
 #[contracttype]
 pub enum LimitUpdateResult {
     Success(SpendingLimit),
@@ -194,7 +192,7 @@ pub enum DataKey {
 }
 
 /// Error codes for limit validation and enforcement.
-pub mod error_code {
+pub mod ErrorCode {
     /// Invalid limit amount (negative or zero)
     pub const INVALID_LIMIT: u32 = 0;
     /// Invalid user address

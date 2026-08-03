@@ -43,7 +43,11 @@ mod governance_interface {
 
         /// Consume (execute) an approved upgrade proposal. Returns the Wasm
         /// hash and new version that were authorized. Reverts if not approved.
-        fn consume_upgrade_proposal(env: Env, caller: Address, proposal_id: u32) -> (BytesN<32>, u32);
+        fn consume_upgrade_proposal(
+            env: Env,
+            caller: Address,
+            proposal_id: u32,
+        ) -> (BytesN<32>, u32);
     }
 }
 
@@ -204,8 +208,7 @@ impl UpgradeableContract {
         e.storage()
             .instance()
             .set(&DataKey::Governance, &gov_address);
-        e.events()
-            .publish((symbol_short!("gov_set"),), gov_address);
+        e.events().publish((symbol_short!("gov_set"),), gov_address);
     }
 
     /// Returns the configured governance contract address, or `None` if
@@ -286,7 +289,12 @@ impl UpgradeableContract {
 
         e.events().publish(
             (symbol_short!("upg_sched"), signer),
-            (new_wasm_hash, new_version, execute_at, governance_proposal_id),
+            (
+                new_wasm_hash,
+                new_version,
+                execute_at,
+                governance_proposal_id,
+            ),
         );
     }
 
@@ -455,7 +463,9 @@ impl UpgradeableContract {
             .update_current_contract_wasm(pending.wasm_hash.clone());
 
         e.storage().instance().remove(&DataKey::Pending);
-        e.storage().instance().remove(&DataKey::GovernanceProposalId);
+        e.storage()
+            .instance()
+            .remove(&DataKey::GovernanceProposalId);
 
         e.events().publish(
             (

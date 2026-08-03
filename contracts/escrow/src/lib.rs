@@ -618,13 +618,7 @@ impl EscrowContract {
             .persistent()
             .set(&DataKey::Escrow(escrow_id), &escrow);
 
-        EscrowEvents::escrow_resolved(
-            &env,
-            escrow_id,
-            &caller,
-            depositor_amount,
-            recipient_amount,
-        );
+        EscrowEvents::escrow_resolved(&env, escrow_id, &caller, depositor_amount, recipient_amount);
     }
 
     /// Returns an escrow by ID.
@@ -722,10 +716,10 @@ impl EscrowContract {
         if *caller != admin {
             panic_with_error!(env, EscrowError::Unauthorized);
         }
-=======
+    }
+
     pub fn get_escrow_balance(env: Env, escrow_id: u64) -> i128 {
         // Retrieve the locked balance for the given escrow ID, returning 0 if it does not exist.
         env.storage().persistent().get(&escrow_id).unwrap_or(0)
->>>>>>> upstream/main
     }
 }

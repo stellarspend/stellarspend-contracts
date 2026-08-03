@@ -879,7 +879,11 @@ impl BudgetContract {
     }
 
     /// Retrieves the archived budget for a specific user and asset.
-    pub fn get_archived_budget_by_asset(env: Env, user: Address, asset: Address) -> Option<BudgetRecord> {
+    pub fn get_archived_budget_by_asset(
+        env: Env,
+        user: Address,
+        asset: Address,
+    ) -> Option<BudgetRecord> {
         env.storage()
             .persistent()
             .get::<DataKey, BudgetRecord>(&DataKey::ArchivedBudgetAsset(user, asset))

@@ -190,12 +190,19 @@ fn test_batch_transfer_reverts_when_any_request_is_invalid() {
     token_admin_client.mint(&admin, &30_000_000);
 
     let mut transfers: Vec<TransferRequest> = Vec::new(&env);
-    transfers.push_back(create_transfer_request(&env, recipient1.clone(), 10_000_000));
+    transfers.push_back(create_transfer_request(
+        &env,
+        recipient1.clone(),
+        10_000_000,
+    ));
     transfers.push_back(create_transfer_request(&env, recipient2.clone(), 0));
 
     let result = client.try_batch_transfer(&admin, &token, &transfers);
 
-    assert!(result.is_err(), "invalid requests should revert the whole batch");
+    assert!(
+        result.is_err(),
+        "invalid requests should revert the whole batch"
+    );
     assert_eq!(token_client.balance(&recipient1), 0);
     assert_eq!(token_client.balance(&recipient2), 0);
     assert_eq!(token_client.balance(&admin), 30_000_000);
@@ -624,4 +631,3 @@ fn test_get_batch_transfer_recipient_count() {
     let recipient_count = client.get_batch_transfer_recipient_count(&1);
     assert_eq!(recipient_count, 2);
 }
-

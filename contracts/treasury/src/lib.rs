@@ -574,9 +574,21 @@ impl TreasuryContract {
     /// This is the sum of all credited penalties, fees, and rewards.
     /// Returns 0 if the treasury is empty or has never been credited.
     pub fn get_treasury_balance(env: Env) -> i128 {
-        let p: i128 = env.storage().instance().get(&DataKey::TotalPenalties).unwrap_or(0);
-        let f: i128 = env.storage().instance().get(&DataKey::TotalFees).unwrap_or(0);
-        let r: i128 = env.storage().instance().get(&DataKey::TotalRewards).unwrap_or(0);
+        let p: i128 = env
+            .storage()
+            .instance()
+            .get(&DataKey::TotalPenalties)
+            .unwrap_or(0);
+        let f: i128 = env
+            .storage()
+            .instance()
+            .get(&DataKey::TotalFees)
+            .unwrap_or(0);
+        let r: i128 = env
+            .storage()
+            .instance()
+            .get(&DataKey::TotalRewards)
+            .unwrap_or(0);
         p.checked_add(f).unwrap_or(0).checked_add(r).unwrap_or(0)
     }
 

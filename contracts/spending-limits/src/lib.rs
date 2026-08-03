@@ -27,14 +27,11 @@ mod validation;
 
 use soroban_sdk::{contract, contractimpl, panic_with_error, Address, Env, Symbol, Vec};
 
-use shared::authorization::{add_allowed_contract, is_allowed_contract, remove_allowed_contract};
-
 pub use crate::types::{
-    BatchLimitMetrics, BatchLimitResult, DataKey, EscalationConfig, ExceptionRule,
+    BatchLimitMetrics, BatchLimitResult, DataKey, ErrorCode, EscalationConfig, ExceptionRule,
     LimitEvents, LimitStrategy, LimitUpdateResult, LimitsConfig, SpendingLimit,
     SpendingLimitRequest, MAX_BATCH_SIZE,
 };
-pub use crate::types::error_code;
 use crate::validation::validate_limit_request;
 
 // Add cross-contract imports for whitelist functionality
@@ -698,8 +695,9 @@ impl SpendingLimitsContract {
         caller.require_auth();
         Self::require_admin(&env, &caller);
 
-        let key = CrossContractDataKey::Whitelist(destination.clone());
-        add_allowed_contract(&env, &key);
+        env.storage()
+            .persistent()
+            .set(&CrossContractDataKey::Whitelist(destination.clone()), &true);
     }
 
     /// Removes a destination address from the spending whitelist.
@@ -708,8 +706,9 @@ impl SpendingLimitsContract {
         caller.require_auth();
         Self::require_admin(&env, &caller);
 
-        let key = CrossContractDataKey::Whitelist(destination.clone());
-        remove_allowed_contract(&env, &key);
+        env.storage()
+            .persistent()
+            .remove(&CrossContractDataKey::Whitelist(destination.clone()));
     }
 
     /// Checks if a destination address is whitelisted for receiving funds.
@@ -896,10 +895,11 @@ impl SpendingLimitsContract {
 
     /// Internal helper for destination whitelist checks without consuming Env.
     fn is_destination_whitelisted_internal(env: &Env, destination: &Address) -> bool {
-        let key = CrossContractDataKey::Whitelist(destination.clone());
         // Use the same whitelist storage pattern as cross-contract module
         // Check if destination is in whitelist
-        is_allowed_contract(&env, &key)
+        env.storage()
+            .persistent()
+            .has(&CrossContractDataKey::Whitelist(destination.clone()))
     }
 
     pub fn override_spending_limit(
@@ -936,4 +936,7 @@ impl SpendingLimitsContract {
 
 #[cfg(test)]
 mod test;
+<<<<<<< HEAD
 
+=======
+>>>>>>> ed22346 (fix: move profile settings to workspace root Cargo.toml)

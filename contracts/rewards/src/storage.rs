@@ -7,7 +7,11 @@
 use soroban_sdk::{vec, Address, Env, Vec};
 
 use crate::types::{
+<<<<<<< HEAD
     AccountStatus, DataKey, RewardAccount, RewardTransaction, PERSISTENT_TTL_BUMP,
+=======
+    DataKey, RewardAccount, RewardAccountStats, RewardTransaction, PERSISTENT_TTL_BUMP,
+>>>>>>> ed22346 (fix: move profile settings to workspace root Cargo.toml)
 };
 
 // ── Reward Balance ─────────────────────────────────────────────────────────────

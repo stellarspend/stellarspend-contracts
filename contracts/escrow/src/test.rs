@@ -1001,6 +1001,3 @@ fn test_batch_release_excludes_disputed_escrow() {
     assert_eq!(escrow1.status, EscrowStatus::Disputed);
     assert_eq!(escrow2.status, EscrowStatus::Released);
 }
-
-=======
->>>>>>> upstream/main

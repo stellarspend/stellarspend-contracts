@@ -7,6 +7,9 @@ pub struct BatchHistoryContract;
 impl BatchHistoryContract {
     pub fn get_batch_history_entries(env: Env, owner: Address) -> Vec<u64> {
         // Retrieve batch history entries associated with the owner address, returning empty Vec if none exist.
-        env.storage().persistent().get(&owner).unwrap_or_else(|| Vec::new(&env))
+        env.storage()
+            .persistent()
+            .get(&owner)
+            .unwrap_or_else(|| Vec::new(&env))
     }
 }

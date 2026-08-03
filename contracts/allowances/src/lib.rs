@@ -56,7 +56,11 @@ fn load_allowance(env: &Env, allowance_id: u64) -> Allowance {
 }
 
 fn append_index(env: &Env, key: DataKey, allowance_id: u64) {
-    let mut ids: Vec<u64> = env.storage().persistent().get(&key).unwrap_or(Vec::new(env));
+    let mut ids: Vec<u64> = env
+        .storage()
+        .persistent()
+        .get(&key)
+        .unwrap_or(Vec::new(env));
     ids.push_back(allowance_id);
     env.storage().persistent().set(&key, &ids);
 }

@@ -15,19 +15,25 @@ pub mod validation;
 
 use soroban_sdk::{contract, contractimpl, panic_with_error, Address, Env, Vec};
 
+<<<<<<< HEAD
 use crate::rewards::{credit_reward, debit_reward, get_rewards_balance, register_reward_account};
 use crate::storage::{get_reward_account, get_reward_index};
 pub use crate::types::{DataKey, RewardAccount, RewardStatus, RewardTransaction, RewardType, DEFAULT_METADATA_VERSION};
+=======
+>>>>>>> ed22346 (fix: move profile settings to workspace root Cargo.toml)
 use crate::queries::{
     query_lifetime_earnings, query_reward_balance, query_statistics, query_transaction_count,
 };
+use crate::rewards::{credit_reward, debit_reward, get_rewards_balance, register_reward_account};
 use crate::rewards::{credit_reward, debit_reward, register_reward_account};
 use crate::storage::{
     get_account_stats as read_account_stats, get_reward_account, get_reward_index,
 };
+use crate::storage::{get_reward_account, get_reward_index};
 pub use crate::types::{
     DataKey, RewardAccount, RewardAccountStats, RewardStatus, RewardTransaction, RewardType,
 };
+pub use crate::types::{DataKey, RewardAccount, RewardStatus, RewardTransaction, RewardType};
 
 /// Error codes for the rewards contract.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -126,6 +132,8 @@ impl RewardsContract {
     /// Returns `0` if no reward account exists or the balance is zero.
     pub fn get_rewards_balance(env: Env, owner: Address) -> i128 {
         get_rewards_balance(&env, &owner)
+    }
+
     /// Returns aggregate statistics for `participant`'s reward account.
     ///
     /// Tracks total rewards earned, total rewards redeemed, total transactions,

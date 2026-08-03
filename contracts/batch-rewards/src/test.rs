@@ -223,7 +223,8 @@ fn test_distribute_rewards_large_batch() {
     let batch_size = 50u32;
 
     // Mint tokens to admin
-    token::StellarAssetClient::new(&env, &token).mint(&admin, &(amount * batch_size as i128 + 10_000_000));
+    token::StellarAssetClient::new(&env, &token)
+        .mint(&admin, &(amount * batch_size as i128 + 10_000_000));
 
     // Create batch of rewards
     let mut rewards: Vec<RewardRequest> = Vec::new(&env);
@@ -258,7 +259,8 @@ fn test_distribute_rewards_batch_too_large() {
     let batch_size = 101u32; // Exceeds MAX_BATCH_SIZE of 100
 
     // Mint tokens to admin
-    token::StellarAssetClient::new(&env, &token).mint(&admin, &(amount * batch_size as i128 + 10_000_000));
+    token::StellarAssetClient::new(&env, &token)
+        .mint(&admin, &(amount * batch_size as i128 + 10_000_000));
 
     // Create oversized batch
     let mut rewards: Vec<RewardRequest> = Vec::new(&env);
@@ -329,28 +331,25 @@ fn test_distribute_rewards_events_emitted() {
 
     // Check for batch_started event
     let has_batch_started = events.iter().any(|event| {
-        event
-            .1
-            .iter()
-            .any(|topic: &soroban_sdk::Val| topic == &soroban_sdk::symbol_short!("batch").into_val(&env))
+        event.1.iter().any(|topic: &soroban_sdk::Val| {
+            topic == &soroban_sdk::symbol_short!("batch").into_val(&env)
+        })
     });
     assert!(has_batch_started, "batch_started event not found");
 
     // Check for reward_success event
     let has_reward_success = events.iter().any(|event| {
-        event
-            .1
-            .iter()
-            .any(|topic: &soroban_sdk::Val| topic == &soroban_sdk::symbol_short!("success").into_val(&env))
+        event.1.iter().any(|topic: &soroban_sdk::Val| {
+            topic == &soroban_sdk::symbol_short!("success").into_val(&env)
+        })
     });
     assert!(has_reward_success, "reward_success event not found");
 
     // Check for batch_completed event
     let has_batch_completed = events.iter().any(|event| {
-        event
-            .1
-            .iter()
-            .any(|topic: &soroban_sdk::Val| topic == &soroban_sdk::symbol_short!("completed").into_val(&env))
+        event.1.iter().any(|topic: &soroban_sdk::Val| {
+            topic == &soroban_sdk::symbol_short!("completed").into_val(&env)
+        })
     });
     assert!(has_batch_completed, "batch_completed event not found");
 }
@@ -418,10 +417,9 @@ fn test_distribute_rewards_events_on_failure() {
 
     // Check for failure event
     let has_failure_event = events.iter().any(|event| {
-        event
-            .1
-            .iter()
-            .any(|topic: &soroban_sdk::Val| topic == &soroban_sdk::symbol_short!("failure").into_val(&env))
+        event.1.iter().any(|topic: &soroban_sdk::Val| {
+            topic == &soroban_sdk::symbol_short!("failure").into_val(&env)
+        })
     });
     assert!(has_failure_event, "reward_failure event not found");
 }

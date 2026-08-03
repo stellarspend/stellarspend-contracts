@@ -2,8 +2,10 @@
 
 mod validation;
 
-use soroban_sdk::{contract, contractimpl, contracttype, panic_with_error, symbol_short, Address, Env, Symbol};
 use shared::errors::SharedError;
+use soroban_sdk::{
+    contract, contractimpl, contracttype, panic_with_error, symbol_short, Address, Env, Symbol,
+};
 
 use crate::validation::validate_nickname;
 
@@ -30,12 +32,14 @@ pub struct ProfileEvents;
 impl ProfileEvents {
     pub fn profile_created(env: &Env, profile: &WalletProfile) {
         let topics = (symbol_short!("profile"), symbol_short!("created"));
-        env.events().publish(topics, (profile.user.clone(), profile.nickname.clone()));
+        env.events()
+            .publish(topics, (profile.user.clone(), profile.nickname.clone()));
     }
 
     pub fn nickname_updated(env: &Env, user: &Address, old_nickname: Symbol, new_nickname: Symbol) {
         let topics = (symbol_short!("profile"), symbol_short!("nickname"));
-        env.events().publish(topics, (user.clone(), old_nickname, new_nickname));
+        env.events()
+            .publish(topics, (user.clone(), old_nickname, new_nickname));
     }
 }
 
@@ -60,7 +64,11 @@ impl WalletProfileContract {
             panic_with_error!(&env, SharedError::InvalidInput);
         }
 
-        if env.storage().persistent().has(&DataKey::Profile(user.clone())) {
+        if env
+            .storage()
+            .persistent()
+            .has(&DataKey::Profile(user.clone()))
+        {
             panic_with_error!(&env, SharedError::ResourceAlreadyExists);
         }
 

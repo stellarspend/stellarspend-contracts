@@ -7,7 +7,9 @@ mod oracle;
 use alloc::boxed::Box;
 use oracle::OracleManager;
 use shared::reflector_oracle::ReflectorOracle;
-use soroban_sdk::{contract, contractimpl, contracttype, panic_with_error, Address, Env, String, Vec};
+use soroban_sdk::{
+    contract, contractimpl, contracttype, panic_with_error, Address, Env, String, Vec,
+};
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -58,7 +60,9 @@ impl MultiCurrencyWallet {
             max_deviation_bps,
         };
 
-        env.storage().instance().set(&String::from_str(&env, "wallet"), &wallet);
+        env.storage()
+            .instance()
+            .set(&String::from_str(&env, "wallet"), &wallet);
     }
 
     /// Add a balance to the wallet
@@ -88,7 +92,9 @@ impl MultiCurrencyWallet {
 
         wallet.balances = updated_balances;
 
-        env.storage().instance().set(&String::from_str(&env, "wallet"), &wallet);
+        env.storage()
+            .instance()
+            .set(&String::from_str(&env, "wallet"), &wallet);
     }
 
     /// Convert currency using oracle rate
@@ -184,13 +190,16 @@ impl MultiCurrencyWallet {
 
         wallet.balances = updated_balances;
 
-        env.storage().instance().set(&String::from_str(&env, "wallet"), &wallet);
+        env.storage()
+            .instance()
+            .set(&String::from_str(&env, "wallet"), &wallet);
     }
 
     /// Get wallet assets (list of asset symbols)
     pub fn get_wallet_assets(env: Env) -> Vec<String> {
         let wallet: CurrencyWallet = env
             .storage()
+            .instance()
             .get(&String::from_str(&env, "wallet"))
             .unwrap_or_else(|| panic!("Wallet not initialized"));
 

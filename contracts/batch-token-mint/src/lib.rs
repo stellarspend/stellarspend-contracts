@@ -132,7 +132,9 @@ impl BatchTokenMintContract {
         for request in requests.iter() {
             match validate_mint_request(&request) {
                 Ok(()) => validated_requests.push_back((request.clone(), true, 0)),
-                Err(error_code) => validated_requests.push_back((request.clone(), false, error_code)),
+                Err(error_code) => {
+                    validated_requests.push_back((request.clone(), false, error_code))
+                }
             }
         }
 
@@ -181,13 +183,7 @@ impl BatchTokenMintContract {
             MintEvents::tokens_minted(&env, batch_id, &token, &minted);
 
             if request.amount >= 1_000_000_000 {
-                MintEvents::large_mint(
-                    &env,
-                    batch_id,
-                    &token,
-                    &request.recipient,
-                    request.amount,
-                );
+                MintEvents::large_mint(&env, batch_id, &token, &request.recipient, request.amount);
             }
 
             results.push_back(MintResult::Success(minted));

@@ -10,7 +10,10 @@
 //! - **Spending Tracking**: Tracks spent amounts per category per user
 //!
 
-use soroban_sdk::{contract, contractimpl, contracttype, panic_with_error, symbol_short, Address, Env, Map, Symbol, Vec};
+use soroban_sdk::{
+    contract, contractimpl, contracttype, panic_with_error, symbol_short, Address, Env, Map,
+    Symbol, Vec,
+};
 
 /// Error codes for the overdraft contract.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -97,8 +100,13 @@ impl OverdraftEvents {
         requested_amount: i128,
         available_budget: i128,
     ) {
-        let topics = (symbol_short!("overdraft"), symbol_short!("attempt"), category.clone());
-        env.events().publish(topics, (user.clone(), requested_amount, available_budget));
+        let topics = (
+            symbol_short!("overdraft"),
+            symbol_short!("attempt"),
+            category.clone(),
+        );
+        env.events()
+            .publish(topics, (user.clone(), requested_amount, available_budget));
     }
 
     /// Event emitted when a transaction is successfully validated
@@ -109,18 +117,22 @@ impl OverdraftEvents {
         amount: i128,
         remaining_budget: i128,
     ) {
-        let topics = (symbol_short!("overdraft"), symbol_short!("validated"), category.clone());
-        env.events().publish(topics, (user.clone(), amount, remaining_budget));
+        let topics = (
+            symbol_short!("overdraft"),
+            symbol_short!("validated"),
+            category.clone(),
+        );
+        env.events()
+            .publish(topics, (user.clone(), amount, remaining_budget));
     }
 
     /// Event emitted when budget is updated
-    pub fn budget_updated(
-        env: &Env,
-        user: &Address,
-        category: &Symbol,
-        new_limit: i128,
-    ) {
-        let topics = (symbol_short!("overdraft"), symbol_short!("updated"), category.clone());
+    pub fn budget_updated(env: &Env, user: &Address, category: &Symbol, new_limit: i128) {
+        let topics = (
+            symbol_short!("overdraft"),
+            symbol_short!("updated"),
+            category.clone(),
+        );
         env.events().publish(topics, (user.clone(), new_limit));
     }
 }
@@ -204,10 +216,10 @@ impl OverdraftContract {
         let current_time = env.ledger().timestamp();
 
         // Get existing user budget or create new one
-        let mut user_budget = if let Some(existing) =
-            env.storage()
-                .persistent()
-                .get::<DataKey, UserBudget>(&DataKey::UserBudget(user.clone()))
+        let mut user_budget = if let Some(existing) = env
+            .storage()
+            .persistent()
+            .get::<DataKey, UserBudget>(&DataKey::UserBudget(user.clone()))
         {
             existing
         } else {
@@ -224,7 +236,9 @@ impl OverdraftContract {
             spent: 0,
         };
 
-        user_budget.categories.set(category.clone(), category_budget);
+        user_budget
+            .categories
+            .set(category.clone(), category_budget);
         user_budget.last_updated = current_time;
 
         env.storage()
@@ -245,7 +259,12 @@ impl OverdraftContract {
     ///
     /// # Returns
     /// TransactionCheckResult with whether the transaction is allowed
-    pub fn check_transaction(env: Env, user: Address, category: Symbol, amount: i128) -> TransactionCheckResult {
+    pub fn check_transaction(
+        env: Env,
+        user: Address,
+        category: Symbol,
+        amount: i128,
+    ) -> TransactionCheckResult {
         if amount <= 0 {
             return TransactionCheckResult {
                 allowed: false,
@@ -327,7 +346,9 @@ impl OverdraftContract {
         // Update spent amount
         category_budget.spent += amount;
         let new_remaining = category_budget.limit - category_budget.spent;
-        user_budget.categories.set(category.clone(), category_budget);
+        user_budget
+            .categories
+            .set(category.clone(), category_budget);
         user_budget.last_updated = env.ledger().timestamp();
 
         env.storage()
@@ -374,7 +395,9 @@ impl OverdraftContract {
             .unwrap_or_else(|| panic_with_error!(&env, OverdraftError::CategoryNotFound));
 
         category_budget.spent += amount;
-        user_budget.categories.set(category.clone(), category_budget);
+        user_budget
+            .categories
+            .set(category.clone(), category_budget);
         user_budget.last_updated = env.ledger().timestamp();
 
         env.storage()
@@ -420,9 +443,7 @@ impl OverdraftContract {
 
     /// Gets the budget for a specific user.
     pub fn get_user_budget(env: Env, user: Address) -> Option<UserBudget> {
-        env.storage()
-            .persistent()
-            .get(&DataKey::UserBudget(user))
+        env.storage().persistent().get(&DataKey::UserBudget(user))
     }
 
     /// Gets a specific category budget for a user.
@@ -520,13 +541,13 @@ mod tests {
         let env = Env::default();
         env.mock_all_auths();
         env.ledger().set_timestamp(1000);
-        
+
         let contract_id = env.register(OverdraftContract, ());
         let client = OverdraftContractClient::new(&env, &contract_id);
-        
+
         let admin = Address::generate(&env);
         client.initialize(&admin);
-        
+
         assert_eq!(client.get_admin(), admin);
         assert_eq!(client.get_total_overdraft_attempts(), 0);
     }
@@ -536,18 +557,18 @@ mod tests {
         let env = Env::default();
         env.mock_all_auths();
         env.ledger().set_timestamp(1000);
-        
+
         let contract_id = env.register(OverdraftContract, ());
         let client = OverdraftContractClient::new(&env, &contract_id);
-        
+
         let admin = Address::generate(&env);
         client.initialize(&admin);
-        
+
         let user = Address::generate(&env);
         let category = symbol_short!("food");
-        
+
         client.set_category_budget(&admin, &user, &category, &1000i128);
-        
+
         let category_budget = client.get_category_budget(&user, &category);
         assert!(category_budget.is_some());
         assert_eq!(category_budget.unwrap().limit, 1000);
@@ -559,19 +580,19 @@ mod tests {
         let env = Env::default();
         env.mock_all_auths();
         env.ledger().set_timestamp(1000);
-        
+
         let contract_id = env.register(OverdraftContract, ());
         let client = OverdraftContractClient::new(&env, &contract_id);
-        
+
         let admin = Address::generate(&env);
         client.initialize(&admin);
-        
+
         let user = Address::generate(&env);
         let category = symbol_short!("food");
-        
+
         // Set budget limit of 100
         client.set_category_budget(&admin, &user, &category, &100i128);
-        
+
         // Try to spend 150 (should fail)
         client.validate_transaction(&user, &category, &150i128);
     }
@@ -581,23 +602,23 @@ mod tests {
         let env = Env::default();
         env.mock_all_auths();
         env.ledger().set_timestamp(1000);
-        
+
         let contract_id = env.register(OverdraftContract, ());
         let client = OverdraftContractClient::new(&env, &contract_id);
-        
+
         let admin = Address::generate(&env);
         client.initialize(&admin);
-        
+
         let user = Address::generate(&env);
         let category = symbol_short!("food");
-        
+
         // Set budget limit of 500
         client.set_category_budget(&admin, &user, &category, &500i128);
-        
+
         // Spend 200 (should succeed)
         let result = client.validate_transaction(&user, &category, &200i128);
         assert!(result);
-        
+
         // Check remaining budget is 300
         let check = client.check_transaction(&user, &category, &100i128);
         assert!(check.allowed);
@@ -609,22 +630,22 @@ mod tests {
         let env = Env::default();
         env.mock_all_auths();
         env.ledger().set_timestamp(1000);
-        
+
         let contract_id = env.register(OverdraftContract, ());
         let client = OverdraftContractClient::new(&env, &contract_id);
-        
+
         let admin = Address::generate(&env);
         client.initialize(&admin);
-        
+
         let user = Address::generate(&env);
         let category = symbol_short!("food");
-        
+
         client.set_category_budget(&admin, &user, &category, &1000i128);
-        
+
         let check = client.check_transaction(&user, &category, &500i128);
         assert!(check.allowed);
         assert_eq!(check.remaining, 1000);
-        
+
         let check_over = client.check_transaction(&user, &category, &1500i128);
         assert!(!check_over.allowed);
         assert_eq!(check_over.exceeded_by, 500);
@@ -635,28 +656,28 @@ mod tests {
         let env = Env::default();
         env.mock_all_auths();
         env.ledger().set_timestamp(1000);
-        
+
         let contract_id = env.register(OverdraftContract, ());
         let client = OverdraftContractClient::new(&env, &contract_id);
-        
+
         let admin = Address::generate(&env);
         client.initialize(&admin);
-        
+
         let user = Address::generate(&env);
         let category = symbol_short!("food");
-        
+
         client.set_category_budget(&admin, &user, &category, &1000i128);
-        
+
         // Spend 500
         client.validate_transaction(&user, &category, &500i128);
-        
+
         // Verify spent
         let cat_budget = client.get_category_budget(&user, &category).unwrap();
         assert_eq!(cat_budget.spent, 500);
-        
+
         // Reset spending
         client.reset_spending(&admin, &user);
-        
+
         // Verify spent is 0
         let cat_budget_after = client.get_category_budget(&user, &category).unwrap();
         assert_eq!(cat_budget_after.spent, 0);

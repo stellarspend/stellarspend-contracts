@@ -14,28 +14,16 @@ impl BudgetNotifier {
 
         // 80% used warning
         if usage_percent >= 80 && usage_percent < 100 {
-            emit_budget_event(
-                env,
-                "warning",
-                "80% of budget used",
-            );
+            emit_budget_event(env, "warning", "80% of budget used");
         }
 
         // limit exceeded
         if usage_percent >= 100 {
-            emit_budget_event(
-                env,
-                "exceeded",
-                "Budget limit exceeded",
-            );
+            emit_budget_event(env, "exceeded", "Budget limit exceeded");
         }
     }
 
     pub fn goal_completed(env: &Env) {
-        emit_budget_event(
-            env,
-            "goal_completed",
-            "Savings goal completed",
-        );
+        emit_budget_event(env, "goal_completed", "Savings goal completed");
     }
 }

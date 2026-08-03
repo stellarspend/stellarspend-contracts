@@ -79,9 +79,8 @@ pub const MAX_PROOF_LENGTH: u32 = 131_072; // 128 KB
 /// **Regeneration**: Run the commands above whenever the circuit changes, then
 /// update this constant with the new hash.
 pub const VERIFYING_KEY_COMMITMENT: [u8; 32] = [
-    0x3e, 0x8a, 0x1f, 0x5e, 0x9c, 0x2b, 0x8d, 0x4a, 0x6e, 0x3f, 0x0c, 0x7b, 0x5a, 0x9d, 0x1e,
-    0x4f, 0x2c, 0x8b, 0x6a, 0x0d, 0x7e, 0x3f, 0x1c, 0x5b, 0x9a, 0x4d, 0x8e, 0x2f, 0x0a, 0x6c,
-    0x1b, 0x7d,
+    0x3e, 0x8a, 0x1f, 0x5e, 0x9c, 0x2b, 0x8d, 0x4a, 0x6e, 0x3f, 0x0c, 0x7b, 0x5a, 0x9d, 0x1e, 0x4f,
+    0x2c, 0x8b, 0x6a, 0x0d, 0x7e, 0x3f, 0x1c, 0x5b, 0x9a, 0x4d, 0x8e, 0x2f, 0x0a, 0x6c, 0x1b, 0x7d,
 ];
 
 /// Magic bytes expected at the start of a valid UltraHonk proof.
@@ -137,8 +136,7 @@ pub fn verify_spending_proof(env: &Env, user: &soroban_sdk::Address, proof: &Byt
     if proof_len < HEADER_SIZE {
         return false;
     }
-    let public_inputs_commitment =
-        proof.slice(PUBLIC_INPUTS_COMMITMENT_OFFSET..HEADER_SIZE);
+    let public_inputs_commitment = proof.slice(PUBLIC_INPUTS_COMMITMENT_OFFSET..HEADER_SIZE);
 
     // ── Phase 4: Cryptographic binding ──────────────────────────────────────
     //
@@ -216,7 +214,12 @@ pub(crate) fn user_to_bytes(env: &Env, user: &soroban_sdk::Address) -> Bytes {
 ///
 /// Uses `Bytes::append` for bulk copy where possible to minimize host function
 /// calls. The VK commitment is only 32 bytes so byte-by-byte push is acceptable.
-fn build_preimage(env: &Env, proof_body: &Bytes, user_bytes: &Bytes, vk_commitment: &[u8; 32]) -> Bytes {
+fn build_preimage(
+    env: &Env,
+    proof_body: &Bytes,
+    user_bytes: &Bytes,
+    vk_commitment: &[u8; 32],
+) -> Bytes {
     let mut preimage = Bytes::new(env);
     preimage.append(proof_body);
     preimage.append(user_bytes);
@@ -225,5 +228,3 @@ fn build_preimage(env: &Env, proof_body: &Bytes, user_bytes: &Bytes, vk_commitme
     }
     preimage
 }
-
-

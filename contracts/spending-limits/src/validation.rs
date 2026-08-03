@@ -3,7 +3,7 @@
 use soroban_sdk::Address;
 
 use crate::types::{
-    error_code, SpendingLimitRequest, MAX_RESET_WINDOW_SECONDS, MAX_SPENDING_LIMIT,
+    ErrorCode, SpendingLimitRequest, MAX_RESET_WINDOW_SECONDS, MAX_SPENDING_LIMIT,
     MIN_RESET_WINDOW_SECONDS, MIN_SPENDING_LIMIT,
 };
 
@@ -15,32 +15,32 @@ use crate::types::{
 pub fn validate_limit_request(request: &SpendingLimitRequest) -> Result<(), u32> {
     // Validate user address
     if !is_valid_address(&request.user) {
-        return Err(error_code::INVALID_USER_ADDRESS);
+        return Err(ErrorCode::INVALID_USER_ADDRESS);
     }
 
     // Validate monthly limit amount
     if !is_valid_limit(request.monthly_limit) {
-        return Err(error_code::INVALID_LIMIT);
+        return Err(ErrorCode::INVALID_LIMIT);
     }
 
     // Validate daily limit amount
     if !is_valid_limit(request.daily_limit) {
-        return Err(error_code::INVALID_LIMIT);
+        return Err(ErrorCode::INVALID_LIMIT);
     }
 
     // Validate hourly limit amount
     if !is_valid_limit(request.hourly_limit) {
-        return Err(error_code::INVALID_LIMIT);
+        return Err(ErrorCode::INVALID_LIMIT);
     }
 
     // Ensure logical ordering: hourly <= daily <= monthly
     if request.hourly_limit > request.daily_limit || request.daily_limit > request.monthly_limit {
-        return Err(error_code::INVALID_LIMIT);
+        return Err(ErrorCode::INVALID_LIMIT);
     }
 
     // Validate reset window duration.
     if !is_valid_reset_window(request.reset_window_seconds) {
-        return Err(error_code::INVALID_LIMIT);
+        return Err(ErrorCode::INVALID_LIMIT);
     }
 
     // Validate category if provided
@@ -108,7 +108,7 @@ mod tests {
         request.monthly_limit = 100; // Below minimum
         assert_eq!(
             validate_limit_request(&request),
-            Err(error_code::INVALID_LIMIT)
+            Err(ErrorCode::INVALID_LIMIT)
         );
     }
 
@@ -119,7 +119,7 @@ mod tests {
         request.monthly_limit = -1000;
         assert_eq!(
             validate_limit_request(&request),
-            Err(error_code::INVALID_LIMIT)
+            Err(ErrorCode::INVALID_LIMIT)
         );
     }
 
@@ -130,7 +130,7 @@ mod tests {
         request.monthly_limit = MAX_SPENDING_LIMIT + 1;
         assert_eq!(
             validate_limit_request(&request),
-            Err(error_code::INVALID_LIMIT)
+            Err(ErrorCode::INVALID_LIMIT)
         );
     }
 

@@ -195,7 +195,10 @@ fn test_batch_mint_reverts_when_any_request_is_invalid() {
 
     let result = client.try_batch_mint_tokens(&admin, &token, &requests);
 
-    assert!(result.is_err(), "invalid requests should revert the whole batch");
+    assert!(
+        result.is_err(),
+        "invalid requests should revert the whole batch"
+    );
     assert_eq!(client.get_total_minted(), 0);
     assert_eq!(client.get_total_batches_processed(), 0);
     assert_eq!(client.get_last_batch_id(), 0);

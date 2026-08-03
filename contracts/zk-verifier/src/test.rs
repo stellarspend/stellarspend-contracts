@@ -1,9 +1,6 @@
 #[cfg(test)]
 mod test {
-    use soroban_sdk::{
-        testutils::Address as _,
-        Address, Bytes, Env,
-    };
+    use soroban_sdk::{testutils::Address as _, Address, Bytes, Env};
 
     use crate::verification::{
         user_to_bytes, verify_spending_proof, EXPECTED_PROOF_VERSION, MAX_PROOF_LENGTH,
@@ -118,7 +115,10 @@ mod test {
         let proof1 = build_valid_proof_with_seed(&env, &user, 0xAAAA);
         let proof2 = build_valid_proof_with_seed(&env, &user, 0xBBBB);
 
-        assert_ne!(proof1, proof2, "proofs should differ due to different seeds");
+        assert_ne!(
+            proof1, proof2,
+            "proofs should differ due to different seeds"
+        );
         assert!(verify_spending_proof(&env, &user, &proof1));
         assert!(verify_spending_proof(&env, &user, &proof2));
     }

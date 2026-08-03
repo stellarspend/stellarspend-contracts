@@ -32,7 +32,8 @@ fn assert_err<T: core::fmt::Debug>(
         Err(Ok(e)) => assert_eq!(e, Error::from_contract_error(expected as u32)),
         other => std::panic!("expected contract error {:?}, got {:?}", expected, other),
     }
-=======
+}
+
 mod old_contract {
     soroban_sdk::contractimport!(
         file = "../../../target/wasm32-unknown-unknown/release/soroban_upgradeable_contract_old_contract.wasm"
@@ -43,7 +44,6 @@ mod new_contract {
     soroban_sdk::contractimport!(
         file = "../../../target/wasm32-unknown-unknown/release/soroban_upgradeable_contract_new_contract.wasm"
     );
->>>>>>> 067107d (fix(contracts): fix CI compilation errors across batch-transfer, spending-limits, multi-currency-wallet, and batch-rewards)
 }
 
 /// Register a contract with a 2-of-3 multisig and the default timelock.

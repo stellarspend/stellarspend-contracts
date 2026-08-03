@@ -27,12 +27,10 @@ pub fn execute_dispatch(
 
         match validate_reminder_request(&env, &request.user, request.due_date) {
             Ok(()) => {
-                env.storage()
-                    .persistent()
-                    .set(
-                        &crate::ReminderDataKey::Reminder(reminder_id_u64),
-                        &request.due_date,
-                    );
+                env.storage().persistent().set(
+                    &crate::ReminderDataKey::Reminder(reminder_id_u64),
+                    &request.due_date,
+                );
 
                 env.events().publish(
                     (
