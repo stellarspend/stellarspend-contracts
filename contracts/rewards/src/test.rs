@@ -1108,6 +1108,8 @@ fn test_metadata_updates_automatically_and_queries_expose_it() {
     let suspended_acc = client.get_account(&user).unwrap();
     assert_eq!(suspended_acc.account_status, AccountStatus::Suspended);
     assert_eq!(suspended_acc.last_updated, updated_acc.last_updated + 300);
+}
+
 // ── Reward account statistics tests (#869) ────────────────────────────────────
 
 #[test]
