@@ -936,7 +936,4 @@ impl SpendingLimitsContract {
 
 #[cfg(test)]
 mod test;
-<<<<<<< HEAD
 
-=======
->>>>>>> ed22346 (fix: move profile settings to workspace root Cargo.toml)

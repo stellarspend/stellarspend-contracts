@@ -15,12 +15,9 @@ pub mod validation;
 
 use soroban_sdk::{contract, contractimpl, panic_with_error, Address, Env, Vec};
 
-<<<<<<< HEAD
 use crate::rewards::{credit_reward, debit_reward, get_rewards_balance, register_reward_account};
 use crate::storage::{get_reward_account, get_reward_index};
 pub use crate::types::{DataKey, RewardAccount, RewardStatus, RewardTransaction, RewardType, DEFAULT_METADATA_VERSION};
-=======
->>>>>>> ed22346 (fix: move profile settings to workspace root Cargo.toml)
 use crate::queries::{
     query_lifetime_earnings, query_reward_balance, query_statistics, query_transaction_count,
 };
