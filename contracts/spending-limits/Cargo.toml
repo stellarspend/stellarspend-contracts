@@ -11,9 +11,16 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 soroban-sdk.workspace = true
 shared = { workspace = true }
+# Pin ed25519-dalek to 2.x — soroban-env-host declares >=2.0.0 without an
+# upper bound, letting the resolver select incompatible 3.x whose rand_core
+# 0.10 API breaks the testutils build (same convention as contracts/zk-verifier).
+ed25519-dalek = "=2.2.0"
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
+# Pin ed25519-dalek to 2.x — soroban-env-host testutils declares >=2.0.0
+# without an upper bound, letting the resolver select incompatible 3.x.
+ed25519-dalek = "=2.2.0"
 
 [features]
 default = []
