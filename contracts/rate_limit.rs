@@ -80,6 +80,25 @@ impl RateLimitContract {
         Ok(())
     }
 
+    pub fn get_rate_limit_remaining(env: Env, wallet: Address) -> u32 {
+        let config: RateLimitConfig = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Config)
+            .unwrap_or(RateLimitConfig::default());
+
+        let now = env.ledger().timestamp();
+        let window_start = now - (now % config.window);
+        let key = DataKey::RateLimitCount(wallet.clone(), window_start);
+        let count: u32 = env.storage().persistent().get(&key).unwrap_or(0);
+
+        if count >= config.max_tx {
+            0
+        } else {
+            config.max_tx - count
+        }
+    }
+
     /// Updates rate limit config. Caller must be authorized (require_auth).
     pub fn set_config(
         env: Env,

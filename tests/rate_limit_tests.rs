@@ -97,3 +97,33 @@ fn test_warning_emitted_and_allows_overspend() {
         assert!(result.is_err());
     });
 }
+
+#[test]
+fn test_get_rate_limit_remaining() {
+    let (env, contract_id) = setup_env();
+    let wallet = Address::generate(&env);
+
+    env.as_contract(&contract_id, || {
+        // Initial state: default limit is 5
+        assert_eq!(RateLimitContract::get_rate_limit_remaining(env.clone(), wallet.clone()), 5);
+
+        // Perform 2 transactions
+        RateLimitContract::check_and_record(env.clone(), wallet.clone()).unwrap();
+        RateLimitContract::check_and_record(env.clone(), wallet.clone()).unwrap();
+
+        // Remaining should be 5 - 2 = 3
+        assert_eq!(RateLimitContract::get_rate_limit_remaining(env.clone(), wallet.clone()), 3);
+
+        // Perform 3 more transactions (total 5)
+        RateLimitContract::check_and_record(env.clone(), wallet.clone()).unwrap();
+        RateLimitContract::check_and_record(env.clone(), wallet.clone()).unwrap();
+        RateLimitContract::check_and_record(env.clone(), wallet.clone()).unwrap();
+
+        // Remaining should be 0
+        assert_eq!(RateLimitContract::get_rate_limit_remaining(env.clone(), wallet.clone()), 0);
+
+        // Next transaction should fail
+        assert!(RateLimitContract::check_and_record(env.clone(), wallet.clone()).is_err());
+        assert_eq!(RateLimitContract::get_rate_limit_remaining(env.clone(), wallet.clone()), 0);
+    });
+}
