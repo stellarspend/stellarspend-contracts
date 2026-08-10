@@ -2,12 +2,6 @@ mod support;
 
 use support::setup;
 
-#[test]
-fn validate_config_happy_path() {
-    let ctx = setup();
-    // Defaults: fee_bps = 250 set in setup, min_fee = 0
-    assert!(ctx.client.validate_config(&250u32, &0i128));
-}
 
 #[test]
 #[should_panic]

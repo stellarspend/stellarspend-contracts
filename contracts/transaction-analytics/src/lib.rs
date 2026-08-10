@@ -39,9 +39,10 @@ pub use crate::analytics::{
 
 // Fees exports (single, de-duplicated block)
 pub use crate::fees::{
-    calculate_batch_fees, calculate_transaction_fee, deduct_fees, get_current_fee_config,
-    get_operation_fee_config, store_fee_config, store_operation_fee_config, update_fee_config,
-    update_operation_fee_config, validate_fee_config,
+    calculate_batch_fees, calculate_transaction_fee, deduct_fees, distribute_fee,
+    get_current_fee_config, get_operation_fee_config, is_fee_paused, store_fee_config,
+    store_operation_fee_config, update_fee_config, update_operation_fee_config,
+    validate_fee_config, validate_recipient_shares,
 };
 
 // Types exports
@@ -1179,6 +1180,22 @@ impl TransactionAnalyticsContract {
         indexer::aggregate_by_category_window(&updated_events, window_start, window_end)
     }
 
+    /// Returns a simple analytics summary for a user.
+    pub fn get_analytics_summary(env: Env, _owner: Address) -> (u32, i128) {
+        let total_txs: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::TotalTxProcessed)
+            .unwrap_or(0);
+        let total_refunded: i128 = env
+            .storage()
+            .instance()
+            .get(&DataKey::TotalRefundAmount)
+            .unwrap_or(0);
+
+        (total_txs as u32, total_refunded)
+    }
+
     // Internal helper to verify admin
     fn require_admin(env: &Env, caller: &Address) {
         let admin: Address = env
@@ -1195,3 +1212,22 @@ impl TransactionAnalyticsContract {
 
 #[cfg(test)]
 mod test;
+impl TransactionAnalyticsContract {
+    /// Returns a simple analytics summary for a user.
+    pub fn get_analytics_summary(env: Env, _owner: Address) -> (u32, i128) {
+        let total_txs: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::TotalTxProcessed)
+            .unwrap_or(0);
+        let total_refunded: i128 = env
+            .storage()
+            .instance()
+            .get(&DataKey::TotalRefundAmount)
+            .unwrap_or(0);
+
+        (total_txs as u32, total_refunded)
+    }
+
+    // other methods unchanged
+}

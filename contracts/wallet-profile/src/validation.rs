@@ -1,5 +1,7 @@
 //! Validation logic for wallet nicknames.
 
+extern crate alloc;
+use alloc::string::ToString;
 use soroban_sdk::Symbol;
 
 /// Validates that a wallet nickname is not empty and has reasonable length.
@@ -8,7 +10,7 @@ use soroban_sdk::Symbol;
 /// * `Ok(())` if valid
 /// * `Err(())` if invalid (empty or too long)
 pub fn validate_nickname(nickname: &Symbol) -> Result<(), ()> {
-    let len = nickname.len();
+    let len = nickname.to_string().len();
     if len == 0 || len > 32 {
         return Err(());
     }

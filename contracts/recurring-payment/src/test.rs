@@ -299,3 +299,38 @@ fn test_missed_count_increments_multiple_times() {
     let payment = client.get_payment(&payment_id);
     assert_eq!(payment.missed_count, 2);
 }
+
+#[test]
+fn test_get_recurring_payment_schedule_returns_schedule_details() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let sender = Address::generate(&env);
+    let recipient = Address::generate(&env);
+    let token = Address::generate(&env);
+
+    let contract_id = env.register(RecurringPaymentContract, ());
+    let client = RecurringPaymentContractClient::new(&env, &contract_id);
+
+    let amount = 250i128;
+    let interval = 86_400u64;
+    let start_time = 1_700_000_000u64;
+    let payment_id =
+        client.create_payment(&sender, &recipient, &token, &amount, &interval, &start_time);
+
+    let schedule = client.get_recurring_payment_schedule(&payment_id);
+
+    assert_eq!(schedule.amount, amount);
+    assert_eq!(schedule.interval, interval);
+    assert_eq!(schedule.next_due_date, start_time);
+}
+
+#[test]
+#[should_panic(expected = "Payment not found")]
+fn test_get_recurring_payment_schedule_panics_for_unknown_id() {
+    let env = Env::default();
+    let contract_id = env.register(RecurringPaymentContract, ());
+    let client = RecurringPaymentContractClient::new(&env, &contract_id);
+
+    client.get_recurring_payment_schedule(&999);
+}

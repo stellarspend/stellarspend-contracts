@@ -248,6 +248,47 @@ pub struct ContributionRecord {
     pub reversed: bool,
 }
 
+/// #779: Allocation target for multi-goal auto-allocation.
+/// Each entry specifies a goal and the percentage of the deposit to allocate.
+#[derive(Clone, Debug)]
+#[contracttype]
+pub struct AllocationGoal {
+    /// Target goal ID
+    pub goal_id: u64,
+    /// Percentage of the total deposit to allocate (1-100, must sum to 100 across all entries)
+    pub percentage: u32,
+}
+
+/// #779: Request for multi-goal auto-allocation.
+#[derive(Clone, Debug)]
+#[contracttype]
+pub struct AutoAllocationRequest {
+    /// The user making the deposit
+    pub user: Address,
+    /// The total amount to split across goals
+    pub total_amount: i128,
+    /// The target goals and their allocation percentages
+    pub allocations: Vec<AllocationGoal>,
+    /// Idempotency token to prevent double-allocation
+    pub idempotency_token: Bytes,
+}
+
+/// #779: Result of a multi-goal auto-allocation.
+#[derive(Clone, Debug)]
+#[contracttype]
+pub struct AutoAllocationResult {
+    /// Whether the allocation was fully successful
+    pub success: bool,
+    /// Number of goals allocated to
+    pub goals_allocated: u32,
+    /// Number of goals that failed allocation
+    pub goals_failed: u32,
+    /// Total amount actually distributed
+    pub total_distributed: i128,
+    /// Individual contribution IDs per goal (goal_id -> contrib_id)
+    pub contribution_ids: Vec<u64>,
+}
+
 /// Storage keys for contract state.
 #[derive(Clone)]
 #[contracttype]
@@ -300,9 +341,10 @@ pub enum DataKey {
     Certificate(u64),
     /// Penalty contract address for early-withdrawal fee calculation
     PenaltyContract,
-    /// Active withdrawal proposal ID for a multisig-protected goal.
-    /// Cleared after the proposal executes or expires.
-    GoalMultisigProposal(u64),
+    /// #779: Beneficiary address for a goal (goal_id -> beneficiary Address)
+    GoalBeneficiary(u64),
+    /// #779: Auto-allocation idempotency key (user, token)
+    AutoAllocationIdempotency(Address, Bytes),
 }
 
 /// Error codes for goal validation and creation.
@@ -334,17 +376,25 @@ pub mod ErrorCode {
     /// Contribution amount is invalid (zero or negative)
     pub const INVALID_CONTRIBUTION_AMOUNT: u32 = 12;
     /// Duplicate goal name for the same user
-    pub const DUPLICATE_GOAL_NAME: u32 = 11;
+    pub const DUPLICATE_GOAL_NAME: u32 = 13;
     /// Goal is locked; withdrawals not yet allowed
-    pub const GOAL_LOCKED: u32 = 12;
+    pub const GOAL_LOCKED: u32 = 14;
     /// Withdrawal amount exceeds current balance
-    pub const INSUFFICIENT_BALANCE: u32 = 13;
+    pub const INSUFFICIENT_BALANCE: u32 = 15;
     /// Invalid withdrawal or contribution amount
-    pub const INVALID_WITHDRAW_AMOUNT: u32 = 14;
+    pub const INVALID_WITHDRAW_AMOUNT: u32 = 16;
     /// Deadline alert threshold configuration is invalid
-    pub const INVALID_ALERT_THRESHOLD: u32 = 15;
+    pub const INVALID_ALERT_THRESHOLD: u32 = 17;
     /// Contribution retry re-used an existing idempotency token
-    pub const DUPLICATE_CONTRIBUTION_REQUEST: u32 = 16;
+    pub const DUPLICATE_CONTRIBUTION_REQUEST: u32 = 18;
+    /// #779: Beneficiary transfer rejected — caller is not the goal owner
+    pub const BENEFICIARY_TRANSFER_UNAUTHORIZED: u32 = 19;
+    /// #779: Auto-allocation percentages do not sum to 100
+    pub const ALLOCATION_PERCENTAGES_INVALID: u32 = 20;
+    /// #779: Auto-allocation token already used (duplicate)
+    pub const DUPLICATE_ALLOCATION_REQUEST: u32 = 21;
+    /// Cannot merge goals (invalid parameters)
+    pub const CANNOT_MERGE: u32 = 22;
 }
 
 /// Events emitted by the savings goals contract.
@@ -544,5 +594,42 @@ impl GoalEvents {
             topics,
             (user.clone(), threshold, remaining_ledgers, remaining_amount),
         );
+    }
+
+    /// #779: Event emitted when a goal's beneficiary is transferred.
+    pub fn beneficiary_transferred(
+        env: &Env,
+        goal_id: u64,
+        previous_owner: &Address,
+        new_beneficiary: &Address,
+    ) {
+        let topics = (symbol_short!("goal"), symbol_short!("benefxfr"), goal_id);
+        env.events()
+            .publish(topics, (previous_owner.clone(), new_beneficiary.clone()));
+    }
+
+    /// #780: Event emitted when auto-allocation splits a deposit across goals.
+    pub fn auto_allocation_executed(
+        env: &Env,
+        user: &Address,
+        total_amount: i128,
+        goal_count: u32,
+    ) {
+        let topics = (symbol_short!("goal"), symbol_short!("autoalc"));
+        env.events()
+            .publish(topics, (user.clone(), total_amount, goal_count));
+    }
+
+    /// Event emitted when a goal completion certificate is issued.
+    pub fn certificate_issued(env: &Env, goal_id: u64, timestamp: u64) {
+        let topics = (symbol_short!("cert"), symbol_short!("issued"), goal_id);
+        env.events().publish(topics, (goal_id, timestamp));
+    }
+
+    /// Event emitted when two goals are merged.
+    pub fn goals_merged(env: &Env, source_id: u64, target_id: u64, amount_merged: i128) {
+        let topics = (symbol_short!("goal"), symbol_short!("merged"), target_id);
+        env.events()
+            .publish(topics, (source_id, target_id, amount_merged));
     }
 }

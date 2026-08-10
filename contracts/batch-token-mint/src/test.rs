@@ -1,6 +1,7 @@
 //! Comprehensive unit and integration tests for batch token minting.
 
 #![cfg(test)]
+extern crate std;
 
 use crate::{BatchTokenMintContract, BatchTokenMintContractClient};
 use soroban_sdk::{testutils::Address as _, Address, Env, Vec};
@@ -178,6 +179,29 @@ fn test_batch_mint_partial_failures() {
     assert_eq!(result.failed, 2);
     assert_eq!(result.metrics.total_amount_minted, 300_000_000);
     assert_eq!(result.metrics.avg_mint_amount, 150_000_000);
+}
+
+#[test]
+fn test_batch_mint_reverts_when_any_request_is_invalid() {
+    let (env, admin, client) = setup_test_contract();
+    let token = Address::generate(&env);
+
+    let mut requests: Vec<TokenMintRequest> = Vec::new(&env);
+    requests.push_back(create_valid_request(&env, 100_000_000));
+
+    let mut invalid = create_valid_request(&env, 50_000_000);
+    invalid.amount = 0;
+    requests.push_back(invalid);
+
+    let result = client.try_batch_mint_tokens(&admin, &token, &requests);
+
+    assert!(
+        result.is_err(),
+        "invalid requests should revert the whole batch"
+    );
+    assert_eq!(client.get_total_minted(), 0);
+    assert_eq!(client.get_total_batches_processed(), 0);
+    assert_eq!(client.get_last_batch_id(), 0);
 }
 
 #[test]

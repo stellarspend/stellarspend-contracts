@@ -8,11 +8,18 @@ use soroban_sdk::{Address, Env};
 
 use crate::events::{emit_account_initialized, emit_reward_credited, emit_reward_debited};
 use crate::storage::{
-    append_reward_index, get_lifetime_claimed, get_lifetime_earned, get_reward_account,
-    get_reward_balance, get_reward_tx_counter, set_lifetime_claimed, set_lifetime_earned,
-    set_reward_account, set_reward_balance, set_reward_transaction, set_reward_tx_counter,
+    append_reward_index, get_account_stats, get_lifetime_claimed, get_lifetime_earned,
+    get_reward_account, get_reward_balance, get_reward_tx_counter, set_account_stats,
+    set_lifetime_claimed, set_lifetime_earned, set_reward_account, set_reward_balance,
+    set_reward_transaction, set_reward_tx_counter,
 };
-use crate::types::{RewardAccount, RewardStatus, RewardTransaction, RewardType};
+use crate::types::{
+    AccountStatus, RewardAccount, RewardStatus, RewardTransaction, RewardType,
+    DEFAULT_METADATA_VERSION,
+};
+use crate::types::{
+    RewardAccount, RewardAccountStats, RewardStatus, RewardTransaction, RewardType,
+};
 use crate::validation::{
     validate_account_not_registered, validate_account_registered, validate_contract_initialized,
     validate_reward_amount, validate_sufficient_balance,
@@ -33,7 +40,7 @@ pub fn register_reward_account(env: &Env, participant: &Address) -> Result<(), R
     validate_contract_initialized(env)?;
     validate_account_not_registered(env, participant)?;
 
-    let now = env.ledger().sequence() as u64;
+    let now = env.ledger().timestamp();
 
     let account = RewardAccount {
         owner: participant.clone(),
@@ -42,12 +49,24 @@ pub fn register_reward_account(env: &Env, participant: &Address) -> Result<(), R
         lifetime_claimed: 0,
         created_at: now,
         last_updated: now,
+        account_status: AccountStatus::Active,
+        metadata_version: DEFAULT_METADATA_VERSION,
     };
 
     set_reward_account(env, participant, &account);
     set_reward_balance(env, participant, 0);
     set_lifetime_earned(env, participant, 0);
     set_lifetime_claimed(env, participant, 0);
+    set_account_stats(
+        env,
+        participant,
+        &RewardAccountStats {
+            total_earned: 0,
+            total_redeemed: 0,
+            total_transactions: 0,
+            last_reward_timestamp: 0,
+        },
+    );
 
     emit_account_initialized(env, participant);
 
@@ -86,7 +105,7 @@ pub fn credit_reward(
         .checked_add(amount)
         .ok_or(RewardsError::Overflow)?;
 
-    let now = env.ledger().sequence() as u64;
+    let now = env.ledger().timestamp();
 
     let mut account = get_reward_account(env, participant).ok_or(RewardsError::AccountNotFound)?;
     account.balance = new_balance;
@@ -96,6 +115,15 @@ pub fn credit_reward(
     set_reward_account(env, participant, &account);
     set_reward_balance(env, participant, new_balance);
     set_lifetime_earned(env, participant, new_lifetime_earned);
+
+    let mut stats = get_account_stats(env, participant);
+    stats.total_earned = new_lifetime_earned;
+    stats.total_transactions = stats
+        .total_transactions
+        .checked_add(1)
+        .ok_or(RewardsError::Overflow)?;
+    stats.last_reward_timestamp = now;
+    set_account_stats(env, participant, &stats);
 
     let tx_id = get_reward_tx_counter(env);
     let tx = RewardTransaction {
@@ -114,6 +142,13 @@ pub fn credit_reward(
     emit_reward_credited(env, participant, amount, tx_id);
 
     Ok(tx)
+}
+
+/// Returns the current unclaimed reward balance for `owner`.
+///
+/// Returns `0` if no reward account exists or the balance is zero.
+pub fn get_rewards_balance(env: &Env, owner: &Address) -> i128 {
+    get_reward_balance(env, owner)
 }
 
 /// Debits `amount` reward points from `participant`'s account.
@@ -150,7 +185,7 @@ pub fn debit_reward(
         .checked_add(amount)
         .ok_or(RewardsError::Overflow)?;
 
-    let now = env.ledger().sequence() as u64;
+    let now = env.ledger().timestamp();
 
     let mut account = get_reward_account(env, participant).ok_or(RewardsError::AccountNotFound)?;
     account.balance = new_balance;
@@ -160,6 +195,14 @@ pub fn debit_reward(
     set_reward_account(env, participant, &account);
     set_reward_balance(env, participant, new_balance);
     set_lifetime_claimed(env, participant, new_lifetime_claimed);
+
+    let mut stats = get_account_stats(env, participant);
+    stats.total_redeemed = new_lifetime_claimed;
+    stats.total_transactions = stats
+        .total_transactions
+        .checked_add(1)
+        .ok_or(RewardsError::Overflow)?;
+    set_account_stats(env, participant, &stats);
 
     let tx_id = get_reward_tx_counter(env);
     let tx = RewardTransaction {

@@ -16,6 +16,14 @@ pub enum LmsError {
 
     InvalidProgress = 8,
     InvalidQuiz = 9,
+
+    /// The student is not enrolled in the course (distinct from
+    /// `CourseNotFound`: the course exists, the student just hasn't enrolled).
+    NotEnrolled = 10,
+    /// A lesson with this ID has already been registered.
+    LessonAlreadyExists = 11,
+    /// A counter/arithmetic operation would have overflowed its integer type.
+    Overflow = 12,
 }
 
 #[cfg(test)]
@@ -33,5 +41,8 @@ mod tests {
         assert_eq!(LmsError::Unauthorized as u32, 7);
         assert_eq!(LmsError::InvalidProgress as u32, 8);
         assert_eq!(LmsError::InvalidQuiz as u32, 9);
+        assert_eq!(LmsError::NotEnrolled as u32, 10);
+        assert_eq!(LmsError::LessonAlreadyExists as u32, 11);
+        assert_eq!(LmsError::Overflow as u32, 12);
     }
 }

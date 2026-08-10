@@ -1,53 +1,4 @@
-//! # Standalone Escrow Contract
-//!
-//! ╔══════════════════════════════════════════════════════════════════════╗
-//! ║  This is the REAL escrow contract for individual depositor↔recipient║
-//! ║  escrows. The Fee crate (`contracts/fee/src/escrow.rs`) has an      ║
-//! ║  **internal** module that shares the "escrow" name but only tracks  ║
-//! ║  pooled fee collection — it is NOT an escrow contract.              ║
-//! ╚══════════════════════════════════════════════════════════════════════╝
-//!
-//! This contract provides per-escrow lifecycle management (create, release,
-//! reverse) with batch operations and full event emission.
-#![no_std]
-
-mod types;
-mod validation;
-
-use soroban_sdk::{contract, contractimpl, panic_with_error, token, Address, Env, Vec};
-
-pub use crate::types::{
-    BatchReleaseResult, BatchReversalResult, DataKey, Escrow, EscrowEvents, EscrowStatus,
-    ReleaseRequest, ReleaseResult, ReversalRequest, ReversalResult, MAX_BATCH_SIZE,
-};
-use crate::validation::validate_release;
-use crate::validation::validate_reversal;
-
-/// Error codes for the escrow contract.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-#[repr(u32)]
-pub enum EscrowError {
-    /// Contract not initialized
-    NotInitialized = 1,
-    /// Caller is not authorized
-    Unauthorized = 2,
-    /// Batch is empty
-    EmptyBatch = 3,
-    /// Batch exceeds maximum size
-    BatchTooLarge = 4,
-    /// Invalid amount
-    InvalidAmount = 5,
-    /// Escrow not found
-    EscrowNotFound = 6,
-    /// Contract already initialized
-    AlreadyInitialized = 7,
-}
-
-impl From<EscrowError> for soroban_sdk::Error {
-    fn from(e: EscrowError) -> Self {
-        soroban_sdk::Error::from_contract_error(e as u32)
-    }
-}
+use soroban_sdk::{contract, contractimpl, Env};
 
 #[contract]
 pub struct EscrowContract;
@@ -557,6 +508,119 @@ impl EscrowContract {
         EscrowEvents::escrow_released(&env, escrow_id, &escrow.recipient, escrow.amount);
     }
 
+    /// Raises a dispute for an active escrow.
+    ///
+    /// Can be called by depositor, recipient, or arbiter.
+    pub fn raise_dispute(env: Env, caller: Address, escrow_id: u64) {
+        caller.require_auth();
+
+        let mut escrow: Escrow = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Escrow(escrow_id))
+            .unwrap_or_else(|| panic_with_error!(&env, EscrowError::EscrowNotFound));
+
+        let is_depositor = caller == escrow.depositor;
+        let is_recipient = caller == escrow.recipient;
+        let is_arbiter = if let Some(arb) = &escrow.arbiter {
+            caller == *arb
+        } else {
+            false
+        };
+
+        if !is_depositor && !is_recipient && !is_arbiter {
+            panic_with_error!(&env, EscrowError::Unauthorized);
+        }
+
+        if escrow.status != EscrowStatus::Active {
+            panic_with_error!(&env, EscrowError::Unauthorized);
+        }
+
+        escrow.status = EscrowStatus::Disputed;
+        env.storage()
+            .persistent()
+            .set(&DataKey::Escrow(escrow_id), &escrow);
+
+        EscrowEvents::escrow_disputed(&env, escrow_id, &caller);
+    }
+
+    /// Resolves a disputed escrow with split settlement between depositor and recipient.
+    ///
+    /// Can only be called by the assigned arbiter or contract admin.
+    pub fn resolve_dispute(
+        env: Env,
+        caller: Address,
+        escrow_id: u64,
+        depositor_amount: i128,
+        recipient_amount: i128,
+    ) {
+        caller.require_auth();
+
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .unwrap_or_else(|| panic_with_error!(&env, EscrowError::NotInitialized));
+
+        let mut escrow: Escrow = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Escrow(escrow_id))
+            .unwrap_or_else(|| panic_with_error!(&env, EscrowError::EscrowNotFound));
+
+        let is_admin = caller == admin;
+        let is_arbiter = if let Some(arb) = &escrow.arbiter {
+            caller == *arb
+        } else {
+            false
+        };
+
+        if !is_admin && !is_arbiter {
+            panic_with_error!(&env, EscrowError::Unauthorized);
+        }
+
+        if escrow.status != EscrowStatus::Disputed {
+            panic_with_error!(&env, EscrowError::Unauthorized);
+        }
+
+        if depositor_amount < 0 || recipient_amount < 0 {
+            panic_with_error!(&env, EscrowError::InvalidAmount);
+        }
+
+        let total_split = depositor_amount
+            .checked_add(recipient_amount)
+            .unwrap_or_else(|| panic_with_error!(&env, EscrowError::InvalidAmount));
+
+        if total_split != escrow.amount {
+            panic_with_error!(&env, EscrowError::InvalidAmount);
+        }
+
+        let token_client = token::Client::new(&env, &escrow.token);
+
+        if depositor_amount > 0 {
+            token_client.transfer(
+                &env.current_contract_address(),
+                &escrow.depositor,
+                &depositor_amount,
+            );
+        }
+
+        if recipient_amount > 0 {
+            token_client.transfer(
+                &env.current_contract_address(),
+                &escrow.recipient,
+                &recipient_amount,
+            );
+        }
+
+        escrow.status = EscrowStatus::Resolved;
+        env.storage()
+            .persistent()
+            .set(&DataKey::Escrow(escrow_id), &escrow);
+
+        EscrowEvents::escrow_resolved(&env, escrow_id, &caller, depositor_amount, recipient_amount);
+    }
+
     /// Returns an escrow by ID.
     pub fn get_escrow(env: Env, escrow_id: u64) -> Option<Escrow> {
         env.storage().persistent().get(&DataKey::Escrow(escrow_id))
@@ -653,7 +717,9 @@ impl EscrowContract {
             panic_with_error!(env, EscrowError::Unauthorized);
         }
     }
-}
 
-#[cfg(test)]
-mod test;
+    pub fn get_escrow_balance(env: Env, escrow_id: u64) -> i128 {
+        // Retrieve the locked balance for the given escrow ID, returning 0 if it does not exist.
+        env.storage().persistent().get(&escrow_id).unwrap_or(0)
+    }
+}

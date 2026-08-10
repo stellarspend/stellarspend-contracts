@@ -1,3 +1,4 @@
+extern crate alloc;
 use alloc::format;
 use soroban_sdk::{Env, Symbol};
 

@@ -77,7 +77,7 @@ fn spend_within_limit_is_allowed() {
 
     limits.enforce_spending_limit(&user, &50_000_000i128, &Some(category));
 
-    let stored = limits.get_spending_limit(&user).unwrap();
+    let stored = limits.get_spending_limit_details(&user).unwrap();
     assert_eq!(stored.current_spending, 50_000_000);
 }
 

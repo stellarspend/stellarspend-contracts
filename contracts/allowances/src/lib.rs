@@ -37,10 +37,33 @@ use soroban_sdk::{
     contract, contractimpl, panic_with_error, symbol_short, token, Address, Env, Vec,
 };
 
-use types::{Allowance, AllowanceError, DataKey, Frequency};
+use types::{Allowance, AllowanceAnalytics, AllowanceError, DataKey, Frequency, PaymentRecord};
 
 #[contract]
 pub struct AllowancesContract;
+
+fn save_allowance(env: &Env, allowance_id: u64, allowance: &Allowance) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::Allowance(allowance_id), allowance);
+}
+
+fn load_allowance(env: &Env, allowance_id: u64) -> Allowance {
+    env.storage()
+        .persistent()
+        .get(&DataKey::Allowance(allowance_id))
+        .unwrap_or_else(|| panic_with_error!(env, AllowanceError::NotFound))
+}
+
+fn append_index(env: &Env, key: DataKey, allowance_id: u64) {
+    let mut ids: Vec<u64> = env
+        .storage()
+        .persistent()
+        .get(&key)
+        .unwrap_or(Vec::new(env));
+    ids.push_back(allowance_id);
+    env.storage().persistent().set(&key, &ids);
+}
 
 #[contractimpl]
 impl AllowancesContract {
@@ -70,7 +93,7 @@ impl AllowancesContract {
 
         // Large allowances require approval before they become active (#845).
         // When no threshold is configured, every allowance is active on
-       
+
         let requires_approval = match env
             .storage()
             .instance()

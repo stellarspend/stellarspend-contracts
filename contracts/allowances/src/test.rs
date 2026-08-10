@@ -365,7 +365,10 @@ fn renew_allowance_reactivates_cancelled_allowance() {
     assert!(matches!(renewed.frequency, Frequency::Weekly));
     assert_eq!(renewed.recipient, recipient);
     assert_eq!(renewed.token, token);
-    assert_eq!(renewed.distribution_count, old_count, "distribution_count must be preserved");
+    assert_eq!(
+        renewed.distribution_count, old_count,
+        "distribution_count must be preserved"
+    );
 }
 
 #[test]
@@ -414,7 +417,10 @@ fn get_allowance_balance_returns_owner_token_balance() {
     let id = client.create_allowance(&owner, &recipient, &token, &300, &Frequency::Weekly, &now);
 
     let balance = client.get_allowance_balance(&id);
-    assert_eq!(balance, 1_000, "balance should reflect owner's minted amount");
+    assert_eq!(
+        balance, 1_000,
+        "balance should reflect owner's minted amount"
+    );
 }
 
 #[test]
@@ -428,5 +434,8 @@ fn get_allowance_balance_decreases_after_distribution() {
     client.distribute(&id);
 
     let balance = client.get_allowance_balance(&id);
-    assert_eq!(balance, 700, "balance should decrease by the distributed amount");
+    assert_eq!(
+        balance, 700,
+        "balance should decrease by the distributed amount"
+    );
 }

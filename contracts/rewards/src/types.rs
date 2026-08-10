@@ -7,6 +7,9 @@ use soroban_sdk::{contracttype, Address};
 /// TTL bump for persistent storage entries (~1 year in ledgers at ~5s/ledger).
 pub const PERSISTENT_TTL_BUMP: u32 = 6_307_200;
 
+/// Default schema version for reward account metadata.
+pub const DEFAULT_METADATA_VERSION: u32 = 1;
+
 // ── Storage keys ──────────────────────────────────────────────────────────────
 
 /// All storage keys used by the rewards contract.
@@ -19,6 +22,7 @@ pub const PERSISTENT_TTL_BUMP: u32 = 6_307_200;
 /// | `LifetimeEarned(Address)` | Persistent | Total rewards ever earned (stroops) |
 /// | `LifetimeClaimed(Address)` | Persistent | Total rewards ever claimed (stroops) |
 /// | `RewardAccount(Address)` | Persistent | Full reward account metadata struct |
+/// | `AccountStats(Address)` | Persistent | Aggregate reward account statistics |
 /// | `RewardTransaction(u64)` | Persistent | Individual reward transaction record by ID |
 /// | `RewardIndex(Address)` | Persistent | Ordered list of tx IDs for a participant |
 #[contracttype]
@@ -36,6 +40,8 @@ pub enum DataKey {
     LifetimeClaimed(Address),
     /// Full reward account metadata (persistent storage).
     RewardAccount(Address),
+    /// Aggregate statistics for a reward account (persistent storage).
+    AccountStats(Address),
     /// Individual reward transaction record, keyed by transaction ID (persistent storage).
     RewardTransaction(u64),
     /// Monotonically incrementing counter for reward transaction IDs (instance storage).
@@ -84,13 +90,25 @@ pub enum RewardStatus {
     Cancelled,
 }
 
+/// Status of a reward account.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum AccountStatus {
+    /// Account is active and operating normally.
+    Active,
+    /// Account is suspended.
+    Suspended,
+    /// Account is inactive.
+    Inactive,
+}
+
 // ── Structs ───────────────────────────────────────────────────────────────────
 
 /// Metadata associated with a reward account.
 ///
 /// Persisted under `DataKey::RewardAccount(address)`.
 #[contracttype]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RewardAccount {
     /// The owner of this reward account.
     pub owner: Address,
@@ -100,10 +118,31 @@ pub struct RewardAccount {
     pub lifetime_earned: i128,
     /// Total rewards claimed over the lifetime of the account in stroops.
     pub lifetime_claimed: i128,
-    /// Ledger sequence at which the account was first created.
+    /// Unix timestamp at which the account was first created.
     pub created_at: u64,
-    /// Ledger sequence of the most recent balance update.
+    /// Unix timestamp of the most recent account update.
     pub last_updated: u64,
+    /// Current protocol status of the account.
+    pub account_status: AccountStatus,
+    /// Version of the metadata schema.
+    pub metadata_version: u32,
+}
+
+/// Aggregate statistics for a reward account.
+///
+/// Persisted under `DataKey::AccountStats(address)`. Updated automatically on
+/// every credit and debit so reporting queries stay consistent with balances.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RewardAccountStats {
+    /// Total rewards earned over the account lifetime (stroops).
+    pub total_earned: i128,
+    /// Total rewards redeemed / claimed over the account lifetime (stroops).
+    pub total_redeemed: i128,
+    /// Total number of reward transactions (credits + debits).
+    pub total_transactions: u64,
+    /// Ledger sequence of the most recent reward credit (`0` if never credited).
+    pub last_reward_timestamp: u64,
 }
 
 /// A record of a single reward issuance or claim event.
@@ -127,4 +166,18 @@ pub struct RewardTransaction {
     pub created_at: u64,
     /// Ledger sequence at which the status was last updated (`0` if never updated).
     pub updated_at: u64,
+}
+
+/// Statistics for a reward account.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RewardStatistics {
+    /// Current claimable balance in stroops.
+    pub balance: i128,
+    /// Total rewards earned over the lifetime of the account in stroops.
+    pub lifetime_earned: i128,
+    /// Total rewards claimed over the lifetime of the account in stroops.
+    pub lifetime_claimed: i128,
+    /// Total number of reward transactions for this account.
+    pub tx_count: u32,
 }

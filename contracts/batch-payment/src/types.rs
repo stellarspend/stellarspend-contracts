@@ -36,6 +36,8 @@ impl From<Error> for soroban_sdk::Error {
 #[contracttype]
 pub enum DataKey {
     Admin,
+    BatchStatus(u64),
+    BatchCounter,
 }
 
 fn bump_instance(_env: &Env) {}

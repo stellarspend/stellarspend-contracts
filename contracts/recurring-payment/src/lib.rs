@@ -4,7 +4,7 @@
 mod test;
 mod types;
 
-use crate::types::{DataKey, IncomeStream, RecurringPayment};
+use crate::types::{DataKey, IncomeStream, RecurringPayment, RecurringPaymentSchedule};
 use soroban_sdk::{contract, contractimpl, symbol_short, token, Address, Env, Symbol, Vec};
 
 #[contract]
@@ -259,6 +259,27 @@ impl RecurringPaymentContract {
             .instance()
             .get(&DataKey::Payment(payment_id))
             .expect("Payment not found")
+    }
+
+    /// Returns the compact schedule details for a recurring payment.
+    ///
+    /// # Arguments
+    /// * `payment_id` - The ID returned by `create_payment`
+    ///
+    /// # Errors
+    /// Panics with `Payment not found` when `payment_id` does not exist.
+    pub fn get_recurring_payment_schedule(env: Env, payment_id: u64) -> RecurringPaymentSchedule {
+        let payment: RecurringPayment = env
+            .storage()
+            .instance()
+            .get(&DataKey::Payment(payment_id))
+            .expect("Payment not found");
+
+        RecurringPaymentSchedule {
+            amount: payment.amount,
+            interval: payment.interval,
+            next_due_date: payment.next_execution,
+        }
     }
 
     /// Creates a recurring income stream that auto-funds budgets or goals.

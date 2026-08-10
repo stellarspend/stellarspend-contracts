@@ -216,8 +216,10 @@ pub struct PolicyEvents;
 impl PolicyEvents {
     /// Emitted when a policy is set for the first time.
     pub fn policy_set(env: &Env, wallet: &Address, version: u32) {
-        env.events()
-            .publish((symbol_short!("policy"), symbol_short!("set")), (wallet.clone(), version));
+        env.events().publish(
+            (symbol_short!("policy"), symbol_short!("set")),
+            (wallet.clone(), version),
+        );
     }
 
     /// Emitted when an existing policy is replaced.
@@ -230,8 +232,10 @@ impl PolicyEvents {
 
     /// Emitted when a transaction is approved by all rules.
     pub fn tx_approved(env: &Env, wallet: &Address, amount: i128) {
-        env.events()
-            .publish((symbol_short!("tx"), symbol_short!("apprvd")), (wallet.clone(), amount));
+        env.events().publish(
+            (symbol_short!("tx"), symbol_short!("apprvd")),
+            (wallet.clone(), amount),
+        );
     }
 
     /// Emitted when a transaction is rejected.
@@ -244,8 +248,10 @@ impl PolicyEvents {
 
     /// Emitted when a transaction is held pending approval.
     pub fn tx_pending(env: &Env, wallet: &Address, pending_id: u64, amount: i128) {
-        env.events()
-            .publish((symbol_short!("tx"), symbol_short!("pend")), (wallet.clone(), pending_id, amount));
+        env.events().publish(
+            (symbol_short!("tx"), symbol_short!("pend")),
+            (wallet.clone(), pending_id, amount),
+        );
     }
 
     /// Emitted when an approver signs off on a pending transaction.

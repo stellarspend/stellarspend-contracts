@@ -15,7 +15,7 @@
 //! 3. Operator approval is managed through `grant_operator` / `revoke_operator`,
 //!    which themselves enforce admin-only access.
 
-use soroban_sdk::{Address, Env};
+use soroban_sdk::{Address, Env, IntoVal, Val};
 
 use crate::{errors::SharedError, SharedDataKey};
 
@@ -50,6 +50,41 @@ pub fn require_admin(env: &Env, caller: &Address) -> Result<(), SharedError> {
         return Err(SharedError::Unauthorized);
     }
     Ok(())
+}
+
+/// Returns the admin address stored under an arbitrary key.
+///
+/// This generic helper allows contracts to keep their own key enum and still
+/// reuse the shared admin verification pattern.
+pub fn get_admin_with_key<K>(env: &Env, key: &K) -> Result<Address, SharedError>
+where
+    K: IntoVal<Env, Val>,
+{
+    env.storage()
+        .instance()
+        .get(key)
+        .ok_or(SharedError::NotInitialized)
+}
+
+/// Requires the caller to be authenticated and to match the admin stored under the provided key.
+pub fn require_admin_with_key<K>(env: &Env, key: &K, caller: &Address) -> Result<(), SharedError>
+where
+    K: IntoVal<Env, Val>,
+{
+    caller.require_auth();
+    let admin = get_admin_with_key(env, key)?;
+    if caller != &admin {
+        return Err(SharedError::Unauthorized);
+    }
+    Ok(())
+}
+
+/// Returns `true` when the caller matches the admin stored under the provided key.
+pub fn is_admin_with_key<K>(env: &Env, key: &K, caller: &Address) -> bool
+where
+    K: IntoVal<Env, Val>,
+{
+    get_admin_with_key(env, key).map_or(false, |admin| caller == &admin)
 }
 
 // ---------------------------------------------------------------------------

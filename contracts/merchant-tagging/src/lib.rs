@@ -364,6 +364,33 @@ impl MerchantTaggingContract {
             .unwrap_or(0)
     }
 
+    /// Retrieve the tag assigned to a merchant address.
+    ///
+    /// Iterates the merchant index to find a merchant whose registered address
+    /// matches the given address, then returns the first category tag.
+    /// Returns `None` if no merchant is found with that address or if the
+    /// merchant has no tags.
+    pub fn get_merchant_tag(env: Env, merchant: Address) -> Option<Symbol> {
+        let index: Vec<Symbol> = env
+            .storage()
+            .instance()
+            .get(&DataKey::MerchantIndex)
+            .unwrap_or_else(|| Vec::new(&env));
+
+        for merchant_id in index.iter() {
+            if let Some(m) = env
+                .storage()
+                .instance()
+                .get::<_, Merchant>(&DataKey::Merchant(merchant_id))
+            {
+                if m.address.as_ref() == Some(&merchant) {
+                    return m.tags.get(0);
+                }
+            }
+        }
+        None
+    }
+
     /// Query all merchants that have a specific category tag.
     ///
     /// Iterates the merchant index and returns matching merchant IDs.

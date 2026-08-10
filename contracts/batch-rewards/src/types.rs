@@ -1,3 +1,4 @@
+use shared::batch_result::BatchItemResult;
 use soroban_sdk::{contracttype, symbol_short, Address, Bytes, Env, Vec};
 
 pub const MAX_BATCH_SIZE: u32 = 100;
@@ -24,6 +25,7 @@ pub struct BatchRewardResult {
     pub failed: u32,
     pub total_distributed: i128,
     pub results: Vec<RewardResult>,
+    pub shared_results: Vec<BatchItemResult>,
 }
 
 #[derive(Clone)]
@@ -34,6 +36,7 @@ pub enum DataKey {
     TotalRewardsProcessed,
     TotalVolumeDistributed,
     IdempotencyToken(Bytes),
+    BatchRewardTotal(u64),
 }
 
 pub struct RewardEvents;

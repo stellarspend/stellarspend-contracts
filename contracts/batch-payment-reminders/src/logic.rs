@@ -21,9 +21,17 @@ pub fn execute_dispatch(
         requests.len() as u32,
     );
 
-    for request in requests.iter() {
+    for (index, request) in requests.iter().enumerate() {
+        let reminder_id = (batch_id as u128) << 32 | (index as u128);
+        let reminder_id_u64 = (reminder_id & u128::from(u64::MAX)) as u64;
+
         match validate_reminder_request(&env, &request.user, request.due_date) {
             Ok(()) => {
+                env.storage().persistent().set(
+                    &crate::ReminderDataKey::Reminder(reminder_id_u64),
+                    &request.due_date,
+                );
+
                 env.events().publish(
                     (
                         symbol_short!("rem_sent"),
