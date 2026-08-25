@@ -10,6 +10,9 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 soroban-sdk = { workspace = true }
 shared = { workspace = true }
+spending_limits = { path = "../spending-limits" }
+spending_categories = { path = "../spending-categories" }
+zk-verifier = { path = "../zk-verifier" }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
