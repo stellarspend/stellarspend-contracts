@@ -1731,6 +1731,9 @@ version = "0.1.0"
 dependencies = [
  "shared",
  "soroban-sdk",
+ "spending_categories",
+ "spending_limits",
+ "zk-verifier",
 ]
 
 [[package]]
