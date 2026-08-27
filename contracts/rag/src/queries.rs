@@ -1,5 +1,5 @@
 use soroban_sdk::{
-    contracterror, contracttype, Address, Env, String,
+    contracterror, contracttype, Address, BytesN, Env, String,
 };
 
 use crate::access::{
@@ -23,12 +23,18 @@ pub enum RetrievalRequestState {
 }
 
 /// Represents a persisted RAG retrieval request.
+///
+/// Stores a query commitment (hash) rather than the full query text
+/// to keep on-chain storage minimal while still allowing offline
+/// verification that a response matches the committed query.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RetrievalRequest {
     pub request_id: u64,
     pub requester: Address,
     pub collection_id: String,
+    pub query_commitment: BytesN<32>,
+    pub created_at: u64,
     pub state: RetrievalRequestState,
 }
 
@@ -68,6 +74,7 @@ impl RetrievalQueryManager {
         env: &Env,
         request_id: u64,
         collection_id: String,
+        query_commitment: BytesN<32>,
         caller: Address,
     ) -> Result<RetrievalRequest, RetrievalRequestError> {
         // ---------------------------------------------------------------
@@ -94,12 +101,19 @@ impl RetrievalQueryManager {
         )?;
 
         // ---------------------------------------------------------------
-        // 4. Create request in Pending state
+        // 4. Record ledger timestamp
+        // ---------------------------------------------------------------
+        let created_at = env.ledger().timestamp();
+
+        // ---------------------------------------------------------------
+        // 5. Create request in Pending state with query commitment
         // ---------------------------------------------------------------
         let request = RetrievalRequest {
             request_id,
             requester: caller,
             collection_id,
+            query_commitment,
+            created_at,
             state: RetrievalRequestState::Pending,
         };
 
@@ -273,6 +287,11 @@ mod tests {
             "collection-1",
         );
 
+        let query_commitment = BytesN::from_array(
+            &env,
+            &[1u8; 32],
+        );
+
         // `create_request` invokes require_auth().
         //
         // The Soroban test environment will reject an invocation
@@ -281,6 +300,7 @@ mod tests {
             &env,
             1,
             collection_id,
+            query_commitment,
             owner,
         );
     }
@@ -295,6 +315,10 @@ mod tests {
 
         let collection_id =
             String::from_str(&env, "public-collection");
+        let query_commitment = BytesN::from_array(
+            &env,
+            &[2u8; 32],
+        );
 
         AccessControlManager::set_resource_access_level(
             &env,
@@ -308,6 +332,7 @@ mod tests {
                 &env,
                 1,
                 collection_id,
+                query_commitment,
                 owner,
             )
             .unwrap();
@@ -328,6 +353,10 @@ mod tests {
 
         let collection_id =
             String::from_str(&env, "private-collection");
+        let query_commitment = BytesN::from_array(
+            &env,
+            &[3u8; 32],
+        );
 
         AccessControlManager::set_policy(
             &env,
@@ -349,6 +378,7 @@ mod tests {
                 &env,
                 1,
                 collection_id,
+                query_commitment,
                 owner,
             )
             .unwrap();
@@ -369,6 +399,10 @@ mod tests {
 
         let collection_id =
             String::from_str(&env, "members-collection");
+        let query_commitment = BytesN::from_array(
+            &env,
+            &[4u8; 32],
+        );
 
         AccessControlManager::set_policy(
             &env,
@@ -391,6 +425,7 @@ mod tests {
                 &env,
                 1,
                 collection_id,
+                query_commitment,
                 member,
             )
             .unwrap();
@@ -411,6 +446,10 @@ mod tests {
 
         let collection_id =
             String::from_str(&env, "private-collection");
+        let query_commitment = BytesN::from_array(
+            &env,
+            &[5u8; 32],
+        );
 
         AccessControlManager::set_policy(
             &env,
@@ -433,6 +472,7 @@ mod tests {
                 &env,
                 1,
                 collection_id,
+                query_commitment,
                 unauthorized,
             );
 
@@ -454,6 +494,10 @@ mod tests {
 
         let collection_id =
             String::from_str(&env, "public-collection");
+        let query_commitment = BytesN::from_array(
+            &env,
+            &[6u8; 32],
+        );
 
         AccessControlManager::set_resource_access_level(
             &env,
@@ -466,6 +510,7 @@ mod tests {
             &env,
             1,
             collection_id,
+            query_commitment,
             owner,
         )
         .unwrap();
