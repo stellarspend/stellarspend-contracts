@@ -1,3 +1,4 @@
+rust
 #![no_std]
 
 use soroban_sdk::{contract, contracterror, contractimpl, Address, Env};
@@ -8,7 +9,7 @@ mod test;
 pub mod types;
 pub mod validation;
 
-/// Typed errors for the compliance contract.
+/// Typed errors returned by the compliance contract.
 #[contracterror]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Error {
@@ -25,7 +26,14 @@ pub struct Contract;
 
 #[contractimpl]
 impl Contract {
-    /// Initializes the contract with an administrator.
+    /// Initializes the contract with the given administrator.
+    ///
+    /// The administrator must authenticate the initialization request.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::AlreadyInitialized`] if the contract has already
+    /// been initialized.
     pub fn initialize(env: Env, admin: Address) -> Result<(), Error> {
         if storage::read_config(&env).is_some() {
             return Err(Error::AlreadyInitialized);
@@ -35,7 +43,17 @@ impl Contract {
         Ok(())
     }
 
-    /// Updates the contract value after authenticating the administrator.
+    /// Updates the configured value for the contract.
+    ///
+    /// The provided administrator must authenticate the request and must
+    /// match the administrator stored in the contract configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidAmount`] if `value` is negative.
+    ///
+    /// Returns [`Error::Unauthorized`] if the contract has not been
+    /// initialized or if `admin` is not the configured administrator.
     pub fn set_value(env: Env, admin: Address, value: i128) -> Result<(), Error> {
         admin.require_auth();
         if value < 0 {
@@ -49,7 +67,9 @@ impl Contract {
         Ok(())
     }
 
-    /// Returns the current configured value.
+    /// Returns the currently configured contract value.
+    ///
+    /// Returns `0` when the contract has not been initialized.
     pub fn get_value(env: Env) -> i128 {
         storage::read_config(&env).map(|c| c.value).unwrap_or(0)
     }
