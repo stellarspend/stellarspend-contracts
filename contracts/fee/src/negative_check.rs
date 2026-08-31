@@ -7,6 +7,7 @@ pub enum NegativeAmountError {
     NegativeAmount = 1,
 }
 
+/// Validates that `amount` is zero or positive, returning a negative-amount error when it is below zero.
 pub fn check_not_negative(amount: i128) -> Result<(), NegativeAmountError> {
     if amount < 0 {
         return Err(NegativeAmountError::NegativeAmount);

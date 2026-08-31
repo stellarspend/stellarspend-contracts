@@ -7,6 +7,7 @@ pub enum SafeSubError {
     Underflow = 1,
 }
 
+/// Subtracts `b` from `a`, returning an underflow error instead of wrapping when `b` is greater than `a`.
 pub fn safe_sub(a: i128, b: i128) -> Result<i128, SafeSubError> {
     if b > a {
         return Err(SafeSubError::Underflow);
