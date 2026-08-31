@@ -1,4 +1,4 @@
-```rust
+rust
 use soroban_sdk::contracttype;
 
 /// Stores the configuration for the StellarSpend batch-payment contract.
@@ -11,4 +11,3 @@ pub struct Config {
     /// Current configured value used by the contract.
     pub value: i128,
 }
-```
