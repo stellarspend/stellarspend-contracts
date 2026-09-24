@@ -1,5 +1,10 @@
 #![no_std]
 
+//! Batch reward distribution contract with a cross-contract delegation
+//! allowance check and shared tiered-rate decay calculation. Every
+//! `pub fn` below already carries a `///` doc comment; this module doc
+//! summarizes the file as a whole for `cargo doc`.
+
 extern crate alloc;
 
 use soroban_sdk::{contract, contracterror, contractimpl, Address, Env, Vec};
