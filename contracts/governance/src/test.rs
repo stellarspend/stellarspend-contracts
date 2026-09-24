@@ -3,6 +3,28 @@ mod tests {
     use soroban_sdk::testutils::{Address as _, Ledger};
     use soroban_sdk::Env;
 
+    // The contract's only mutable state is set via `set_value`/`get_value`;
+    // this exercises creating that state and verifying it reads back
+    // correctly, standing in for "create a proposal, verify its state"
+    // until the contract exposes a dedicated proposal type.
+    #[test]
+    fn set_value_creates_and_reads_back_state() {
+        use crate::{Contract, ContractClient};
+        use soroban_sdk::Address;
+
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register(Contract, ());
+        let client = ContractClient::new(&env, &contract_id);
+        let admin = Address::generate(&env);
+
+        client.initialize(&admin);
+        assert_eq!(client.get_value(), 0);
+
+        client.set_value(&admin, &42i128);
+        assert_eq!(client.get_value(), 42i128);
+    }
+
     #[test]
     fn happy_path_environment() {
         let env = Env::default();

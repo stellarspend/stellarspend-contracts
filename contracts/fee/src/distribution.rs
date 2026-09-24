@@ -1,3 +1,8 @@
+//! Splits collected fees across treasury, protocol, and stakeholder shares
+//! according to a validated basis-point configuration. Every `pub fn` below
+//! already carries a `///` doc comment; this module doc summarizes the file
+//! as a whole for `cargo doc`.
+
 #[derive(Debug, Clone)]
 pub struct DistributionConfig {
     pub treasury_bps: u16,
