@@ -3,6 +3,26 @@ mod tests {
     use soroban_sdk::testutils::{Address as _, Ledger};
     use soroban_sdk::Env;
 
+    // The contract's only stored preference value is set/read via
+    // `set_value`/`get_value`; this sets a notification preference and
+    // reads it back.
+    #[test]
+    fn set_value_stores_notification_preference_and_reads_it_back() {
+        use crate::{Contract, ContractClient};
+        use soroban_sdk::Address;
+
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register(Contract, ());
+        let client = ContractClient::new(&env, &contract_id);
+        let admin = Address::generate(&env);
+
+        client.initialize(&admin);
+        client.set_value(&admin, &1i128); // e.g. 1 = alerts enabled
+
+        assert_eq!(client.get_value(), 1i128);
+    }
+
     #[test]
     fn happy_path_environment() {
         let env = Env::default();

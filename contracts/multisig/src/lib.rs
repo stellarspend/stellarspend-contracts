@@ -1,5 +1,10 @@
 #![no_std]
 
+//! N-of-M multi-signature contract: admin-configured signer set and
+//! threshold gate pending transactions until enough signers approve.
+//! Every `pub fn` below already carries a `///` doc comment; this module
+//! doc summarizes the file as a whole for `cargo doc`.
+
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, panic_with_error, symbol_short, Address,
     Env, Symbol, Vec,
