@@ -1,3 +1,7 @@
+//! Shared types for the access-control contract. Every `pub struct`/`pub
+//! enum` below already carries a `///` doc comment; this module doc
+//! summarizes the file as a whole for `cargo doc`.
+
 use soroban_sdk::contracttype;
 
 /// Configuration settings for the Access Control contract.
