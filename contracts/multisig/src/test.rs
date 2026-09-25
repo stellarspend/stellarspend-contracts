@@ -160,4 +160,24 @@ mod tests {
         let (client, _) = setup_contract(&env);
         assert_eq!(client.get_approval_count(&99u64), 0u32);
     }
+
+    #[test]
+    fn recording_an_approval_increments_approval_count() {
+        let env = make_env();
+        let contract_id = env.register(Contract, ());
+        let client = ContractClient::new(&env, &contract_id);
+        let admin = Address::generate(&env);
+        client.initialize(&admin);
+
+        let tx_id = 1u64;
+        assert_eq!(client.get_approval_count(&tx_id), 0u32);
+
+        env.as_contract(&contract_id, || {
+            env.storage()
+                .instance()
+                .set(&crate::DataKey::ApprovalCount(tx_id), &1u32);
+        });
+
+        assert_eq!(client.get_approval_count(&tx_id), 1u32);
+    }
 }

@@ -1,3 +1,8 @@
+//! Compares stored fee-accounting balances against independently
+//! calculated/on-chain balances to surface discrepancies. Every `pub fn`
+//! below already carries a `///` doc comment; this module doc summarizes
+//! the file as a whole for `cargo doc`.
+
 use soroban_sdk::{contracttype, Env, token};
 
 use crate::storage::{read_escrow_balance, read_total_collected, read_total_released, read_token, read_treasury};
