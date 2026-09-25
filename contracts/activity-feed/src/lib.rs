@@ -1,5 +1,9 @@
 #![no_std]
 
+//! Admin-gated configuration contract for activity-feed parameters.
+//! Every `pub fn` below already carries a `///` doc comment; this module
+//! doc summarizes the file as a whole for `cargo doc`.
+
 use soroban_sdk::{contract, contracterror, contractimpl, Address, Env};
 
 mod storage;
