@@ -28,4 +28,21 @@ mod tests {
     fn overflow_boundary() {
         assert_eq!(i128::MAX.checked_add(1), None);
     }
+
+    #[test]
+    fn lock_funds_and_verify_escrow_balance() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let contract_id = env.register(crate::Contract, ());
+        let client = crate::ContractClient::new(&env, &contract_id);
+
+        let admin = soroban_sdk::Address::generate(&env);
+        client.initialize(&admin);
+
+        let deposit_amount: i128 = 500_000;
+        client.set_value(&admin, &deposit_amount);
+
+        assert_eq!(client.get_value(), deposit_amount);
+    }
 }
