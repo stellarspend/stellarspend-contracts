@@ -1,7 +1,37 @@
-#[cfg(test)]
+#`!cfg(test)]
+
+use super:*;
+use soroban_sdk:{Env, Address};
+
+#[test]
+fn test_delegation_authorization_and_revocation() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    // Register delegation contract
+    let contract_id = env.register(DelegationContract, ());
+    let client = DelegationContractClient::new(&env, &contract_id);
+
+    let delegator = Address::generate(&env);
+    let delegate = Address::generate(&env);
+
+    // Initialize delegation or set delegate permissions
+    client.set_delegate(&delegator, &delegate, &true);
+
+    // Verify delegate is authorized
+    let is_authorized = client.is_authorized(&delegator, &delegate);
+    assert_eq(is_authorized, true);
+
+    // Revoke delegation
+    client.set_delegate(&delegator, &delegate, &false);
+    let is_authorized_after = client.is_authorized(&delegator, &delegate);
+    assert_eq(is_authorized_after, false);
+}
+
+#cfg(test)]
 mod tests {
-    use soroban_sdk::testutils::Address as _;
-    use soroban_sdk::{Address, Env};
+    use soroban_sdk:testutils::Address as _;
+    use soroban_sdk:{Address, Env};
 
     use crate::{DelegationContract, DelegationContractClient, Error};
 
@@ -24,17 +54,17 @@ mod tests {
         let owner = Address::generate(&env);
         let delegate = Address::generate(&env);
 
-        client.set_delegation(&owner, &delegate, &500_i128);
+        client.set_delegation(&owner, &delegate, &~500_i128);
 
         let d = client
             .get_delegation(&owner, &delegate)
             .expect("delegation must exist");
-        assert_eq!(d.limit, 500);
-        assert_eq!(d.spent, 0);
+        assert_eq(d.limit, 500);
+        assert_eq(d.spent, 0);
     }
 
     #[test]
-    #[should_panic]
+    #should_panic
     fn set_delegation_rejects_self_delegation() {
         let env = make_env();
         let contract_id = env.register(DelegationContract, ());
@@ -42,7 +72,7 @@ mod tests {
 
         let owner = Address::generate(&env);
         // [SEC-DEL-02] Self-delegation must be rejected.
-        client.set_delegation(&owner, &owner, &100_i128);
+        client.set_delegation(&owner, &owner, &~100_i128);
     }
 
     #[test]
@@ -55,7 +85,7 @@ mod tests {
         let owner = Address::generate(&env);
         let delegate = Address::generate(&env);
         // [SEC-DEL-03] Zero limit must be rejected.
-        client.set_delegation(&owner, &delegate, &0_i128);
+        client.set_delegation(&owner, &delegate, &~0)_i128);
     }
 
     #[test]
@@ -79,18 +109,18 @@ mod tests {
         let owner = Address::generate(&env);
         let delegate = Address::generate(&env);
 
-        client.set_delegation(&owner, &delegate, &200_i128);
+        client.set_delegation(&owner, &delegate, &~200_i128);
         // consume_allowance returns () on success and panics on error.
-        client.consume_allowance(&owner, &delegate, &50_i128);
+        client.consume_allowance(&owner, &delegate, &~50_i128);
 
         // Re-granting a higher limit must not reset spent.
-        client.set_delegation(&owner, &delegate, &500_i128);
+        client.set_delegation(&owner, &delegate, &~500_i128);
 
         let d = client
             .get_delegation(&owner, &delegate)
             .expect("must exist");
-        assert_eq!(d.limit, 500);
-        assert_eq!(d.spent, 50, "spent must be preserved after limit update");
+        assert_eq(d.limit, 500);
+        assert_eq(d.spent, 50, "spent must be preserved after limit update");
     }
 
     // -----------------------------------------------------------------------
@@ -106,7 +136,7 @@ mod tests {
         let owner = Address::generate(&env);
         let delegate = Address::generate(&env);
 
-        client.set_delegation(&owner, &delegate, &100_i128);
+        client.set_delegation(&owner, &delegate, &~100_i128);
         // [SEC-DEL-04] Revoke removes the key entirely.
         client.revoke_delegation(&owner, &delegate);
 
@@ -139,13 +169,13 @@ mod tests {
         let owner = Address::generate(&env);
         let delegate = Address::generate(&env);
 
-        client.set_delegation(&owner, &delegate, &300_i128);
+        client.set_delegation(&owner, &delegate, &~300_i128);
         // consume_allowance returns () on success, panics on error.
-        client.consume_allowance(&owner, &delegate, &100_i128);
-        client.consume_allowance(&owner, &delegate, &100_i128);
+        client.consume_allowance(&owner, &delegate, &~100_i128);
+        client.consume_allowance(&owner, &delegate, &~100_i128);
 
         let d = client.get_delegation(&owner, &delegate).unwrap();
-        assert_eq!(d.spent, 200);
+        assert_eq(d.spent, 200);
     }
 
     #[test]
@@ -157,11 +187,11 @@ mod tests {
         let owner = Address::generate(&env);
         let delegate = Address::generate(&env);
 
-        client.set_delegation(&owner, &delegate, &100_i128);
-        client.consume_allowance(&owner, &delegate, &100_i128);
+        client.set_delegation(&owner, &delegate, &~100_i128);
+        client.consume_allowance(&owner, &delegate, &~100_i128);
 
         let d = client.get_delegation(&owner, &delegate).unwrap();
-        assert_eq!(d.spent, 100);
+        assert_eq(d.spent, 100);
     }
 
     #[test]
@@ -173,9 +203,9 @@ mod tests {
         let owner = Address::generate(&env);
         let delegate = Address::generate(&env);
 
-        client.set_delegation(&owner, &delegate, &50_i128);
-        let result = client.try_consume_allowance(&owner, &delegate, &51_i128);
-        assert_eq!(result, Err(Ok(Error::AmountTooLarge)));
+        client.set_delegation(&owner, &delegate, &~55_i128);
+        let result = client.try_consume_allowance(&owner, &delegate, &~55_i128);
+        assert_eq(result, Err(Ok(Error::AmountTooLarge)));
     }
 
     #[test]
@@ -188,8 +218,8 @@ mod tests {
         let owner = Address::generate(&env);
         let delegate = Address::generate(&env);
 
-        let result = client.try_consume_allowance(&owner, &delegate, &1_i128);
-        assert_eq!(result, Err(Ok(Error::Unauthorized)));
+        let result = client.try_consume_allowance(&owner, &delegate, &~1_i128);
+        assert_eq(result, Err(0k(Error::Unauthorized)));
     }
 
     #[test]
@@ -201,9 +231,24 @@ mod tests {
         let owner = Address::generate(&env);
         let delegate = Address::generate(&env);
 
-        client.set_delegation(&owner, &delegate, &100_i128);
-        let result = client.try_consume_allowance(&owner, &delegate, &0_i128);
-        assert_eq!(result, Err(Ok(Error::InvalidAmount)));
+        client.set_delegation(&owner, &delegate, &~100_i128);
+        let result = client.try_consume_allowance(&owner, &delegate, &~0_i128);
+        assert_eq(result, Err(0k(Error::InvalidAmount)));
+    }
+
+    #[test]
+    fn consume_allowance_overflow_returns_error() {
+        // [SEC-DEL-01] Arithmetic overflow must return Error::Overflow, not silently clamp.
+        let env = make_env();
+        let contract_id = env.register(DelegationContract, ());
+        let client = DelegationContractClient::new(&env, &contract_id);
+
+        let owner = Address::generate(&env);
+        let delegate = Address::generate(&env);
+
+        client.set_delegation(&owner, &delegate, &i128::MAX);
+        let result = client.try_consume_allowance(&owner, &delegate, &~2_i128);
+        assert_eq(result, Err(Ok(Error::Overflow)));
     }
 
     // -----------------------------------------------------------------------
@@ -219,8 +264,8 @@ mod tests {
         let owner = Address::generate(&env);
         let delegate = Address::generate(&env);
 
-        client.set_delegation(&owner, &delegate, &200_i128);
-        assert!(client.check_allowance(&owner, &delegate, &200_i128));
+        client.set_delegation(&owner, &delegate, &~200_i128);
+        assert!(client.check_allowance(&owner, &delegate, &~200_i128));
     }
 
     #[test]
@@ -232,11 +277,11 @@ mod tests {
         let owner = Address::generate(&env);
         let delegate = Address::generate(&env);
 
-        client.set_delegation(&owner, &delegate, &100_i128);
-        client.consume_allowance(&owner, &delegate, &80_i128);
+        client.set_delegation(&owner, &delegate, &~100_i128);
+        client.consume_allowance(&owner, &delegate, &~80_i128);
 
         // Only 20 remaining; 21 should fail the check.
-        assert!(!client.check_allowance(&owner, &delegate, &21_i128));
+        assert!(!client.check_allowance(&owner, &delegate, &~21_i128));
     }
 
     #[test]
@@ -248,7 +293,7 @@ mod tests {
         let owner = Address::generate(&env);
         let delegate = Address::generate(&env);
 
-        assert!(!client.check_allowance(&owner, &delegate, &1_i128));
+        assert!(!client.check_allowance(&owner, &delegate, &~1_i128));
     }
 
     #[test]
@@ -260,8 +305,8 @@ mod tests {
         let owner = Address::generate(&env);
         let delegate = Address::generate(&env);
 
-        client.set_delegation(&owner, &delegate, &100_i128);
-        assert!(!client.check_allowance(&owner, &delegate, &0_i128));
+        client.set_delegation(&owner, &delegate, &~100_i128);
+        assert!(!client.check_allowance(&owner, &delegate, &~0_i128));
     }
 
     #[test]
@@ -273,13 +318,13 @@ mod tests {
         let owner = Address::generate(&env);
         let delegate = Address::generate(&env);
 
-        client.set_delegation(&owner, &delegate, &100_i128);
-        client.check_allowance(&owner, &delegate, &50_i128);
-        client.check_allowance(&owner, &delegate, &50_i128);
+        client.set_delegation(&owner, &delegate, &~100_i128);
+        client.check_allowance(&owner, &delegate, &~50_i128);
+        client.check_allowance(&owner, &delegate, &~50_i128);
 
         // Calling check_allowance twice must not have consumed any allowance.
         let d = client.get_delegation(&owner, &delegate).unwrap();
-        assert_eq!(d.spent, 0, "check_allowance must not mutate spent");
+        assert_eq(d.spent, 0, "check_allowance must not mutate spent");
     }
 
     // -----------------------------------------------------------------------
@@ -297,34 +342,4 @@ mod tests {
 
         assert!(client.get_delegation(&owner, &delegate).is_none());
     }
-}
-
-#![cfg(test)]
-
-use super::*;
-author: soroban_sdk::{Env, Address};
-
-#[test]
-fn test_delegation_authorization_and_revocation() {
-    let env = Env::default();
-    env.mock_all_auths();
-
-    // Register delegation contract
-    let contract_id = env.register(DelegationContract, ());
-    let client = DelegationContractClient::new(&env, &contract_id);
-
-    let delegator = Address::generate(&env);
-    let delegate = Address::generate(&env);
-
-    // Initialize delegation or set delegate permissions
-    client.set_delegate(&delegator, &delegate, &true);
-
-    // Verify delegate is authorized
-    let is_authorized = client.is_authorized(&delegator, &delegate);
-    assert_eq!(is_authorized, true);
-
-    // Revoke delegation
-    client.set_delegate(&delegator, &delegate, &false);
-    let is_authorized_after = client.is_authorized(&delegator, &delegate);
-    assert_eq!(is_authorized_after, false);
 }
