@@ -20,8 +20,8 @@ pub enum Error {
     InvalidAmount = 3,
 }
 
-#[contract]
 /// Entry point for the escrow contract.
+#[contract]
 pub struct Contract;
 
 #[contractimpl]
