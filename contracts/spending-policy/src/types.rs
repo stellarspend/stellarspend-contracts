@@ -16,6 +16,6 @@ pub struct PolicyRule {
 #[derive(Clone)]
 #[contracttype]
 pub enum DataKey {
-    /// user -> Vec<PolicyRule>
+    /// user -> `Vec<PolicyRule>`
     Policy(Address),
 }

@@ -70,15 +70,27 @@ impl DelegationContract {
     /// - Pre-existing delegations have their `limit` updated but `spent` is
     ///   preserved, preventing a re-grant from resetting accumulated usage.
     pub fn set_delegation(env: Env, owner: Address, delegate: Address, limit: i128) {
+        if let Err(e) = Self::grant(env.clone(), owner, delegate, limit) {
+            panic_with_error!(&env, e);
+        }
+    }
+
+    /// Authorises `delegate` to spend up to `limit` on behalf of `owner`,
+    /// returning a typed error instead of panicking.
+    ///
+    /// # Errors
+    /// - [`Error::InvalidAddress`] if `owner == delegate` ([SEC-DEL-02]).
+    /// - [`Error::InvalidAmount`] if `limit <= 0` ([SEC-DEL-03]).
+    pub fn grant(env: Env, owner: Address, delegate: Address, limit: i128) -> Result<(), Error> {
         owner.require_auth();
 
         // [SEC-DEL-02] Self-delegation guard.
         if owner == delegate {
-            panic_with_error!(&env, Error::InvalidAddress);
+            return Err(Error::InvalidAddress);
         }
         // [SEC-DEL-03] Positive-limit guard.
         if limit <= 0 {
-            panic_with_error!(&env, Error::InvalidAmount);
+            return Err(Error::InvalidAmount);
         }
 
         let key = DelegationDataKey::Allowance(owner.clone(), delegate.clone());
@@ -102,9 +114,20 @@ impl DelegationContract {
             ),
             limit,
         );
+
+        Ok(())
     }
 
-    /// Revokes all delegation rights from `delegate`.
+    /// Revokes all delegation rights granted by `owner` to `delegate`.
+    ///
+    /// # Parameters
+    /// - `env`: The Soroban environment.
+    /// - `owner`: The address that granted the delegation.
+    /// - `delegate`: The address whose delegation is revoked.
+    ///
+    /// # Errors
+    /// Fails authorization if `owner` has not authorized the invocation.
+    /// If no delegation exists for this pair, the call succeeds without changes.
     ///
     /// # Security
     /// - [SEC-DEL-04] Removes the key entirely rather than zeroing fields so
@@ -181,6 +204,78 @@ impl DelegationContract {
         } else {
             // [SEC-DEL-05] Return Unauthorized rather than a distinct "not found"
             // error to avoid leaking delegation existence to unauthenticated callers.
+            Err(Error::Unauthorized)
+        }
+    }
+
+    /// Spends `amount` from the allowance that `owner` granted to `delegate`.
+    ///
+    /// This is the primary entry point for a delegate wishing to make a payment
+    /// on behalf of an owner. It authenticates the delegate, validates the
+    /// amount, and atomically deducts it from the stored allowance record.
+    ///
+    /// # Parameters
+    ///
+    /// - `env`      – The Soroban execution environment.
+    /// - `owner`    – The [`Address`] of the account whose allowance is being
+    ///   drawn down. Must have previously called [`set_delegation`] to grant an
+    ///   allowance to `delegate`.
+    /// - `delegate` – The [`Address`] of the account performing the spend.
+    ///   `delegate.require_auth()` is called before any state is read, so the
+    ///   transaction must carry a valid signature from this address.
+    /// - `amount`   – The number of stroops (or the contract's native unit) to
+    ///   consume. Must be strictly positive (`> 0`).
+    ///
+    /// # Errors
+    ///
+    /// | Variant | Condition |
+    /// |---------|-----------|
+    /// | [`Error::InvalidAmount`] | `amount` is zero or negative. |
+    /// | [`Error::Unauthorized`]  | No active delegation from `owner` to `delegate` exists, or the delegation has been revoked. Returned instead of a "not found" variant to avoid leaking delegation state to unauthenticated callers. |
+    /// | [`Error::AmountTooLarge`] | `amount` would cause cumulative `spent` to exceed `limit`. |
+    /// | [`Error::Overflow`]      | Adding `amount` to the current `spent` counter would overflow `i128`. |
+    ///
+    /// # Security
+    ///
+    /// - Authentication (`delegate.require_auth()`) is the very first operation;
+    ///   no storage reads occur before the caller is verified.
+    /// - Arithmetic uses [`i128::checked_add`] so overflow surfaces as
+    ///   [`Error::Overflow`] rather than silently wrapping or clamping.
+    pub fn spend(env: Env, owner: Address, delegate: Address, amount: i128) -> Result<(), Error> {
+        // Authenticate before touching any state.
+        delegate.require_auth();
+
+        if amount <= 0 {
+            return Err(Error::InvalidAmount);
+        }
+
+        let key = DelegationDataKey::Allowance(owner.clone(), delegate.clone());
+
+        if let Some(mut delegation) = env.storage().persistent().get::<_, Delegation>(&key) {
+            let new_spent = delegation
+                .spent
+                .checked_add(amount)
+                .ok_or(Error::Overflow)?;
+
+            if new_spent > delegation.limit {
+                return Err(Error::AmountTooLarge);
+            }
+
+            delegation.spent = new_spent;
+            env.storage().persistent().set(&key, &delegation);
+
+            env.events().publish(
+                (
+                    soroban_sdk::symbol_short!("delegate"),
+                    soroban_sdk::symbol_short!("spend"),
+                    owner,
+                    delegate,
+                ),
+                amount,
+            );
+
+            Ok(())
+        } else {
             Err(Error::Unauthorized)
         }
     }

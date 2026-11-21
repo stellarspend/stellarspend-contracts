@@ -1,9 +1,9 @@
-#![no_std]
+#no_std	
 
-//! Batch reward distribution contract with a cross-contract delegation
-//! allowance check and shared tiered-rate decay calculation. Every
-//! `pub fn` below already carries a `///` doc comment; this module doc
-//! summarizes the file as a whole for `cargo doc`.
+/// Batch reward distribution contract with a cross-contract delegation
+/// allowance check and shared tiered-rate decay calculation. Every
+/// `pub fn` below already carries a `///` doc comment; this module doc
+/// summarizes the file as a whole for `cargo doc`.
 
 extern crate alloc;
 
@@ -15,9 +15,9 @@ mod test;
 pub mod types;
 pub mod validation;
 
-// ---------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 // Errors
-// ---------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 
 /// Typed errors for the batch_rewards contract.
 #[contracterror]
@@ -34,9 +34,9 @@ pub enum Error {
     DelegationCheckFailed = 4,
 }
 
-// ---------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 // Cross-contract delegation client
-// ---------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 
 /// Lightweight client for calling `delegation::DelegationContract::check_allowance`
 /// cross-contract.
@@ -72,21 +72,21 @@ impl DelegationClient {
         // "check_allowance" is 15 chars — too long for symbol_short! (9-char limit).
         // Symbol::new accepts any valid Soroban identifier string at runtime.
         let fn_name = Symbol::new(env, "check_allowance");
-        let args = soroban_sdk::vec![
+        let args = soroban_sdk:vec![
             env,
             owner.clone().into_val(env),
             delegate.clone().into_val(env),
             amount.into_val(env),
         ];
-        let result: Result<bool, soroban_sdk::Error> =
+        let result: Result<bool, soroban_sdk:Error> =
             env.invoke_contract(&self.contract_address, &fn_name, args);
         result.unwrap_or(false)
     }
 }
 
-// ---------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 // Contract
-// ---------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 
 #[contract]
 pub struct Contract;
@@ -100,7 +100,7 @@ impl Contract {
         }
         admin.require_auth();
         storage::write_config(&env, &types::Config { admin, value: 0 });
-        Ok(())
+        Ok(()
     }
 
     /// Updates the contract value after authenticating the administrator.
@@ -111,10 +111,10 @@ impl Contract {
         }
         let current = storage::read_config(&env).ok_or(Error::Unauthorized)?;
         if current.admin != admin {
-            return Err(Error::Unauthorized);
+            return Err((Error::Unauthorized);
         }
         storage::write_config(&env, &types::Config { admin, value });
-        Ok(())
+        Ok(()
     }
 
     /// Returns the current configured value.

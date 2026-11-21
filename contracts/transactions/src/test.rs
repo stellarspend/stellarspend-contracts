@@ -1,7 +1,9 @@
 #[cfg(test)]
 mod tests {
     use soroban_sdk::testutils::{Address as _, Ledger};
-    use soroban_sdk::Env;
+    use soroban_sdk::{Address, Env};
+
+    use crate::{storage, Contract, ContractClient, Error};
 
     #[test]
     fn happy_path_environment() {
@@ -27,5 +29,56 @@ mod tests {
     #[test]
     fn overflow_boundary() {
         assert_eq!(i128::MAX.checked_add(1), None);
+    }
+
+    // ── initialize ────────────────────────────────────────────────────────
+
+    #[test]
+    fn initialize_stores_admin_and_seeds_value_at_zero() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let contract_id = env.register(Contract, ());
+        let client = ContractClient::new(&env, &contract_id);
+
+        // get_value() returns 0 before initialize as well, so assert on the
+        // stored config too — that is what proves initialize wrote anything.
+        assert_eq!(storage::read_config(&env), None);
+
+        // The contractimpl client unwraps Result, so a success is just `()`.
+        assert_eq!(client.initialize(&admin), ());
+
+        let config = storage::read_config(&env).expect("initialize must persist a config");
+        assert_eq!(config.admin, admin);
+        assert_eq!(config.value, 0);
+        assert_eq!(client.get_value(), 0);
+    }
+
+    #[test]
+    fn initialize_twice_is_rejected() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let contract_id = env.register(Contract, ());
+        let client = ContractClient::new(&env, &contract_id);
+        client.initialize(&admin);
+
+        assert_eq!(
+            client.try_initialize(&admin),
+            Err(Ok(Error::AlreadyInitialized))
+        );
+        assert_eq!(client.get_value(), 0);
+    }
+
+    #[test]
+    fn initialize_requires_the_admin_to_authorize() {
+        let env = Env::default();
+        // Deliberately do NOT mock_all_auths — nothing has authorized anything.
+        let admin = Address::generate(&env);
+        let contract_id = env.register(Contract, ());
+        let client = ContractClient::new(&env, &contract_id);
+
+        assert!(client.try_initialize(&admin).is_err());
+        assert_eq!(storage::read_config(&env), None);
     }
 }

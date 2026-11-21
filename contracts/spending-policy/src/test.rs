@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::types::PolicyRule;
-    use crate::{Contract, ContractClient, Error};
+    use crate::{storage, Contract, ContractClient, Error};
     use soroban_sdk::{testutils::Address as _, vec, Address, Env, Symbol};
 
     fn setup<'a>() -> (Env, ContractClient<'a>, Address) {
@@ -144,5 +144,63 @@ mod tests {
             client.try_initialize(&admin),
             Err(Ok(Error::AlreadyInitialized))
         );
+    }
+
+    // ── initialize persistence ────────────────────────────────────────────
+    //
+    // This crate has no `get_value`: the admin is the only thing initialize
+    // writes. The ticket's "assert get_value returns 0" has no direct
+    // counterpart here, so these tests assert the observable equivalent —
+    // that initialize persists the admin and seeds no policy.
+
+    #[test]
+    fn initialize_persists_the_admin_and_leaves_policy_empty() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let user = Address::generate(&env);
+        let contract_id = env.register(Contract, ());
+        let client = ContractClient::new(&env, &contract_id);
+
+        // Nothing is stored before initialize.
+        assert_eq!(storage::read_admin(&env), None);
+
+        // The contractimpl client unwraps Result, so a success is just `()`.
+        assert_eq!(client.initialize(&admin), ());
+
+        assert_eq!(storage::read_admin(&env), Some(admin.clone()));
+
+        // initialize must not seed any policy, so an untouched user reads
+        // back an empty rule set rather than an implicit default.
+        assert_eq!(client.get_policy(&user).len(), 0);
+    }
+
+    #[test]
+    fn initialize_requires_the_admin_to_authorize() {
+        let env = Env::default();
+        // Deliberately do NOT mock_all_auths — nothing has authorized anything.
+        let admin = Address::generate(&env);
+        let contract_id = env.register(Contract, ());
+        let client = ContractClient::new(&env, &contract_id);
+
+        assert!(client.try_initialize(&admin).is_err());
+        assert_eq!(storage::read_admin(&env), None);
+    }
+
+    #[test]
+    fn rejected_reinitialize_does_not_hand_admin_over() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let other = Address::generate(&env);
+        let contract_id = env.register(Contract, ());
+        let client = ContractClient::new(&env, &contract_id);
+        client.initialize(&admin);
+
+        assert_eq!(
+            client.try_initialize(&other),
+            Err(Ok(Error::AlreadyInitialized))
+        );
+        assert_eq!(storage::read_admin(&env), Some(admin));
     }
 }

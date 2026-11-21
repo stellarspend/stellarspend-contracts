@@ -1,11 +1,12 @@
-use soroban_sdk::contracttype;
 
-/// Stored configuration for this StellarSpend contract.
+use soroban_sdk::{contracttype, Address};
+
+/// Stored configuration for the StellarSpend contract.
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[contracttype]
 pub struct Config {
-    /// Contract administrator.
-    pub admin: soroban_sdk::Address,
+    /// Address of the contract administrator.
+    pub admin: Address,
     /// Current configured value.
     pub value: i128,
 }

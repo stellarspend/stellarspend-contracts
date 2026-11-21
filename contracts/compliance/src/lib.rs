@@ -1,17 +1,17 @@
-//! # Compliance contract
-//!
-//! Minimal Soroban contract that stores an administrator and a single
-//! configuration value, plus the shared types, storage helpers and validation
-//! used across the StellarSpend compliance contracts.
-//!
-//! The contract exposes a small surface: `Contract::initialize` writes the
-//! configuration once, `Contract::set_value` updates it behind a
-//! `require_auth` check, and `Contract::get_value` reads it back. The chain is
-//! the source of truth for that configuration. Every public type, error variant
-//! and function in this crate is documented so `cargo doc -p compliance` builds
-//! without warnings.
+/// # Compliance contract
+///
+/// Minimal Soroban contract that stores an administrator and a single
+/// configuration value, plus the shared types, storage helpers and validation
+/// used across the StellarSpend compliance contracts.
+///
+/// The contract exposes a small surface: `Contract::initialize` writes the
+/// configuration once, `Contract::set_value` updates it behind a
+/// `require_auth` check, and `Contract::get_value` reads it back. The chain is
+/// the source of truth for that configuration. Every public type, error variant
+/// and function in this crate is documented so `cargo doc -p compliance` builds
+/// without warnings.
 
-#![no_std]
+#[no_std]
 
 use soroban_sdk::{contract, contracterror, contractimpl, Address, Env};
 
@@ -90,6 +90,6 @@ impl Contract {
     ///
     /// Returns `0` when the contract has not been initialized.
     pub fn get_value(env: Env) -> i128 {
-        storage::read_config(&env).map(|c| c.value).unwrap_or(0)
+        storage::read_config(&env).map(| c| c.value).unwrap_or(0)
     }
 }

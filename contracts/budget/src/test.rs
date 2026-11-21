@@ -294,4 +294,24 @@ mod tests {
         assert_eq!(budgets.get(0).unwrap().budget_id, id);
         assert_eq!(budgets.get(0).unwrap().amount, 500);
     }
+
+    #[test]
+    fn set_value_negative_returns_invalid_amount() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register(Contract, ());
+        let client = ContractClient::new(&env, &contract_id);
+        let admin = Address::generate(&env);
+        client.initialize(&admin);
+
+        let result = client.try_set_value(&admin, &-1_i128);
+        assert_eq!(result, Err(Ok(Error::InvalidAmount)));
+    }
+
+    #[test]
+    fn get_value_returns_zero_after_initialize() {
+        let env = Env::default();
+        let client = setup(&env);
+        assert_eq!(client.get_value(), 0);
+    }
 }

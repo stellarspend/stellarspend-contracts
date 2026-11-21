@@ -46,4 +46,6 @@ pub enum DataKey {
     Budget(u64),
     /// Key for the list of budget ids belonging to a user.
     UserBudgets(Address),
+    /// Key for the admin-configured value.
+    Value,
 }

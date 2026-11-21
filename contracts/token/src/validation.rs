@@ -10,7 +10,11 @@ pub enum Error {
     NotInitialized = 2,
 }
 
-/// Validates a financial amount.
+/// Validates that a financial amount is non-negative.
+///
+/// # Errors
+///
+/// Returns [`Error::InvalidAmount`] when `amount` is negative.
 pub fn validate_amount(amount: i128) -> Result<(), Error> {
     if amount < 0 {
         Err(Error::InvalidAmount)

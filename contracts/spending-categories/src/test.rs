@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::{Contract, ContractClient, Error};
+    use crate::{storage, Contract, ContractClient, Error};
     use soroban_sdk::{
         testutils::{Address as _, Ledger},
         Address, Env, Symbol,
@@ -179,6 +179,94 @@ mod tests {
         assert_eq!(
             client.try_initialize(&admin),
             Err(Ok(Error::AlreadyInitialized))
+        );
+    }
+
+    // ── initialize persistence ────────────────────────────────────────────
+    //
+    // This crate has no `get_value`: the admin is the only thing initialize
+    // writes. The ticket's "assert get_value returns 0" has no direct
+    // counterpart here, so these tests assert the observable equivalent —
+    // that initialize persists the admin, and that the admin it stored is
+    // the one the admin-gated entrypoints actually honour.
+
+    #[test]
+    fn initialize_persists_the_admin_and_leaves_categorization_empty() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let contract_id = env.register(Contract, ());
+        let client = ContractClient::new(&env, &contract_id);
+
+        // Nothing is stored before initialize.
+        assert_eq!(storage::read_admin(&env), None);
+
+        client.initialize(&admin);
+
+        assert_eq!(storage::read_admin(&env), Some(admin.clone()));
+
+        // initialize must not seed any categorization, so an arbitrary
+        // transaction is still uncategorized and its totals are zero.
+        assert_eq!(client.get_category(&1), None);
+        assert_eq!(
+            client.get_category_total(
+                &admin,
+                &groceries(&env),
+                &daily(&env)
+            ),
+            0
+        );
+    }
+
+    #[test]
+    fn initialize_requires_the_admin_to_authorize() {
+        let env = Env::default();
+        // Deliberately do NOT mock_all_auths — nothing has authorized anything.
+        let admin = Address::generate(&env);
+        let contract_id = env.register(Contract, ());
+        let client = ContractClient::new(&env, &contract_id);
+
+        assert!(client.try_initialize(&admin).is_err());
+        assert_eq!(storage::read_admin(&env), None);
+    }
+
+    #[test]
+    fn rejected_reinitialize_does_not_hand_admin_over() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let other = Address::generate(&env);
+        let contract_id = env.register(Contract, ());
+        let client = ContractClient::new(&env, &contract_id);
+        client.initialize(&admin);
+
+        assert_eq!(
+            client.try_initialize(&other),
+            Err(Ok(Error::AlreadyInitialized))
+        );
+        assert_eq!(storage::read_admin(&env), Some(admin));
+    }
+
+    #[test]
+    fn the_stored_admin_is_the_one_honoured_by_admin_gated_calls() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let contract_id = env.register(Contract, ());
+        let client = ContractClient::new(&env, &contract_id);
+        client.initialize(&admin);
+
+        // `set_allowed_categories` re-reads the admin from storage, so a
+        // successful call proves the address initialize stored is the one
+        // the rest of the contract treats as administrator.
+        client.set_allowed_categories(&admin, &soroban_sdk::Vec::new(&env));
+        assert!(client.get_allowed_categories().is_empty());
+
+        // A different address is refused by the same gate.
+        let impostor = Address::generate(&env);
+        assert_eq!(
+            client.try_set_allowed_categories(&impostor, &soroban_sdk::Vec::new(&env)),
+            Err(Ok(Error::NotAdmin))
         );
     }
 }

@@ -29,6 +29,27 @@ pub enum Error {
     BudgetNotFound = 6,
 }
 
+/// Maximum budget amount, in unsigned atomic units, accepted by the
+/// unsigned-unit validators in [`validation`].
+pub const MAX_BUDGET_LIMIT: u64 = 1_000_000_000_000_000_000;
+
+/// Errors returned by the standalone budget validators in [`validation`].
+///
+/// These complement [`Error`], which is returned by the contract
+/// entrypoints themselves.
+#[contracterror]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BudgetError {
+    /// The amount must be strictly greater than zero.
+    InvalidAmount = 1,
+    /// The amount exceeds `MAX_BUDGET_LIMIT`.
+    ExceedsLimit = 2,
+    /// The end timestamp must be strictly after the start timestamp.
+    InvalidTimeRange = 3,
+    /// The caller is not the designated administrator.
+    Unauthorized = 4,
+}
+
 /// Budget contract entrypoint.
 #[contract]
 pub struct Contract;
@@ -49,6 +70,33 @@ impl Contract {
             },
         );
         Ok(())
+    }
+
+    /// Updates the admin-configured value.
+    ///
+    /// # Errors
+    /// Returns [`Error::InvalidAmount`] if `value` is negative.
+    /// Returns [`Error::NotInitialized`] if the contract has not been initialized.
+    /// Returns [`Error::Unauthorized`] if `admin` is not the administrator.
+    pub fn set_value(env: Env, admin: Address, value: i128) -> Result<(), Error> {
+        admin.require_auth();
+        if value < 0 {
+            return Err(Error::InvalidAmount);
+        }
+        let config = storage::read_config(&env).ok_or(Error::NotInitialized)?;
+        if config.admin != admin {
+            return Err(Error::Unauthorized);
+        }
+        env.storage().instance().set(&types::DataKey::Value, &value);
+        Ok(())
+    }
+
+    /// Returns the admin-configured value, or `0` if it has never been set.
+    pub fn get_value(env: Env) -> i128 {
+        env.storage()
+            .instance()
+            .get(&types::DataKey::Value)
+            .unwrap_or(0)
     }
 
     /// Creates a new budget for `user` and returns its id.

@@ -1,60 +1,106 @@
-#[cfg(test)]
-mod tests {
-    use soroban_sdk::testutils::{Address as _, Ledger};
-    use soroban_sdk::Env;
-
-    #[test]
-    fn happy_path_environment() {
-        let env = Env::default();
-        env.ledger().set_sequence_number(1);
-        assert_eq!(env.ledger().sequence(), 1);
-    }
-    #[test]
-    fn unauthorized_boundary_placeholder() {
-        let env = Env::default();
-        env.mock_all_auths();
-        assert!(env.ledger().timestamp() >= 0);
-    }
-    #[test]
-    fn address_generation() {
-        let env = Env::default();
-        let _ = soroban_sdk::Address::generate(&env);
-    }
-    #[test]
-    fn zero_boundary() {
-        assert_eq!(0_i128.checked_add(0), Some(0));
-    }
-    #[test]
-    fn overflow_boundary() {
-        assert_eq!(i128::MAX.checked_add(1), None);
-    }
-}
 
 #![cfg(test)]
 
 use super::*;
-use soroban_sdk::{Env, Address};
+use soroban_sdk::{testutils::Address as _, Address, Env};
 
-#[test]
-fn test_currency_conversion() {
+fn setup() -> (
+    Env,
+    Address,
+    CurrencyConversionContractClient<'static>,
+) {
     let env = Env::default();
     env.mock_all_auths();
 
-    // Register contract
     let contract_id = env.register(CurrencyConversionContract, ());
     let client = CurrencyConversionContractClient::new(&env, &contract_id);
-
-    // Setup admin & mock oracle price feeds or conversion rates if applicable
     let admin = Address::generate(&env);
+
     client.initialize(&admin);
 
-    // Test conversion from source currency unit to target currency unit
-    // Example: converting 1000 base units (e.g., USD cents or token base units) at configured rate
-    let source_amount: i128 = 1000;
-    let rate: i128 = 150; // 1.50 exchange rate factor or equivalent multiplier
+    (env, admin, client)
+}
+
+#[test]
+fn converts_amount_using_exchange_rate() {
+    let (_env, _admin, client) = setup();
+
+    let source_amount: i128 = 1_000;
+    let rate: i128 = 150;
 
     let converted_amount = client.convert(&source_amount, &rate);
 
-    // Assert expected converted amount
-    assert_eq!(converted_amount, 1500);
+    assert_eq!(converted_amount, 1_500);
+}
+
+#[test]
+fn converts_small_amount() {
+    let (_env, _admin, client) = setup();
+
+    let source_amount: i128 = 10;
+    let rate: i128 = 150;
+
+    let converted_amount = client.convert(&source_amount, &rate);
+
+    assert_eq!(converted_amount, 15);
+}
+
+#[test]
+fn handles_zero_source_amount() {
+    let (_env, _admin, client) = setup();
+
+    let source_amount: i128 = 0;
+    let rate: i128 = 150;
+
+    let converted_amount = client.convert(&source_amount, &rate);
+
+    assert_eq!(converted_amount, 0);
+}
+
+#[test]
+fn handles_zero_rate() {
+    let (_env, _admin, client) = setup();
+
+    let source_amount: i128 = 1_000;
+    let rate: i128 = 0;
+
+    let converted_amount = client.convert(&source_amount, &rate);
+
+    assert_eq!(converted_amount, 0);
+}
+
+#[test]
+fn conversion_matches_expected_result_for_multiple_amounts() {
+    let (_env, _admin, client) = setup();
+
+    let test_cases: [(i128, i128, i128); 4] = [
+        (100, 150, 150),
+        (200, 150, 300),
+        (500, 200, 1_000),
+        (1_000, 250, 2_500),
+    ];
+
+    for (amount, rate, expected) in test_cases {
+        assert_eq!(
+            client.convert(&amount, &rate),
+            expected,
+            "Unexpected conversion for amount={amount}, rate={rate}"
+        );
+    }
+}
+
+#[test]
+fn address_generation_produces_distinct_addresses() {
+    let env = Env::default();
+
+    let first = Address::generate(&env);
+    let second = Address::generate(&env);
+
+    assert_ne!(first, second);
+}
+
+#[test]
+fn checked_arithmetic_detects_overflow() {
+    assert_eq!(i128::MAX.checked_mul(2), None);
+    assert_eq!(i128::MAX.checked_add(1), None);
 }

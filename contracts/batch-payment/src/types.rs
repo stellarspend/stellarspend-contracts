@@ -1,4 +1,3 @@
-rust
 use soroban_sdk::contracttype;
 
 /// Stores the configuration for the StellarSpend batch-payment contract.

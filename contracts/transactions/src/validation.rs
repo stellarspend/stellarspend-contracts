@@ -11,6 +11,15 @@ pub enum Error {
 }
 
 /// Validates a financial amount.
+///
+/// # Arguments
+
+/// * `amount` - The amount to validate.
+///
+/// # Returns
+
+/// * `Ok(())` if the amount is non-negative.
+/// * `Err(Error::InvalidAmount)` if the amount is negative.
 pub fn validate_amount(amount: i128) -> Result<(), Error> {
     if amount < 0 {
         Err(Error::InvalidAmount)

@@ -90,6 +90,15 @@ impl From<OracleError> for soroban_sdk::Error {
 }
 
 /// Helper function to convert a price to a human-readable string
+///
+/// Formats the fixed-point `value` (7 decimals) as a decimal string such as
+/// `"1.5000000"`.
+///
+/// # Arguments
+/// * `price` - The price to format
+///
+/// # Returns
+/// * `String` - The human-readable representation of the price value
 pub fn format_price(price: &Price) -> String {
     let value = price.value;
     let integer = value / 10_000_000;

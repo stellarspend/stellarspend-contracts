@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::{Contract, ContractClient, Error};
+    use crate::{storage, Contract, ContractClient, Error};
     use soroban_sdk::{testutils::Address as _, Address, Bytes, Env, String as SdkString, Symbol};
 
     // ── Constants ────────────────────────────────────────────────────────────
@@ -423,5 +423,112 @@ mod tests {
             _rules_client.get_spending_categories_address(),
             Some(categories_client.address.clone())
         );
+    }
+
+    // ── initialize persistence ────────────────────────────────────────────
+    //
+    // This crate has no `get_value`: initialize writes the admin plus the
+    // three dependency addresses it composes over. The ticket's "assert
+    // get_value returns 0" has no direct counterpart here, so these tests
+    // assert the observable equivalent — that initialize persists the admin
+    // and each dependency address, and that it seeds no rules.
+
+    #[test]
+    fn initialize_persists_the_admin_and_all_three_dependency_addresses() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let limits_id = env.register(spending_limits::Contract, ());
+        let categories_id = env.register(spending_categories::Contract, ());
+        let zk_id = env.register(zk_verifier::ZkVerifierContract, ());
+        let rules_id = env.register(Contract, ());
+        let client = ContractClient::new(&env, &rules_id);
+
+        // Nothing is stored before initialize.
+        assert_eq!(storage::read_config(&env), None);
+        assert_eq!(client.get_spending_limits_address(), None);
+        assert_eq!(client.get_spending_categories_address(), None);
+        assert_eq!(client.get_zk_verifier_address(), None);
+
+        // The contractimpl client unwraps Result, so a success is just `()`.
+        assert_eq!(client.initialize(&admin, &limits_id, &categories_id, &zk_id), ());
+
+        let config = storage::read_config(&env).expect("initialize must persist a config");
+        assert_eq!(config.admin, admin);
+        assert_eq!(client.get_spending_limits_address(), Some(limits_id));
+        assert_eq!(client.get_spending_categories_address(), Some(categories_id));
+        assert_eq!(client.get_zk_verifier_address(), Some(zk_id));
+    }
+
+    #[test]
+    fn initialize_seeds_no_rules() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let user = Address::generate(&env);
+        let limits_id = env.register(spending_limits::Contract, ());
+        let categories_id = env.register(spending_categories::Contract, ());
+        let zk_id = env.register(zk_verifier::ZkVerifierContract, ());
+        let rules_id = env.register(Contract, ());
+        let client = ContractClient::new(&env, &rules_id);
+        client.initialize(&admin, &limits_id, &categories_id, &zk_id);
+
+        // A fresh user has no rule, so evaluation fails closed with
+        // RuleNotFound rather than falling back to a default cap.
+        assert_eq!(client.get_rule(&user, &groceries(&env)), None);
+        assert_eq!(
+            client.try_evaluate(&user, &groceries(&env), &1, &None),
+            Err(Ok(Error::RuleNotFound))
+        );
+    }
+
+    #[test]
+    fn initialize_requires_the_admin_to_authorize() {
+        let env = Env::default();
+        // Deliberately do NOT mock_all_auths — nothing has authorized anything.
+        let admin = Address::generate(&env);
+        let limits_id = env.register(spending_limits::Contract, ());
+        let categories_id = env.register(spending_categories::Contract, ());
+        let zk_id = env.register(zk_verifier::ZkVerifierContract, ());
+        let rules_id = env.register(Contract, ());
+        let client = ContractClient::new(&env, &rules_id);
+
+        assert!(client
+            .try_initialize(&admin, &limits_id, &categories_id, &zk_id)
+            .is_err());
+        assert_eq!(storage::read_config(&env), None);
+        assert_eq!(client.get_spending_limits_address(), None);
+    }
+
+    #[test]
+    fn rejected_reinitialize_does_not_overwrite_config_or_addresses() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let other = Address::generate(&env);
+        let limits_id = env.register(spending_limits::Contract, ());
+        let categories_id = env.register(spending_categories::Contract, ());
+        let zk_id = env.register(zk_verifier::ZkVerifierContract, ());
+        let rules_id = env.register(Contract, ());
+        let client = ContractClient::new(&env, &rules_id);
+        client.initialize(&admin, &limits_id, &categories_id, &zk_id);
+
+        // Point a second initialize at entirely different dependencies.
+        let other_limits = env.register(spending_limits::Contract, ());
+        let other_categories = env.register(spending_categories::Contract, ());
+        let other_zk = env.register(zk_verifier::ZkVerifierContract, ());
+
+        assert_eq!(
+            client.try_initialize(&other, &other_limits, &other_categories, &other_zk),
+            Err(Ok(Error::AlreadyInitialized))
+        );
+
+        // A rejected re-initialize must not hand over the admin or repoint
+        // the contract at the second set of dependencies.
+        let config = storage::read_config(&env).expect("config must still be present");
+        assert_eq!(config.admin, admin);
+        assert_eq!(client.get_spending_limits_address(), Some(limits_id));
+        assert_eq!(client.get_spending_categories_address(), Some(categories_id));
+        assert_eq!(client.get_zk_verifier_address(), Some(zk_id));
     }
 }

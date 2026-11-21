@@ -9,3 +9,8 @@ pub struct Config {
     /// Current configured value.
     pub value: i128,
 }
+    /// Contract administrator.
+    pub admin: soroban_sdk::Address,
+    /// Current configured value.
+    pub value: i128,
+}
